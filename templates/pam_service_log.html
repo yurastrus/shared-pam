@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Журнал обслуговування PAM') }}{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    body { background-color: #f4f4f4; }
+    .page-layout { display: grid; grid-template-columns: 40% 60%; gap: 20px; height: calc(100vh - 150px); }
+    .map-panel { display: flex; flex-direction: column; background: #fff; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    #map { height: 100%; border-radius: 4px; border: 1px solid #ddd; }
+    .details-panel { display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+    .form-container, .history-container { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .select2-container { width: 100% !important; }
+    .history-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+    .history-item:last-child { border-bottom: none; }
+    .history-meta { font-size: 0.9em; color: #666; }
+    .leaflet-marker-icon.marker-inactive { opacity: 0.5 !important; filter: grayscale(100%); }
+    @media (max-width: 992px) {
+        .page-layout { grid-template-columns: 1fr; height: auto; }
+        .map-panel { height: 50vh; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="page-header d-flex justify-content-between align-items-center">
+        <h1>{{ _('Журнал обслуговування PAM') }}</h1>
+        <a href="{{ url_for('pam.pam_home', lang_code=g.lang_code) }}" class="btn btn-outline-secondary">{{ _('На головну PAM') }}</a>
+    </div>
+
+    <div class="page-layout">
+        <div class="map-panel"><div id="map"></div></div>
+        <div class="details-panel">
+            <div class="form-container">
+                <h4 id="form-title">{{ _('Додати новий запис') }}</h4>
+                <div id="form-placeholder" class="text-muted">{{ _('Виберіть локацію на карті, щоб почати.') }}</div>
+                
+                <form id="service-log-form" style="display: none;">
+                    <input type="hidden" id="location-id">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="visit-datetime" class="form-label">{{ _('Дата та час візиту') }}</label>
+                            <input type="datetime-local" class="form-control" id="visit-datetime" required>
+                        </div>
+                        <!-- *** НОВЕ ПОЛЕ: Мета візиту *** -->
+                        <div class="col-md-6 mb-3">
+                            <label for="visit-purpose" class="form-label">{{ _('Результат візиту') }}</label>
+                            <select id="visit-purpose" class="form-control" required>
+                                <option value="">{{ _('-- Виберіть --') }}</option>
+                                {% for p in visit_purposes %}
+                                    <option value="{{ p.id }}">{{ p.name_ua if g.lang_code == 'uk' else p.name_en }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                         <div class="col-md-6 mb-3">
+                            <label for="battery-type" class="form-label">{{ _('Заміна елементів живлення') }}</label>
+                            <select id="battery-type" class="form-control">
+                                <option value="">{{ _('-- Без заміни --') }}</option>
+                                {% for b in battery_types %}
+                                    <option value="{{ b.id }}">{{ b.name_ua if g.lang_code == 'uk' else b.name_en }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="sd-card-status" class="form-label">{{ _('Статус SD-карти') }}</label>
+                            <select id="sd-card-status" class="form-control" required>
+                                <option value="">{{ _('-- Виберіть --') }}</option>
+                                {% for s in sd_card_statuses %}
+                                    <option value="{{ s.id }}">{{ s.name_ua if g.lang_code == 'uk' else s.name_en }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row align-items-center">
+                        <div class="col-md-6 mb-3">
+                             <label for="recording-hours" class="form-label">{{ _('Годин запису на добу') }}</label>
+                            <input type="number" class="form-control" id="recording-hours" min="1" max="24" required placeholder="напр. 6">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ _('Стан приладу') }}</label>
+                            <div class="form-control-plaintext">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="is-operational" id="op-yes" value="true">
+                                    <label class="form-check-label" for="op-yes">{{ _('Працював') }}</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="is-operational" id="op-no" value="false">
+                                    <label class="form-check-label" for="op-no">{{ _('Не працював') }}</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="radio" name="is-operational" id="op-unknown" value="" checked>
+                                    <label class="form-check-label" for="op-unknown">{{ _('Невідомо') }}</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="comments" class="form-label">{{ _('Коментарі') }}</label>
+                        <textarea class="form-control" id="comments" rows="2"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">{{ _('Зберегти запис') }}</button>
+                </form>
+            </div>
+
+            <div class="history-container">
+                <h4>{{ _('Історія обслуговування') }}</h4>
+                <div id="history-placeholder" class="text-muted">{{ _('Немає даних для відображення.') }}</div>
+                <div id="history-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    // *** ОНОВЛЕНО: Додано новий селектор ***
+    $('#sd-card-status, #battery-type, #visit-purpose').select2({ theme: 'bootstrap-5' });
+    const form = $('#service-log-form');
+    const formPlaceholder = $('#form-placeholder');
+    const historyContent = $('#history-content');
+    const historyPlaceholder = $('#history-placeholder');
+    let map, markers = {};
+    let activeLocationId = null;
+
+    function createIcon(color, customClassName = '') { 
+        return L.icon({
+            iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-${color}.png`,
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41],
+            className: customClassName
+        });
+    }
+    const icons = {
+        ok: createIcon('green'),
+        warning: createIcon('yellow'),
+        critical: createIcon('red'),
+        unknown: createIcon('grey'),
+        inactive: createIcon('grey', 'marker-inactive'),
+        selected: createIcon('violet')
+    };
+
+    function initMap() {
+        const GEOSERVER_BASE_URL = "{{ geoserver_url }}";
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+        map = L.map('map').setView([49.9, 23.7], 11);
+        osmLayer.addTo(map);
+        loadLocations();
+    }
+    initMap();
+
+    function loadLocations() {
+        fetch(`/{{ g.lang_code }}/api/pam/locations-with-status`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    console.error("Server Error:", data.error);
+                    return;
+                }
+                Object.values(markers).forEach(marker => map.removeLayer(marker));
+                markers = {};
+
+                const markersGroup = L.featureGroup();
+                data.forEach(loc => {
+                    const statusIcon = icons[loc.status] || icons.unknown;
+                    const marker = L.marker([loc.latitude, loc.longitude], { icon: statusIcon });
+                    
+                    let popupContent = `<b>${loc.name}</b><hr class="my-1">`;
+                    popupContent += `{{ _('Останній візит:') }} ${loc.last_visit_date}<br>`;
+                    
+                    if (loc.days_since_visit !== null) {
+                        popupContent += `{{ _('Днів після візиту:') }} ${loc.days_since_visit}<br>`;
+                    }
+                    if (loc.battery_days_left !== null) {
+                        popupContent += `{{ _('Прогноз АКБ:') }} <b>~${loc.battery_days_left} {{_('дн.')}}</b><br>`;
+                    }
+                    if (loc.sd_card_days_left !== null) {
+                        popupContent += `{{ _('Прогноз SD:') }} <b>~${loc.sd_card_days_left} {{_('дн.')}}</b><br>`;
+                    }
+                    popupContent += `<small class="text-muted">${loc.status_reason}</small>`;
+
+                    marker.bindPopup(popupContent);
+                    marker.locationId = loc.id;
+                    marker.originalStatus = loc.status;
+                    marker.on('click', () => selectLocation(loc.id));
+                    markers[loc.id] = marker;
+                    markersGroup.addLayer(marker);
+                });
+                markersGroup.addTo(map);
+                if (markersGroup.getBounds().isValid()) {
+                    map.fitBounds(markersGroup.getBounds().pad(0.1));
+                }
+            });
+    }
+    
+    function selectLocation(locationId) {
+        if (activeLocationId) {
+            const prevMarker = markers[activeLocationId];
+            prevMarker.setIcon(icons[prevMarker.originalStatus] || icons.unknown);
+        }
+        activeLocationId = locationId;
+        const currentMarker = markers[locationId];
+        currentMarker.setIcon(icons.selected);
+        map.panTo(currentMarker.getLatLng());
+        const locationName = currentMarker.getPopup().getContent().split('<hr')[0];
+        $('#form-title').html(`{{ _('Новий запис для:') }} ${locationName}`);
+        $('#location-id').val(locationId);
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        $('#visit-datetime').val(now.toISOString().slice(0, 16));
+        formPlaceholder.hide();
+        form.show();
+        loadHistory(locationId);
+    }
+    
+    function loadHistory(locationId) {
+        historyContent.html('<div class="text-center">{{ _("Завантаження...") }}</div>');
+        historyPlaceholder.hide();
+        fetch(`/{{ g.lang_code }}/api/pam/location/${locationId}/service-history`)
+            .then(res => res.json())
+            .then(data => {
+                historyContent.empty();
+                if (data.length === 0) {
+                    historyPlaceholder.show(); return;
+                }
+                data.forEach(v => {
+                    let operationalStatus = v.is_operational === true 
+                        ? '<span class="badge bg-success">{{ _("Так") }}</span>'
+                        : v.is_operational === false
+                        ? '<span class="badge bg-danger">{{ _("Ні") }}</span>'
+                        : '<span class="badge bg-secondary">{{ _("Невідомо") }}</span>';
+                    
+                    // *** ОНОВЛЕНО: Відображення мети візиту ***
+                    const item = `
+                        <div class="history-item">
+                            <div class="d-flex justify-content-between">
+                                <strong>${v.purpose}</strong>
+                                <span class="history-meta">${v.visit_datetime} (${v.user})</span>
+                            </div>
+                            <div>
+                                {{ _('Стан приладу:') }} ${operationalStatus} |
+                                {{ _('Батарейки:') }} ${v.battery_info} |
+                                {{ _('SD-карта:') }} ${v.sd_card_info}
+                            </div>
+                            ${v.comments ? `<p class="mt-1 mb-0 fst-italic">"${v.comments}"</p>` : ''}
+                        </div>
+                    `;
+                    historyContent.append(item);
+                });
+            })
+            .catch(err => {
+                historyContent.html(`<div class="alert alert-danger">{{ _('Помилка завантаження історії.') }}</div>`);
+            });
+    }
+
+    form.on('submit', function(e) {
+        e.preventDefault();
+        const submitButton = $(this).find('button[type="submit"]');
+        const originalButtonText = submitButton.html();
+        submitButton.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> {{ _("Збереження...") }}');
+        
+        // *** ОНОВЛЕНО: Додано нове поле до відправки ***
+        const formData = {
+            location_id: $('#location-id').val(),
+            visit_datetime: $('#visit-datetime').val(),
+            visit_purpose_id: $('#visit-purpose').val(),
+            sd_card_status_id: $('#sd-card-status').val(),
+            battery_type_id: $('#battery-type').val(),
+            recording_hours_per_day: $('#recording-hours').val(),
+            is_camera_operational: $('input[name="is-operational"]:checked').val(),
+            comments: $('#comments').val()
+        };
+
+        fetch(`/{{ g.lang_code }}/api/pam/service-log/create`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json().then(data => ({ok: response.ok, data})))
+        .then(({ok, data}) => {
+            if (ok) {
+                alert(data.message);
+                
+                // *** ОНОВЛЕНО: Очищення нового поля ***
+                $('#visit-purpose').val('').trigger('change');
+                $('#sd-card-status').val('').trigger('change');
+                $('#battery-type').val('').trigger('change');
+                $('#recording-hours').val('');
+                $('input[name="is-operational"][value=""]').prop('checked', true);
+                $('#comments').val('');
+
+                loadHistory(formData.location_id);
+                loadLocations(); // Просто перезавантажуємо всі локації
+            } else {
+                throw new Error(data.error || '{{ _("Невідома помилка") }}');
+            }
+        })
+        .catch(error => { alert(`{{ _('Помилка збереження:') }} ${error.message}`); })
+        .finally(() => { submitButton.prop('disabled', false).html(originalButtonText); });
+    });
+});
+</script>
+{% endblock %}

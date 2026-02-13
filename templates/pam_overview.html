@@ -1,0 +1,640 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Загальний огляд') }} - {{ _('Акустичний моніторинг') }}{% endblock %}
+
+{% block head_extra %}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <style>
+        .overview-wrapper {
+            width: 100%;
+            text-align: left;
+        }
+        
+        .overview-wrapper .page-header {
+            text-align: center;
+        }
+        
+        .filters-panel {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 15px 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+
+        .filters-panel .filter-group.span-2 {
+            grid-column: span 2;
+        }
+
+        .filters-panel .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filters-panel .filter-group.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .filters-panel label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .filters-panel .form-control, 
+        .filters-panel .form-control-range,
+        .filters-panel .select2-container {
+            width: 100%;
+        }
+
+        .filters-panel .select2-container .select2-selection--single { 
+            height: 38px; 
+            border: 1px solid #ced4da; 
+        }
+
+        .filters-panel .select2-container .select2-selection--multiple { 
+            min-height: 38px; 
+            border: 1px solid #ced4da; 
+            padding: 2px; 
+        }
+
+        .filters-panel .action-group {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding-top: 10px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 24px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            vertical-align: middle;
+            font-size: 14px;
+            line-height: 1.5;
+            color: white !important;
+            text-align: center;
+            text-decoration: none;
+            background-color: #0779e4;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+            flex: 0 1 auto;
+        }
+
+        .btn:hover {
+            background-color: #0056b3;
+            color: white !important;
+            text-decoration: none;
+        }
+        
+        .overview-layout {
+            display: flex;
+            gap: 25px;
+            margin-top: 20px;
+        }
+        
+        .overview-sidebar {
+            flex: 0 0 350px;
+            min-width: 350px;
+        }
+        
+        .overview-main {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .overview-section {
+            background-color: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .section-title {
+            color: #0779e4;
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #0779e4;
+            padding-bottom: 5px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .summary-card {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .summary-card h5 {
+            margin: 0 0 10px 0;
+            color: #666;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #0779e4;
+            margin: 0;
+        }
+        
+        #locationsMap {
+            height: 300px;
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+        
+        .ranking-table-container {
+            background-color: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        
+        .ranking-table th, .ranking-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .ranking-table th {
+            background-color: #0779e4;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .ranking-table tr:hover {
+            background-color: #f1f1f1;
+            cursor: pointer;
+        }
+        
+        .ranking-table td:first-child {
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .ranking-table td:last-child {
+            text-align: right;
+            font-weight: bold;
+            color: #0779e4;
+        }
+        
+        .species-link {
+            color: #0779e4;
+            text-decoration: none;
+        }
+        
+        .species-link:hover {
+            text-decoration: underline;
+        }
+        
+        .spinner-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+        }
+        
+        .overview-message {
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .overview-message.info { 
+            background-color: #e7f3fe; 
+            border: 1px solid #d0e7ff; 
+        }
+        
+        .overview-message.error { 
+            background-color: #f8d7da; 
+            border: 1px solid #f5c6cb; 
+        }
+        
+        @media (max-width: 1200px) {
+            .filters-panel {
+                 grid-template-columns: 1fr;
+            }
+        }
+        @media (max-width: 768px) {
+            .overview-layout {
+                flex-direction: column;
+            }
+            .overview-sidebar {
+                flex: none;
+                min-width: auto;
+            }
+            .ranking-table {
+                font-size: 14px;
+            }
+            .ranking-table th, .ranking-table td {
+                padding: 8px;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="overview-wrapper">
+        <h1 class="page-header" style="margin-bottom: 20px;">{{ _('Рейтингова таблиця видів за кількістю акустичних детекцій') }}</h1>
+        
+        <form id="overview-filters-form" class="filters-panel">
+            <!-- Рядок 1: Дати (на всю ширину, по центру) -->
+            <div class="filter-group full-width" style="max-width: 50%; margin: 0 auto; min-width: 300px;">
+                <label style="text-align: center;">{{ _('Діапазон дат:') }}</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="date" id="start-date-select" class="form-control">
+                    <input type="date" id="end-date-select" class="form-control">
+                </div>
+            </div>
+            <!-- Рядок 2: Таксономія -->
+            <div class="filter-group">
+                <label for="class-select">{{ _('Клас:') }}</label>
+                <select id="class-select" class="form-control tax-filter"></select>
+            </div>
+            <div class="filter-group">
+                <label for="order-select">{{ _('Ряд:') }}</label>
+                <select id="order-select" class="form-control tax-filter"></select>
+            </div>
+            <div class="filter-group">
+                <label for="family-select">{{ _('Родина:') }}</label>
+                <select id="family-select" class="form-control tax-filter"></select>
+            </div>
+            <div class="filter-group">
+                <label for="genus-select">{{ _('Рід:') }}</label>
+                <select id="genus-select" class="form-control tax-filter"></select>
+            </div>
+            <!-- Рядок 3: Біотопи та Локації -->
+            <div class="filter-group">
+                <label for="biotopes-select">{{ _('Біотопи:') }}</label>
+                <select id="biotopes-select" class="form-control" multiple></select>
+            </div>
+            <div class="filter-group">
+                <label for="locations-select">{{ _('Локації:') }}</label>
+                <select id="locations-select" class="form-control" multiple></select>
+            </div>
+            
+            <!-- Рядок 4: Повзунки -->
+            <div class="filter-group">
+                <label for="confidence-slider">{{ _('Впевненість:') }} <span id="confidence-value">0.95</span></label>
+                <input type="range" class="form-control-range" id="confidence-slider" min="0.7" max="1" step="0.01" value="0.95">
+            </div>
+            <div class="filter-group">
+                <label for="min-detections-slider">{{ _('Мін. детекцій:') }} <span id="min-detections-value">5</span></label>
+                <input type="range" class="form-control-range" id="min-detections-slider" min="1" max="100" step="1" value="5">
+            </div>
+            
+            <div class="filter-group full-width action-group" style="flex-direction: row; justify-content: center; gap: 15px;">
+                <button type="button" id="apply-filters-btn" class="btn">{{ _('Згенерувати таблицю') }}</button>
+                <a href="{{ url_for('pam.pam_detailed', lang_code=g.lang_code) }}" class="btn">
+                    {{ _('Детальний аналіз по видах') }}
+                </a>
+                <a href="{{ url_for('pam.pam_species_dashboard', lang_code=g.lang_code) }}" class="btn">
+                    {{ _('Аналіз багаторічних трендів') }}
+                </a>
+            </div>
+
+
+        </form>
+
+        <div class="overview-layout">
+            <!-- Ліва колонка - статистика та карта -->
+            <div class="overview-sidebar">
+                <div class="overview-section">
+                    <h2 class="section-title">{{ _('Загальна статистика') }}</h2>
+                    <div id="stats-content">
+                        <div class="overview-message info">
+                            <i>{{ _('Налаштуйте фільтри та натисніть "Згенерувати таблицю" для відображення статистики.') }}</i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="overview-section">
+                    <h2 class="section-title">{{ _('Карта локацій') }}</h2>
+                    <div id="map-content">
+                        <div class="overview-message info">
+                            <i>{{ _('Карта буде відображена після застосування фільтрів.') }}</i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Права колонка - рейтингова таблиця -->
+            <div class="overview-main">
+                <div class="ranking-table-container">
+                    <h3 style="margin: 0 0 10px 0;">{{ _('Рейтинг видів за кількістю детекцій') }}</h3>
+                    <div id="ranking-content">
+                        <div class="overview-message info">
+                            <i>{{ _('Налаштуйте фільтри та натисніть "Згенерувати таблицю" для відображення рейтингу видів.') }}</i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    
+    <script>
+        $(document).ready(function() {
+            // --- Ініціалізація змінних ---
+            const startDateInput = $('#start-date-select');
+            const endDateInput = $('#end-date-select');
+            const confidenceSlider = $('#confidence-slider');
+            const confidenceValueSpan = $('#confidence-value');
+            const minDetectionsSlider = $('#min-detections-slider');
+            const minDetectionsValueSpan = $('#min-detections-value');
+            const applyButton = $('#apply-filters-btn');
+
+            const classSelect = $('#class-select');
+            const orderSelect = $('#order-select');
+            const familySelect = $('#family-select');
+            const genusSelect = $('#genus-select');
+            const taxFilters = $('.tax-filter'); 
+            
+            const biotopesSelect = $('#biotopes-select');
+            const locationsSelect = $('#locations-select');
+
+            const rankingContent = $('#ranking-content');
+            const statsContent = $('#stats-content');
+            const mapContent = $('#map-content');
+
+            let map = null;
+
+            // --- Ініціалізація сторінки ---
+            (function setupInitialValues() {
+                confidenceValueSpan.text(parseFloat(confidenceSlider.val()).toFixed(2));
+                minDetectionsValueSpan.text(minDetectionsSlider.val());
+                // Встановлюємо дати
+                const today = new Date();
+                const yearAgo = new Date();
+                yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+                
+                startDateInput.val(yearAgo.toISOString().split('T')[0]);
+                endDateInput.val(today.toISOString().split('T')[0]);
+
+                classSelect.select2({ placeholder: '{{ _("-- Всі класи --") }}', allowClear: true, width: '100%' });
+                orderSelect.select2({ placeholder: '{{ _("-- Всі ряди --") }}', allowClear: true, width: '100%' });
+                familySelect.select2({ placeholder: '{{ _("-- Всі родини --") }}', allowClear: true, width: '100%' });
+                genusSelect.select2({ placeholder: '{{ _("-- Всі роди --") }}', allowClear: true, width: '100%' });
+
+                // Ініціалізація Select2 для нових фільтрів
+                biotopesSelect.select2({
+                    placeholder: '{{ _("-- Всі біотопи --") }}',
+                    allowClear: true,
+                    width: '100%'
+                });
+                locationsSelect.select2({
+                    placeholder: '{{ _("-- Всі локації --") }}',
+                    allowClear: true,
+                    width: '100%'
+                });
+
+                // Первинне завантаження даних для фільтрів
+                updateDynamicFilters();
+            })();
+
+            // --- Обробники подій ---
+            applyButton.on('click', updateAllContent);
+            confidenceSlider.on('input', () => confidenceValueSpan.text(parseFloat(confidenceSlider.val()).toFixed(2)));
+            minDetectionsSlider.on('input', () => minDetectionsValueSpan.text(minDetectionsSlider.val()));
+            taxFilters.on('change', function() {
+                // При зміні будь-якого таксономічного рівня, оновлюємо доступні варіанти для інших
+                updateDynamicFilters();
+            });
+
+
+            // Оновлюємо фільтри при зміні дати
+            startDateInput.on('change', updateDynamicFilters);
+            endDateInput.on('change', updateDynamicFilters);
+
+            // --- Функції ---
+            function updateDynamicFilters() {
+                const startDate = startDateInput.val();
+                const endDate = endDateInput.val();
+                if (!startDate || !endDate) return;
+
+                // Збираємо поточні значення, щоб не скидати їх при оновленні списків
+                const currentValues = {
+                    class: classSelect.val(),
+                    order: orderSelect.val(),
+                    family: familySelect.val(),
+                    genus: genusSelect.val(),
+                    locations: locationsSelect.val(),
+                    biotopes: biotopesSelect.val()
+                };
+
+                // Формуємо параметри для API (використовуємо роки з дат)
+                const params = new URLSearchParams({
+                    start_year: new Date(startDate).getFullYear(),
+                    end_year: new Date(endDate).getFullYear(),
+                    locations: (currentValues.locations || []).join(','),
+                    biotopes: (currentValues.biotopes || []).join(','),
+                    class: currentValues.class || '',
+                    order: currentValues.order || '',
+                    family: currentValues.family || '',
+                    genus: currentValues.genus || ''
+                });
+
+                fetch(`/{{ g.lang_code }}/api/pam/get-trends-filters?${params.toString()}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // Допоміжна функція для оновлення селекту
+                    const refreshSelect = (el, items, placeholder, currentVal) => {
+                        // 1. Створюємо масив з порожнім елементом на початку для placeholder
+                        const formattedData = [{ id: '', text: '' }]; 
+                        
+                        // 2. Додаємо дані з бази
+                        items.forEach(item => {
+                            formattedData.push(typeof item === 'object' ? item : { id: item, text: item });
+                        });
+
+                        el.empty().select2({
+                            data: formattedData,
+                            placeholder: placeholder,
+                            allowClear: true,
+                            width: '100%'
+                        });
+
+                        // 3. Встановлюємо значення: якщо було вибрано раніше — повертаємо, інакше — null (пусто)
+                        if (currentVal && items.includes(currentVal)) {
+                            el.val(currentVal).trigger('change.select2');
+                        } else {
+                            el.val(null).trigger('change.select2');
+                        }
+                    };
+
+                        // Оновлюємо таксономію
+                        refreshSelect(classSelect, data.classes, '{{ _("-- Всі класи --") }}', currentValues.class);
+                        refreshSelect(orderSelect, data.orders, '{{ _("-- Всі ряди --") }}', currentValues.order);
+                        refreshSelect(familySelect, data.families, '{{ _("-- Всі родини --") }}', currentValues.family);
+                        refreshSelect(genusSelect, data.genera, '{{ _("-- Всі роди --") }}', currentValues.genus);
+
+                        // Оновлюємо локації та біотопи
+                        refreshSelect(biotopesSelect, data.biotopes, '{{ _("-- Всі біотопи --") }}', currentValues.biotopes);
+                        refreshSelect(locationsSelect, data.locations, '{{ _("-- Всі локації --") }}', currentValues.locations);
+                    })
+                    .catch(error => console.error('Error updating filters:', error));
+            }
+                        
+            function getApiParams() {
+                const params = new URLSearchParams({
+                    confidence: parseFloat(confidenceSlider.val()).toFixed(2),
+                    min_detections: minDetectionsSlider.val(),
+                    start_date: startDateInput.val(),
+                    end_date: endDateInput.val()
+                });
+                
+                // Гео-фільтри
+                const locs = locationsSelect.val();
+                if (locs && locs.length > 0) params.append('locations', locs.join(','));
+                
+                const bios = biotopesSelect.val();
+                if (bios && bios.length > 0) params.append('biotopes', bios.join(','));
+
+                // ТАКСОНОМІЯ (Додаємо ці рядки)
+                if (classSelect.val()) params.append('class', classSelect.val());
+                if (orderSelect.val()) params.append('order', orderSelect.val());
+                if (familySelect.val()) params.append('family', familySelect.val());
+                if (genusSelect.val()) params.append('genus', genusSelect.val());
+                
+                return params;
+            }
+            
+            function updateAllContent() {
+                updateStatistics();
+                updateMap();
+                updateRankingTable(); // Оновлюємо таблицю в кінці
+            }
+
+            function updateStatistics() {
+                statsContent.html('<div class="spinner-wrapper"><div class="spinner-border" style="width: 3rem; height: 3rem; color: #0779e4;" role="status"></div></div>');
+                fetch(`/{{ g.lang_code }}/api/pam/get-overview-stats?${getApiParams().toString()}`)
+                    .then(response => response.ok ? response.json() : Promise.reject(response))
+                    .then(data => {
+                        const statsHtml = `
+                            <div class="stats-grid">
+                                <div class="summary-card"><h5>{{ _('Детекцій') }}</h5><div class="stat-value">${data.total_detections.toLocaleString()}</div></div>
+                                <div class="summary-card"><h5>{{ _('Видів') }}</h5><div class="stat-value">${data.unique_species}</div></div>
+                                <div class="summary-card"><h5>{{ _('Локацій') }}</h5><div class="stat-value">${data.locations_count}</div></div>
+                                <div class="summary-card"><h5>{{ _('Днів') }}</h5><div class="stat-value">${data.period_days}</div></div>
+                            </div>`;
+                        statsContent.html(statsHtml);
+                    })
+                    .catch(error => {
+                        console.error('Error loading statistics:', error);
+                        statsContent.html('<div class="overview-message error">{{ _("Помилка завантаження статистики.") }}</div>');
+                    });
+            }
+
+            function updateMap() {
+                mapContent.html('<div id="locationsMap"></div>');
+                const params = getApiParams();
+                // params.delete('min_detections');
+                
+                fetch(`/{{ g.lang_code }}/api/pam/get-locations-map?${params.toString()}`)
+                    .then(response => response.ok ? response.json() : Promise.reject(response))
+                    .then(locations => initializeMap(locations))
+                    .catch(error => {
+                        console.error('Error loading map data:', error);
+                        mapContent.html('<div class="overview-message error">{{ _("Помилка завантаження карти.") }}</div>');
+                    });
+            }
+
+            function initializeMap(locations) {
+                const mapElement = document.getElementById('locationsMap');
+                if (!mapElement) return;
+
+                if (map) map.remove();
+                
+                map = L.map(mapElement).setView([49.0, 23.5], 8);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                }).addTo(map);
+
+                if (locations && locations.length > 0) {
+                    const markers = L.featureGroup();
+                    locations.forEach(loc => {
+                        // Використовуємо нову назву з API
+                        const popupContent = `
+                            <b>${loc.location_name}</b><br>
+                            {{ _('Детекцій:') }} <b>${loc.detection_count}</b><br>
+                            {{ _('Видів:') }} <b>${loc.species_count}</b>
+                        `;
+                        const marker = L.marker([loc.lat, loc.lon]).bindPopup(popupContent);
+                        markers.addLayer(marker);
+                    });
+                    markers.addTo(map);
+                    if (markers.getBounds().isValid()) {
+                        map.fitBounds(markers.getBounds().pad(0.1));
+                    }
+                } else {
+                     mapContent.html('<div class="overview-message info">{{ _("Для вибраних фільтрів немає локацій з детекціями.") }}</div>');
+                }
+            }
+
+            function updateRankingTable() {
+                rankingContent.html('<div class="spinner-wrapper"><div class="spinner-border" style="width: 3rem; height: 3rem; color: #0779e4;" role="status"></div></div>');
+                
+                fetch(`/{{ g.lang_code }}/api/pam/get-species-ranking?${getApiParams().toString()}`)
+                    .then(response => response.ok ? response.json() : Promise.reject(response))
+                    .then(data => {
+                        if (data && data.length > 0) {
+                            let tableHtml = `<table class="ranking-table"><thead><tr><th>{{ _('#') }}</th><th>{{ _('Вид') }}</th><th>{{ _('Детекції') }}</th></tr></thead><tbody>`;
+                            data.forEach(species => {
+                                const detailUrlParams = getApiParams();
+                                detailUrlParams.set('species', species.scientific_name);
+                                const detailUrl = `{{ url_for('pam.pam_detailed', lang_code=g.lang_code) }}?${detailUrlParams.toString()}`;
+                                tableHtml += `<tr onclick="window.location.href='${detailUrl}'"><td>${species.rank}</td><td><a href="${detailUrl}" class="species-link">${species.display_name}</a></td><td>${species.detection_count.toLocaleString()}</td></tr>`;
+                            });
+                            tableHtml += '</tbody></table>';
+                            rankingContent.html(tableHtml);
+                        } else {
+                            rankingContent.html('<div class="overview-message info">{{ _("Дані не знайдено. Спробуйте змінити фільтри.") }}</div>');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading ranking:', error);
+                        rankingContent.html('<div class="overview-message error">{{ _("Помилка завантаження даних.") }}</div>');
+                    });
+            }
+        });
+    </script>
+{% endblock %}

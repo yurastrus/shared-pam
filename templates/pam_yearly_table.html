@@ -1,0 +1,201 @@
+{# /myproject/app/templates/pam_yearly_trends.html #}
+
+{% extends "base.html" %}
+{% block title %}{{ _('Багаторічні тренди') }} - {{ _('Акустичний моніторинг') }}{% endblock %}
+
+{% block head_extra %}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        .trends-wrapper { width: 100%; text-align: left; }
+        .page-header { text-align: center; }
+        .filters-panel {
+            display: grid; grid-template-columns: repeat(4, 1fr); /* Змінено на 4 колонки */
+            gap: 15px 20px; padding: 20px; background-color: #f8f9fa;
+            border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 25px;
+        }
+        .filter-group { display: flex; flex-direction: column; }
+        .filter-group.span-2 { grid-column: span 2; } /* Для елементів на 2 колонки */
+        .filter-group.full-width { grid-column: 1 / -1; }
+        .filters-panel label { margin-bottom: 5px; font-weight: bold; }
+        .filters-panel .select2-container .select2-selection--multiple { min-height: 38px; border: 1px solid #ced4da; }
+        .action-group { display: flex; justify-content: center; align-items: center; padding-top: 10px; }
+        .results-container {
+            margin-top: 25px; padding: 20px; background-color: #ffffff;
+            border: 1px solid #e0e0e0; border-radius: 8px; overflow-x: auto;
+        }
+        .message-box { padding: 20px; border-radius: 8px; text-align: center; background-color: #e7f3fe; border: 1px solid #d0e7ff; }
+        .trends-table {
+            border-collapse: collapse; margin-top: 15px; font-size: 0.9em;
+            width: auto; min-width: 600px; margin-left: auto; margin-right: auto;
+        }
+        .trends-table th, .trends-table td { padding: 8px 12px; text-align: left; border: 1px solid #ddd; white-space: nowrap; }
+        .trends-table thead th { background-color: #0779e4; color: white; position: sticky; top: -1px; }
+        .trends-table tbody tr:hover { background-color: #f1f1f1; }
+        .trends-table td { text-align: right; }
+        .trends-table th:nth-child(2), .trends-table td:nth-child(2) { text-align: left; font-weight: bold; }
+        .trends-table th:first-child, .trends-table td:first-child { text-align: center; font-weight: normal; }
+        .trends-table th:last-child, .trends-table td:last-child { font-weight: bold; background-color: #f8f9fa; }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="trends-wrapper">
+        <h1 class="page-header">{{ _('Порівняльна таблиця річної активності видів') }}</h1>
+        <div id="trends-filters-form" class="filters-panel">
+            <!-- Рядок 1: Роки -->
+            <div class="filter-group span-2"><label for="start-year-select">{{ _('Рік початку:') }}</label><select id="start-year-select" class="form-control filter-param"></select></div>
+            <div class="filter-group span-2"><label for="end-year-select">{{ _('Рік кінця:') }}</label><select id="end-year-select" class="form-control filter-param"></select></div>
+
+            <!-- Рядок 2: Таксономія -->
+            <div class="filter-group"><label for="class-select">{{ _('Клас:') }}</label><select id="class-select" class="form-control filter-param tax-filter"></select></div>
+            <div class="filter-group"><label for="order-select">{{ _('Ряд:') }}</label><select id="order-select" class="form-control filter-param tax-filter"></select></div>
+            <div class="filter-group"><label for="family-select">{{ _('Родина:') }}</label><select id="family-select" class="form-control filter-param tax-filter"></select></div>
+            <div class="filter-group"><label for="genus-select">{{ _('Рід:') }}</label><select id="genus-select" class="form-control filter-param tax-filter"></select></div>
+
+            <!-- Рядок 3: Географія -->
+            <div class="filter-group span-2"><label for="biotopes-select">{{ _('Біотопи:') }}</label><select id="biotopes-select" class="form-control filter-param" multiple></select></div>
+            <div class="filter-group span-2"><label for="locations-select">{{ _('Локації:') }}</label><select id="locations-select" class="form-control filter-param" multiple></select></div>
+            
+            <!-- Рядок 4: Повзунки -->
+            <div class="filter-group span-2"><label for="confidence-slider">{{ _('Впевненість:') }} <span id="confidence-value">0.95</span></label><input type="range" class="form-control-range" id="confidence-slider" min="0.7" max="1" step="0.01" value="0.95"></div>
+            <div class="filter-group span-2"><label for="min-detections-slider">{{ _('Мін. детекцій на рік:') }} <span id="min-detections-value">5</span></label><input type="range" class="form-control-range" id="min-detections-slider" min="1" max="100" step="1" value="5"></div>
+            
+            <!-- Рядок 5: Кнопка -->
+            <div class="filter-group full-width action-group"><button type="button" id="apply-filters-btn" class="btn btn-primary">{{ _('Згенерувати таблицю') }}</button></div>
+        </div>
+
+        <div class="results-container"><div id="trends-table-content"><div class="message-box"><i>{{ _('Налаштуйте фільтри та натисніть "Згенерувати таблицю".') }}</i></div></div></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    const ui = {
+        years: { start: $('#start-year-select'), end: $('#end-year-select') },
+        taxa: { class: $('#class-select'), order: $('#order-select'), family: $('#family-select'), genus: $('#genus-select') },
+        geo: { biotopes: $('#biotopes-select'), locations: $('#locations-select') },
+        sliders: { confidence: $('#confidence-slider'), minDetections: $('#min-detections-slider') },
+        values: { confidence: $('#confidence-value'), minDetections: $('#min-detections-value') },
+        buttons: { apply: $('#apply-filters-btn') },
+        containers: { table: $('#trends-table-content') }
+    };
+
+    const taxFilterLevels = ['class', 'order', 'family', 'genus'];
+    let isUpdatingFilters = false; // Прапорець для уникнення рекурсивних викликів
+
+    function initSelect2() {
+        $('.form-control').select2({ width: '100%', allowClear: true });
+        ui.geo.biotopes.select2({ width: '100%', placeholder: '{{ _("Всі біотопи") }}' });
+        ui.geo.locations.select2({ width: '100%', placeholder: '{{ _("Всі локації") }}' });
+    }
+
+    function getApiParams(forFilters = false) {
+        const params = new URLSearchParams();
+        if (ui.years.start.val()) params.append('start_year', ui.years.start.val());
+        if (ui.years.end.val()) params.append('end_year', ui.years.end.val());
+        if (ui.geo.locations.val().length) params.append('locations', ui.geo.locations.val().join(','));
+        if (ui.geo.biotopes.val().length) params.append('biotopes', ui.geo.biotopes.val().join(','));
+        
+        for (const level of taxFilterLevels) {
+            if (ui.taxa[level].val()) params.append(level, ui.taxa[level].val());
+        }
+
+        if (!forFilters) {
+            params.append('confidence', ui.sliders.confidence.val());
+            params.append('min_detections', ui.sliders.minDetections.val());
+        }
+        return params;
+    }
+
+    function updateSelectOptions(element, options, placeholder, selectedValue) {
+        const data = (options || []).map(item => (typeof item === 'object' ? item : { id: item, text: item }));
+        element.empty().select2({ data: data, placeholder: placeholder, allowClear: true, width: '100%' });
+        if (selectedValue) {
+             // Для мультиселектів, фільтруємо значення, які ще існують в новому списку
+            const validValues = Array.isArray(selectedValue) ? selectedValue.filter(val => data.some(opt => opt.id == val)) : selectedValue;
+            element.val(validValues).trigger('change.select2');
+        } else {
+            element.val(null).trigger('change.select2');
+        }
+    }
+
+    function updateAllFilters() {
+        if (isUpdatingFilters) return;
+        isUpdatingFilters = true;
+
+        const currentValues = {
+            startYear: ui.years.start.val(), endYear: ui.years.end.val(),
+            locations: ui.geo.locations.val(), biotopes: ui.geo.biotopes.val(),
+            class: ui.taxa.class.val(), order: ui.taxa.order.val(),
+            family: ui.taxa.family.val(), genus: ui.taxa.genus.val()
+        };
+
+        fetch(`/{{ g.lang_code }}/api/pam/get-trends-filters?${getApiParams(true).toString()}`)
+            .then(response => response.json())
+            .then(data => {
+                // Визначаємо мінімальний та максимальний роки
+                const minYear = data.years.length > 0 ? Math.min(...data.years) : data.years[0];
+                const maxYear = data.years.length > 0 ? Math.max(...data.years) : data.years[0];
+                
+                updateSelectOptions(ui.years.start, data.years, '', currentValues.startYear || minYear);
+                updateSelectOptions(ui.years.end, data.years, '', currentValues.endYear || maxYear);
+                updateSelectOptions(ui.geo.biotopes, data.biotopes, '{{ _("Всі біотопи") }}', currentValues.biotopes);
+                updateSelectOptions(ui.geo.locations, data.locations, '{{ _("Всі локації") }}', currentValues.locations);
+                updateSelectOptions(ui.taxa.class, data.classes, '{{ _("Всі класи") }}', currentValues.class);
+                updateSelectOptions(ui.taxa.order, data.orders, '{{ _("Всі ряди") }}', currentValues.order);
+                updateSelectOptions(ui.taxa.family, data.families, '{{ _("Всі родини") }}', currentValues.family);
+                updateSelectOptions(ui.taxa.genus, data.genera, '{{ _("Всі роди") }}', currentValues.genus);
+            })
+            .finally(() => { isUpdatingFilters = false; });}
+
+    function fetchDataAndBuildTable() {
+        ui.containers.table.html(`<div style="display: flex; justify-content: center; padding: 40px;"><div class="spinner-border" style="width: 3rem; height: 3rem; color: #0779e4;" role="status"></div></div>`);
+        
+        fetch(`/{{ g.lang_code }}/api/pam/yearly-trends-table?${getApiParams().toString()}`)
+            .then(response => response.ok ? response.json() : Promise.reject('{{ _("Помилка сервера") }}'))
+            .then(data => {
+                if (!data || !data.species_data || data.species_data.length === 0) {
+                    ui.containers.table.html(`<div class="message-box">{{ _('Дані не знайдено.') }}</div>`); return;
+                }
+                buildTable(data.years, data.species_data);
+            })
+            .catch(error => ui.containers.table.html(`<div class="message-box" style="background-color: #f8d7da;">${error}</div>`));
+    }
+
+    function buildTable(years, speciesData) {
+        let tableHtml = '<table class="trends-table"><thead><tr>';
+        tableHtml += '<th>#</th><th>{{ _("Вид") }}</th>';
+        years.forEach(year => { tableHtml += `<th>${year}</th>`; });
+        tableHtml += `<th style="color: black;"">{{ _("Разом") }}</th></tr></thead><tbody>`;
+
+        speciesData.forEach((species, index) => {
+            tableHtml += `<tr><td>${index + 1}</td><td>${species.display_name}</td>`;
+            years.forEach(year => {
+                const value = species.values[year];
+                const displayValue = (typeof value === 'number') ? value.toFixed(2) : '–';
+                tableHtml += `<td>${displayValue}</td>`;
+            });
+            const totalValue = species.total_normalized;
+            const displayTotal = (typeof totalValue === 'number') ? totalValue.toFixed(2) : '–';
+            tableHtml += `<td>${displayTotal}</td></tr>`;
+        });
+        tableHtml += '</tbody></table>';
+        ui.containers.table.html(tableHtml);
+    }
+    
+    // --- Ініціалізація та обробники подій ---
+    initSelect2();
+    updateAllFilters();
+    
+    $('.filter-param').on('change', updateAllFilters);
+    ui.buttons.apply.on('click', fetchDataAndBuildTable);
+    ui.sliders.confidence.on('input', () => ui.values.confidence.text(parseFloat(ui.sliders.confidence.val()).toFixed(2)));
+    ui.sliders.minDetections.on('input', () => ui.values.minDetections.text(ui.sliders.minDetections.val()));
+});
+</script>
+{% endblock %}

@@ -1,0 +1,554 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Завантаження аудіосегментів') }} - {{ _('yurastrus | персональний сайт') }}{% endblock %}
+
+{% block head_extra %}
+<style>
+    /* Загальні стилі для зони завантаження */
+    .upload-section {
+        width: 100%;
+        max-width: 880px; /* фіксована максимальна ширина щоб при показі результатів не змінювалася ширина блоку */
+        margin: 0 auto;
+    }
+
+    .upload-area {
+        border: 2px dashed #0779e4;
+        border-radius: 8px;
+        padding: 40px;
+        text-align: center;
+        margin: 20px 0;
+        transition: border-color 0.3s ease;
+        background-color: #f8f9fa;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 180px; /* щоб блок не «стрибаў» при появі внутрішніх елементів */
+        box-sizing: border-box;
+    }
+    
+    .upload-area:hover {
+        border-color: #0056b3;
+        background-color: #e7f3ff;
+    }
+    
+    .upload-area.dragover {
+        border-color: #28a745;
+        background-color: #d4edda;
+    }
+    
+    .upload-area p {
+        width: 100%;
+        text-align: center; /* гарантує ідеальне центрування тексту "або перетягніть файл сюди" */
+        margin: 0;
+    }
+
+    .file-input {
+        position: relative;
+        overflow: hidden;
+        display: inline-block;
+    }
+    
+    .file-input input[type=file] {
+        position: absolute;
+        left: -9999px;
+    }
+    
+    .file-input label {
+        display: inline-block;
+        padding: 12px 24px;
+        background-color: #0779e4;
+        color: white;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+    
+    .file-input label:hover {
+        background-color: #0056b3;
+    }
+        
+    .stats-card {
+        background-color: #ffffff;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 15px;
+        text-align: center;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+    
+    .stats-card h5 {
+        margin: 0 0 10px 0;
+        color: #666;
+        font-size: 0.9em;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .stats-value {
+        font-size: 24px;
+        font-weight: 600;
+        color: #0779e4;
+    }
+    
+    .progress {
+        height: 20px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+        margin: 15px 0;
+        display: none;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background: #007bff;
+        transition: width 0.3s ease;
+    }
+    
+    .upload-results {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 6px;
+        display: none;
+        box-sizing: border-box;
+    }
+    
+    .upload-results.success {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+    
+    .upload-results.error {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+    
+    /* Список видів (топ-видів та контейнер помилок) */
+    .species-list {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        background: #f8f9fa;
+        box-sizing: border-box;
+    }
+
+    /* Таблиця помилок — контейнер */
+    .upload-results .species-list {
+        max-height: 250px; /* для помилок трохи більший */
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        padding: 0; /* таблиця сама має падінги */
+    }
+
+    /* Sticky заголовки таблиці помилок — непрозорий фон та z-index */
+    .upload-results .species-list table {
+        margin-bottom: 0;
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .upload-results .species-list table thead th {
+        position: sticky;
+        top: 0;
+        background-color: #f8d7da; /* непрозорий фон тієї ж секції */
+        z-index: 5;
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+    .upload-results .species-list table tbody td {
+        padding: 8px;
+        vertical-align: top;
+        border-top: 1px solid rgba(0,0,0,0.05);
+        text-align: left; /* додай це */
+    }
+
+    /* Додатково: щоб картки статистики були в один ряд на широких екранах */
+    @media (min-width: 992px) {
+        .stats-row {
+            display: flex;
+            gap: 18px;
+        }
+        .stats-row > .col {
+            flex: 1 1 0;
+            max-width: none;
+        }
+    }
+
+    /* Адаптивно — на маленьких екранах 2 у ряд */
+    @media (max-width: 991px) {
+        .stats-card { min-height: 110px; }
+    }
+
+    /* Стилизувати короткі підписи та badges в списку видів */
+    .species-list .d-flex span {
+        display: inline-block;
+    }
+
+    /* Центрування блоку з обробленими видами (на випадок зовнішніх стилів) */
+    .processed-species {
+        text-align: center;
+        word-break: break-word;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header mb-4">
+        <h1>{{ _('Завантаження ZIP архівів з аудіосегментами') }}</h1>
+        <p class="lead">{{ _('Завантажуйте архіви з аудіосегментами для верифікації класифікацій BirdNET') }}</p>
+    </div>
+
+    <!-- Поточна статистика -->
+    {% if stats %}
+    <div class="row mb-4 stats-row text-center align-items-stretch">
+        <div class="col-12 col-sm-6 col-lg-3 mb-3 col">
+            <div class="stats-card">
+                <h5>{{ _('Всього сегментів') }}</h5>
+                <div class="stats-value">{{ stats.total_segments or 0 }}</div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3 mb-3 col">
+            <div class="stats-card">
+                <h5>{{ _('На верифікацію') }}</h5>
+                <div class="stats-value">{{ stats.status_counts.pending or 0 }}</div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3 mb-3 col">
+            <div class="stats-card">
+                <h5>{{ _('Завершених') }}</h5>
+                <div class="stats-value">{{ stats.status_counts.completed or 0 }}</div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3 mb-3 col">
+            <div class="stats-card">
+                <h5>{{ _('Видів у системі') }}</h5>
+                <div class="stats-value">{{ stats.total_species_with_segments or 0 }}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Форма завантаження -->
+    <div class="upload-section">
+        <form id="upload-form" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <div class="upload-area" id="upload-area">
+                <div class="file-input">
+                    <input type="file" id="zip-file" name="zip_file" accept=".zip">
+                    <label for="zip-file">
+                        <i class="fas fa-upload"></i>
+                        {{ _('Вибрати ZIP файл') }}
+                    </label>
+                </div>
+                <p class="mt-3 mb-0">{{ _('або перетягніть файл сюди') }}</p>
+                <div id="file-name" class="mt-2" style="display: none; width:100%; text-align:center;"></div>
+            </div>
+
+            <!-- Прогрес завантаження -->
+            <div class="progress" id="progress">
+                <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+            </div>
+
+            <div class="text-center">
+                <button type="submit" id="upload-btn" class="btn btn-primary btn-lg" disabled>
+                    {{ _('Завантажити та обробити') }}
+                </button>
+            </div>
+        </form>
+
+        <!-- Результати завантаження -->
+        <div class="upload-results" id="upload-results"></div>
+    </div>
+
+    <!-- Топ-видів (якщо є дані) -->
+    {% if stats and stats.species_counts %}
+    <div class="mt-5">
+        <h3>{{ _('Найбільше сегментів по видах') }}</h3>
+        <div class="species-list">
+            {% for species_name, count in stats.species_counts.items() %}
+            <div class="d-flex justify-content-between align-items-center py-1">
+                <span>{{ species_name }}</span>
+                <span class="badge badge-primary">{{ count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-4">
+        <h4>{{ _('Інструкції') }}</h4>
+        <ul>
+            <li>{{ _('ZIP архів повинен містити папки з латинськими назвами видів') }}</li>
+            <li>{{ _('У кожній папці - .wav файли з іменами у форматі: точність_локація_дата_час.wav') }}</li>
+            <li>{{ _('Приклад: 0.804_STAVY_20250303_184602.wav') }}</li>
+            <li>{{ _('Файли-дублікати автоматично пропускаються') }}</li>
+            <li>{{ _('Невідомі види логуються, але не обробляються') }}</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<script>
+    // Конфігурація з backend (через змінні шаблону)
+    window.PAM_CONFIG = {
+        maxUploadSize: {{ max_upload_size }},
+        maxUploadSizeMB: {{ max_upload_size_mb }}
+    };
+</script>
+
+<script>
+$(document).ready(function() {
+    console.log('Upload form initialized');
+    
+    const maxUploadSize = window.PAM_CONFIG.maxUploadSize;
+    const maxUploadSizeMB = window.PAM_CONFIG.maxUploadSizeMB;
+    
+    console.log('Max upload size:', maxUploadSize, 'bytes (', maxUploadSizeMB, 'MB)');
+    
+    const uploadArea = $('#upload-area');
+    const fileInput = $('#zip-file');
+    const fileName = $('#file-name');
+    const uploadBtn = $('#upload-btn');
+    const progress = $('#progress');
+    const progressBar = $('#progress-bar');
+    const results = $('#upload-results');
+    const form = $('#upload-form');
+
+    uploadArea.on('dragover dragenter', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.addClass('dragover');
+    });
+    
+    uploadArea.on('dragleave dragend', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.removeClass('dragover');
+    });
+    
+    uploadArea.on('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadArea.removeClass('dragover');
+        
+        const files = e.originalEvent.dataTransfer.files;
+        if (files.length > 0 && files[0].name.toLowerCase().endsWith('.zip')) {
+            fileInput[0].files = files;
+            handleFileSelect();
+        } else {
+            alert('{{ _("Будь ласка, виберіть ZIP файл") }}');
+        }
+    });
+    
+    fileInput.on('change', function() {
+        handleFileSelect();
+    });
+    
+    function handleFileSelect() {
+        const file = fileInput[0].files[0];
+        
+        if (file) {
+            if (file.size > maxUploadSize) {
+                alert(`Файл занадто великий. Максимальний розмір: ${maxUploadSizeMB}MB`);
+                fileInput.val('');
+                fileName.hide();
+                uploadBtn.prop('disabled', true);
+                return;
+            }
+            
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            fileName.text('{{ _("Вибрано файл: ") }}' + file.name + ' (' + fileSizeMB + ' MB)').show();
+            uploadBtn.prop('disabled', false);
+        } else {
+            fileName.hide();
+            uploadBtn.prop('disabled', true);
+        }
+    }
+    
+    uploadBtn.on('click', function(e) {
+        e.preventDefault();
+        
+        const file = fileInput[0].files[0];
+        if (!file) {
+            alert('{{ _("Будь ласка, виберіть файл") }}');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('zip_file', file);
+        
+        const csrfToken = $('input[name="csrf_token"]').val();
+        if (csrfToken) {
+            formData.append('csrf_token', csrfToken);
+        }
+        
+        progress.show();
+        uploadBtn.prop('disabled', true).text('{{ _("Обробляється...") }}');
+        results.hide();
+        
+        // Симуляція прогресу (можна залишити)
+        let progressValue = 0;
+        const progressInterval = setInterval(() => {
+            progressValue += Math.random() * 15;
+            if (progressValue > 90) progressValue = 90;
+            progressBar.css('width', progressValue + '%');
+        }, 500);
+        
+        $.ajax({
+            url: '{{ url_for("pam.process_verification_upload", lang_code=g.lang_code) }}',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            timeout: 300000,
+            success: function(response) {
+                clearInterval(progressInterval);
+                progressBar.css('width', '100%');
+                
+                setTimeout(() => {
+                    progress.hide();
+                    showResults(response, 'success');
+                }, 500);
+            },
+            error: function(xhr, status, error) {
+                clearInterval(progressInterval);
+                progress.hide();
+                let errorMessage = '{{ _("Невідома помилка") }}';
+                try {
+                    const errorData = JSON.parse(xhr.responseText);
+                    errorMessage = errorData.error || errorMessage;
+                } catch (parseError) {
+                    errorMessage = '{{ _("Помилка сервера. Перевірте логи.") }}';
+                }
+                showResults({error: errorMessage}, 'error');
+            },
+            complete: function() {
+                uploadBtn.prop('disabled', false).text('{{ _("Завантажити та обробити") }}');
+                fileInput.val('');
+                fileName.hide();
+            }
+        });
+    });
+    
+    function showResults(data, type) {
+        let html = '';
+        
+        if (type === 'success') {
+            const stats = data.stats || {};
+            const totalErrors = (stats.parse_errors || 0) + (stats.unknown_species || 0);
+
+            html = `
+                <div class="results-summary">
+                    <h4>{{ _('Архів успішно оброблено!') }}</h4>
+                    <div class="row text-left">
+                        <div class="col-md-3">
+                            <strong>{{ _('Всього файлів:') }}</strong> 
+                            ${stats.total_files !== undefined ? stats.total_files : 'N/A'}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{{ _('Оброблено:') }}</strong> 
+                            ${stats.processed_files !== undefined ? stats.processed_files : 'N/A'}
+                        </div>
+                        <div class="col-md-3">
+                            <strong>{{ _('Дублікатів:') }}</strong> 
+                            ${stats.skipped_duplicates !== undefined ? stats.skipped_duplicates : 'N/A'}
+                        </div>
+                        <div class="col-md-3">
+                            <strong style="${totalErrors > 0 ? 'color: #dc3545;' : ''}">{{ _('Помилок:') }}</strong> 
+                            ${totalErrors}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (stats.positive_verifications > 0 || stats.negative_verifications > 0) {
+                html += `
+                <div class="results-summary mt-3">
+                    <h5 style="color: #0779e4; border-bottom: 1px solid #0779e4; padding-bottom: 5px; display: inline-block;">{{ _('Попередньо верифіковані файли:') }}</h5>
+                    <div class="row text-left mt-2">
+                        <div class="col-md-3"><strong style="color: #28a745;">{{ _('Позитивні:') }}</strong> ${stats.positive_verifications}</div>
+                        <div class="col-md-3"><strong style="color: #dc3545;">{{ _('Негативні:') }}</strong> ${stats.negative_verifications}</div>
+                        <div class="col-md-3"><strong style="color: #6c757d;">{{ _('Неверифіковані:') }}</strong> ${stats.unverified_files}</div>
+                    </div>
+                </div>
+                `;
+            }
+
+            if (stats.processed_species && stats.processed_species.length > 0) {
+                // Використовуємо клас processed-species щоб гарантувати центрування навіть якщо зовнішні стилі впливають
+                html += `<div class="mt-3 processed-species"><strong>{{ _('Оброблені види:') }}</strong><br>${stats.processed_species.join(', ')}</div>`;
+            }
+
+            if (stats.error_files && stats.error_files.length > 0) {
+                html += `
+                    <div class="mt-3">
+                        <h5 class="text-center" style="color: #dc3545;">{{ _('Деталі помилок:') }}</h5>
+                        <div class="species-list">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30%;">{{ _('Папка виду') }}</th>
+                                        <th style="width: 70%;">{{ _('Файл та причина помилки') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                stats.error_files.forEach(function(err) {
+                    // екранізація значень (краще уникати XSS) - тут припускається що бекенд надає чисті дані,
+                    // якщо ймовірність шкідливих символів є, потрібно додатково ескейпити.
+                    const speciesEsc = String(err.species || '');
+                    const fileEsc = String(err.filename || '');
+                    const errEsc = String(err.error || '');
+
+                    html += `
+                        <tr>
+                            <td style="vertical-align: top;"><code>${speciesEsc}</code></td>
+                            <td>
+                                <code>${fileEsc}</code>
+                                <br>
+                                <small class="text-muted" style="color: #721c24 !important;">${errEsc}</small>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            results.removeClass('error').addClass('success');
+        } else {
+            html = `
+                <h4>{{ _('Помилка обробки') }}</h4>
+                <p>${data.error}</p>
+                <small class="text-muted">{{ _('Перевірте логи сервера для детальної інформації про помилку.') }}</small>
+            `;
+            results.removeClass('success').addClass('error');
+        }
+        
+        results.html(html).show();
+    }
+
+});
+</script>
+{% endblock %}

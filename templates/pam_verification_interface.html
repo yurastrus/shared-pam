@@ -1,0 +1,768 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Верифікація аудіосегментів') }} - {{ _('yurastrus | персональний сайт') }}{% endblock %}
+
+{% block head_extra %}
+<!-- Підключення стилів для Select2 -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+<style>
+    .verification-container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .verification-layout {
+        display: grid;
+        grid-template-columns: 480px 520px;
+        gap: 20px;
+        align-items: start;
+    }
+    
+    .left-panel {
+        position: sticky;
+        top: 10px;
+        display: flex;
+        flex-direction: column;
+        /*gap: 5px;*/
+    }
+    
+    .right-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .audio-player-section {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 5px;
+        text-align: center;
+    }
+    
+    .segment-info {
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .segment-info h4 {
+        margin-top: 0;
+        color: #333;
+        font-size: 1em;
+        font-weight: 600;
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #0779e4;
+        text-align: center;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        word-break: break-word;
+        hyphens: auto;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+        line-height: 1.3;
+        display: block;
+        box-sizing: border-box;
+    }
+
+    .info-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 10px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: #666;
+        font-size: 0.85em;
+        text-transform: none;
+    }
+
+    .info-value {
+        color: #333;
+        font-size: 0.85em;
+        font-weight: 400;
+    }
+    
+    .verification-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin: 15px 0;
+    }
+    
+    .verification-buttons .btn {
+        min-width: 100px;
+        font-size: 14px;
+        padding: 10px 16px;
+    }
+    
+    .btn-success {
+        background-color: #28a745;
+        border-color: #28a745;
+    }
+    
+    .btn-danger {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+    
+    .btn-secondary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+    
+    .filters-panel {
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 10px;
+    }
+
+    .filters-panel > h4 {
+        margin-top: 0;
+        margin-bottom: 5px;
+        text-align: center;
+        font-size: 1em;
+        font-weight: 600;
+    }
+
+    .filters-row-flex {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .species-select-group {
+        width: 100%;
+        justify-content: center; 
+    }
+
+    .species-select-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+        color: #495057;
+        font-size: 1em;
+        text-align: left;
+    }
+
+    .button-group {
+        display: flex;
+        gap: 10px;
+        justify-content: left; 
+    }
+    
+    @media (max-width: 1024px) {
+        .verification-layout {
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        
+        .left-panel {
+            position: static;
+        }
+    }
+    
+    .stats-panel {
+        margin-top: 0;
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+    }
+
+    .stats-panel > h4 {
+        margin-top: 0;
+        margin-bottom: 5px;
+        text-align: center;
+        font-size: 1em;
+        font-weight: 600;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr); /* 5 якщо показувати ще статистику пропущених */
+        gap: 4px;
+    }
+    
+    .stats-card {
+        text-align: center;
+        padding: 8px 4px;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        background-color: #f8f9fa;
+    }
+    
+    .stats-card h6 {
+        margin: 0 0 4px 0;
+        color: #666;
+        font-size: 0.75em;
+        font-weight: 500;
+    }
+    
+    .stats-value {
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #0779e4;
+    }
+    
+    .no-segment-message {
+        text-align: center;
+        padding: 40px 20px;
+        color: #666;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 20px;
+    }
+    
+    .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        color: #0779e4;
+    }
+    
+    audio {
+        width: 100%;
+        max-width: 500px;
+        margin: 10px 0;
+        height: 36px;
+    }
+    
+    .verification-message {
+        margin-top: 5px;
+        padding: 5px 5px;
+        border-radius: 3px;
+        text-align: center;
+        font-weight: 500;
+        min-height: 13px;
+        display: none;
+    }
+    
+    .verification-message.success {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+    
+    .verification-message.error {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+
+    /* Стилі для адаптації Select2 до вигляду Bootstrap */
+    .select2-container--default .select2-selection--single {
+        height: calc(1.5em + .75rem + 2px);
+        padding: .375rem .75rem;
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        background-color: #fff;
+        border: 1px solid #ced4da;
+        border-radius: .25rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 1.5;
+        padding-left: 0;
+        padding-right: 20px;
+        display: flex;
+        align-items: center;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 100%;
+        top: 0;
+        transform: none;
+        display: flex;
+        align-items: center;
+    }
+
+    .select2-search__field {
+        border: 1px solid #ced4da !important;
+    }
+
+    /* === СТИЛІ ДЛЯ ЛІНІЇ ВІДТВОРЕННЯ === */
+    .spectrogram-wrapper {
+        position: relative;
+        display: inline-block;
+        line-height: 0;
+    }
+
+    #spectrogram-image {
+        max-width: 100%;
+        height: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+
+    #playback-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 2px;
+        height: 100%;
+        background-color: rgba(255, 0, 0, 0.8);
+        pointer-events: none;
+        display: none;
+    }
+
+    /* === СТИЛІ ДЛЯ ЖОВТИХ ЛІНІЙ МЕЖ === */
+    .region-line {
+        position: absolute;
+        top: 0;
+        bottom: 25px; /* Відступ знизу для осі X */
+        width: 2px;
+        background-color: #ffc107; /* Bootstrap warning yellow */
+        border-right: 1px dashed rgba(0,0,0,0.3);
+        pointer-events: none;
+        display: none;
+        z-index: 5;
+        box-shadow: 0 0 4px rgba(0,0,0,0.5);
+    }
+</style>
+
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="verification-container">
+        <!-- Основний інтерфейс верифікації -->
+        <div id="verification-interface" style="display: none;">
+            <div class="verification-layout">
+                <!-- Ліва панель з інформацією, фільтрами та статистикою -->
+                <div class="left-panel">
+                    <!-- Фільтри -->
+                    <div class="filters-panel">
+                        <div class="filters-row-flex">
+                            <div class="species-select-group">
+                                <label for="species-filter">{{ _('Вид для верифікації аудіосегментів BirdNET:') }}</label>
+                                <select id="species-filter" class="form-control" style="width: 100%;">
+                                    <option value="">{{ _('-- Всі види --') }}</option>
+                                    {% for species in available_species %}
+                                        <option value="{{ species.id }}">{{ species.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="button-group">
+                                <button id="load-segment-btn" class="btn btn-primary">
+                                    {{ _('Застосувати') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Статистика користувача -->
+                    <div class="stats-panel">
+                        <h4>{{ _('Моя статистика') }}</h4>
+                        <div class="stats-grid" id="user-stats">
+                            <div class="stats-card">
+                                <h6>{{ _('Всього') }}</h6>
+                                <div class="stats-value" id="total-verifications">-</div>
+                            </div>
+                            <div class="stats-card">
+                                <h6>{{ _('Залишилось') }}</h6>
+                                <div class="stats-value" id="remaining-verifications">-</div>
+                            </div>
+
+                            <div class="stats-card">
+                                <h6>{{ _('Позитивних') }}</h6>
+                                <div class="stats-value" id="positive-verifications">-</div>
+                            </div>
+                            <div class="stats-card">
+                                <h6>{{ _('Негативних') }}</h6>
+                                <div class="stats-value" id="negative-verifications">-</div>
+                            </div>
+                            <!--
+                            <div class="stats-card">
+                                <h6>{{ _('Пропущених') }}</h6>
+                                <div class="stats-value" id="skipped-verifications">-</div>
+                            </div>
+                            -->
+                        </div>
+                    </div>
+
+                    <!-- Інформація про сегмент -->
+                    <div class="segment-info">
+                        <h4 id="segment-species">Назва виду</h4>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">{{ _('Локація:') }}</span>
+                                <span class="info-value" id="segment-location">LOCATION</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">{{ _('Дата запису:') }}</span>
+                                <span class="info-value" id="segment-date">01.01.2025</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">{{ _('Час запису:') }}</span>
+                                <span class="info-value" id="segment-time">00:00:00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Права панель з сонограмою та контролами -->
+                <div class="right-panel">
+                    <!-- Сонограма -->
+                    <div class="spectrogram-section" style="text-align: center;">
+                        <div class="spectrogram-wrapper">
+                            <img id="spectrogram-image" src="" alt="{{ _('Сонограма аудіосегменту') }}">
+                            <div id="playback-line"></div>
+                            
+                            <!-- Лінії для виділення центральної частини (для довгих файлів) -->
+                            <div id="region-start-line" class="region-line"></div>
+                            <div id="region-end-line" class="region-line"></div>
+                        </div>
+                    </div>
+
+                    <!-- Аудіо плеєр -->
+                    <div class="audio-player-section">
+                        <audio id="audio-player" controls preload="auto">
+                            {{ _('Ваш браузер не підтримує аудіо плеєр.') }}
+                        </audio>
+                    </div>
+
+                    <!-- Кнопки верифікації -->
+                    <div class="verification-buttons">
+                        <button id="verify-yes" class="btn btn-success">
+                            <i class="fas fa-check"></i> {{ _('ТАК - правильно') }}
+                        </button>
+                        <button id="verify-no" class="btn btn-danger">
+                            <i class="fas fa-times"></i> {{ _('НІ - неправильно') }}
+                        </button>
+                        <button id="verify-skip" class="btn btn-secondary">
+                            <i class="fas fa-forward"></i> {{ _('Пропустити') }}
+                        </button>
+                    </div>
+
+                    <!-- Повідомлення про результат верифікації -->
+                    <div id="verification-message" class="verification-message"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Повідомлення про відсутність сегментів -->
+        <div id="no-segment-message" class="no-segment-message" style="display: none;">
+            <h4>{{ _('Сегменти для верифікації відсутні') }}</h4>
+            <p>{{ _('Немає сегментів для верифікації за вибраними критеріями, або ви вже верифікували всі доступні сегменти.') }}</p>
+        </div>
+
+        <!-- Індикатор завантаження -->
+        <div id="loading-spinner" class="loading-spinner">
+            <div class="spinner-border" role="status">
+                <span class="sr-only">{{ _('Завантаження...') }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Підключення скриптів Select2 та локалізації (якщо доступна) -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+{% if g.lang_code == 'uk' %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/uk.js"></script>
+{% endif %}
+<script>
+$(document).ready(function() {
+    let currentSegment = null;
+
+    // --- КОНФІГУРАЦІЯ ВІДСТУПІВ СОНОГРАМИ (підбирається під matplotlib) ---
+    const SPECTROGRAM_PADDING_LEFT_PERCENT = 12.0;
+    const SPECTROGRAM_PADDING_RIGHT_PERCENT = 1.6;
+    
+    const loadSegmentBtn = $('#load-segment-btn');
+    const verificationInterface = $('#verification-interface');
+    const noSegmentMessage = $('#no-segment-message');
+    const loadingSpinner = $('#loading-spinner');
+    const audioPlayer = $('#audio-player')[0];
+    const speciesFilter = $('#species-filter');
+    const verificationMessage = $('#verification-message');
+    const playbackLine = $('#playback-line');
+    
+    // Ініціалізація Select2 для фільтра видів
+    speciesFilter.select2({
+        language: "{{ g.lang_code }}",
+        placeholder: "{{ _('-- Всі види --') }}",
+        allowClear: true,
+        width: '100%'
+    });
+    
+    // Завантаження першого сегменту та відповідної статистики
+    loadNextSegment();
+    
+    // --- Обробники подій ---
+    loadSegmentBtn.on('click', loadNextSegment);
+    
+    $('#verify-yes').on('click', () => submitVerification(1));
+    $('#verify-no').on('click', () => submitVerification(0));  
+    $('#verify-skip').on('click', () => loadNextSegment()); // submitVerification(null)
+    
+    // --- ЛОГІКА ДЛЯ ВІДОБРАЖЕННЯ ЖОВТИХ ЛІНІЙ (для 10с файлів) ---
+    audioPlayer.addEventListener('loadedmetadata', function() {
+        const duration = audioPlayer.duration;
+        const startLine = $('#region-start-line');
+        const endLine = $('#region-end-line');
+
+        // Якщо аудіо довше 4 секунд (тобто це 10-секундний файл)
+        if (duration > 4) {
+            // Центральні 3 секунди
+            const centerStart = (duration - 3) / 2; // Наприклад (10-3)/2 = 3.5
+            const centerEnd = centerStart + 3;      // 3.5 + 3 = 6.5
+
+            // Ширина корисної області графіку (без відступів осей)
+            const plotAreaWidth = 100 - SPECTROGRAM_PADDING_LEFT_PERCENT - SPECTROGRAM_PADDING_RIGHT_PERCENT;
+
+            // Розрахунок позиції ліній у відсотках
+            const startPosPercent = SPECTROGRAM_PADDING_LEFT_PERCENT + (centerStart / duration) * plotAreaWidth;
+            const endPosPercent = SPECTROGRAM_PADDING_LEFT_PERCENT + (centerEnd / duration) * plotAreaWidth;
+
+            startLine.css('left', startPosPercent + '%').show();
+            endLine.css('left', endPosPercent + '%').show();
+        } else {
+            // Для стандартних 3-секундних файлів лінії не потрібні
+            startLine.hide();
+            endLine.hide();
+        }
+    });
+
+    // --- Синхронізація лінії відтворення з аудіо ---
+
+    function updatePlaybackLine() {
+        if (audioPlayer.duration > 0) {
+            const plotAreaWidth = 100 - SPECTROGRAM_PADDING_LEFT_PERCENT - SPECTROGRAM_PADDING_RIGHT_PERCENT;
+            const progressRatio = audioPlayer.currentTime / audioPlayer.duration;
+            const linePosition = SPECTROGRAM_PADDING_LEFT_PERCENT + (progressRatio * plotAreaWidth);
+            playbackLine.css('left', linePosition + '%');
+        }
+    }
+
+    audioPlayer.addEventListener('timeupdate', updatePlaybackLine);
+    audioPlayer.addEventListener('seeking', updatePlaybackLine);
+
+    audioPlayer.addEventListener('ended', function() {
+        const endPosition = 100 - SPECTROGRAM_PADDING_RIGHT_PERCENT;
+        playbackLine.css('left', endPosition + '%');
+    });
+
+    audioPlayer.addEventListener('loadstart', function() {
+        playbackLine.css('left', SPECTROGRAM_PADDING_LEFT_PERCENT + '%');
+    });
+    /**
+    // --- Клавіатурні скорочення ---
+    $(document).on('keydown', function(e) {
+        if (currentSegment && verificationInterface.is(':visible')) {
+            switch(e.key.toLowerCase()) {
+                case ' ':
+                    e.preventDefault();
+                    if (audioPlayer.paused) audioPlayer.play();
+                    else audioPlayer.pause();
+                    break;
+                case 'y': // Yes
+                case 't': // Так
+                    e.preventDefault();
+                    submitVerification(1);
+                    break;
+                case 'n': // No
+                case 'h': // Ні
+                    e.preventDefault();
+                    submitVerification(0);
+                    break;
+                case 's': // Skip
+                case 'g': // Пропустити
+                    e.preventDefault();
+                    loadNextSegment(); // submitVerification(null)
+                    break;
+            }
+        }
+    });
+    **/
+    /**
+     * Завантажує наступний сегмент з сервера та оновлює статистику.
+     */
+    function loadNextSegment() {
+        loadUserStats(); // Оновлюємо статистику згідно з поточним фільтром
+        showLoading();
+        
+        const speciesId = speciesFilter.val();
+        let url = '{{ url_for("pam.api_next_verification_segment", lang_code=g.lang_code) }}';
+        
+        if (speciesId) {
+            url += '?species_id=' + speciesId;
+        }
+        
+        $.ajax({
+            url: url,
+            method: 'GET',
+            success: function(data) {
+                currentSegment = data;
+                displaySegment(data);
+                hideLoading();
+                verificationInterface.show();
+                noSegmentMessage.hide();
+                hideVerificationMessage();
+            },
+            error: function(xhr) {
+                hideLoading();
+                verificationInterface.hide();
+                currentSegment = null;
+                
+                playbackLine.hide(); 
+                
+                if (xhr.status === 404) {
+                    noSegmentMessage.show();
+                } else {
+                    const error = xhr.responseJSON ? xhr.responseJSON.error : '{{ _("Помилка завантаження сегменту") }}';
+                    alert(error);
+                }
+            }
+        });
+    }
+    
+    /**
+     * Відображає дані отриманого сегменту в інтерфейсі.
+     * @param {object} segment - Об'єкт сегменту з API.
+     */
+    function displaySegment(segment) {
+        // Скидаємо жовті лінії перед завантаженням нового сегменту
+        $('#region-start-line, #region-end-line').hide();
+
+        $('#segment-species').text(segment.species_display_name);
+        $('#segment-location').text(segment.location_name);
+        $('#segment-date').text(segment.recorded_date);
+        $('#segment-time').text(segment.recorded_time);
+        
+        audioPlayer.src = segment.audio_url;
+        audioPlayer.load();
+
+        const spectrogramUrl = `{{ url_for("pam.serve_spectrogram_image", lang_code=g.lang_code, segment_id=0) }}`.replace('/0', '/' + segment.segment_id);
+        $('#spectrogram-image').attr('src', spectrogramUrl);
+        
+        playbackLine.css('left', SPECTROGRAM_PADDING_LEFT_PERCENT + '%').show();
+    }
+    
+    /**
+     * Відправляє результат верифікації на сервер.
+     * @param {number|null} result - 1 (так), 0 (ні), null (пропустити).
+     */
+    function submitVerification(result) {
+        if (!currentSegment) {
+            showVerificationMessage('{{ _("Немає активного сегменту для верифікації") }}', 'error');
+            return;
+        }
+        
+        $('.verification-buttons .btn').prop('disabled', true);
+        
+        const data = {
+            segment_id: currentSegment.segment_id,
+            verification_result: result,
+            csrf_token: '{{ csrf_token() }}'
+        };
+        
+        $.ajax({
+            url: '{{ url_for("pam.api_submit_verification", lang_code=g.lang_code) }}',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': data.csrf_token },
+            data: JSON.stringify(data),
+            success: function(response) {
+                let messageText = {
+                    1: '{{ _("Верифікацію збережено! (Підтверджено)") }}',
+                    0: '{{ _("Верифікацію збережено! (Відхилено)") }}',
+                    'null': '{{ _("Сегмент пропущено") }}'
+                };
+                showVerificationMessage(messageText[String(result)], 'success');
+                                
+                setTimeout(loadNextSegment, 1500);
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON ? xhr.responseJSON.error : '{{ _("Помилка збереження") }}';
+                showVerificationMessage('{{ _("Помилка: ") }}' + error, 'error');
+            },
+            complete: function() {
+                $('.verification-buttons .btn').prop('disabled', false);
+            }
+        });
+    }
+    
+    /**
+     * Завантажує та оновлює статистику верифікацій користувача.
+     * Враховує обраний у фільтрі вид.
+     */
+    function loadUserStats() {
+        const speciesId = speciesFilter.val();
+        let url = '{{ url_for("pam.api_verification_stats", lang_code=g.lang_code) }}';
+        
+        if (speciesId) {
+            url += '?species_id=' + speciesId;
+        }
+
+        $.ajax({
+            url: url,
+            method: 'GET',
+            success: function(data) {
+                const stats = data.user_stats;
+                $('#total-verifications').text(stats.total_verifications);
+                $('#remaining-verifications').text(stats.remaining_verifications);
+                $('#positive-verifications').text(stats.positive_verifications);
+                $('#negative-verifications').text(stats.negative_verifications);
+                $('#skipped-verifications').text(stats.skipped_verifications);
+            },
+            error: function(xhr) {
+                console.error('Error loading user stats:', xhr);
+            }
+        });
+    }
+    
+    function showLoading() {
+        loadingSpinner.show();
+        verificationInterface.hide();
+        noSegmentMessage.hide();
+    }
+    
+    function hideLoading() {
+        loadingSpinner.hide();
+    }
+    
+    function showVerificationMessage(message, type) {
+        verificationMessage
+            .removeClass('success error')
+            .addClass(type)
+            .html('<i class="fas ' + (type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle') + '"></i> ' + message)
+            .show();
+    }
+    
+    function hideVerificationMessage() {
+        verificationMessage.hide();
+    }
+});
+</script>
+{% endblock %}

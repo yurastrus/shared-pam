@@ -1,0 +1,725 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Перегляд завантажених сегментів') }} - {{ _('yurastrus | персональний сайт') }}{% endblock %}
+
+{% block head_extra %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+<style>
+    html {
+        overflow-y: scroll;
+    }
+
+    .segments-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .page-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .filters-panel {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 25px;
+    }
+    
+    .filters-row {
+        display: flex;
+        gap: 15px;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+    
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 200px;
+    }
+    
+    .filter-group label {
+        font-size: 0.9em;
+        margin-bottom: 8px;
+        color: #333;
+        font-weight: 600;
+        text-align: left;
+        display: block;
+    }
+    
+    .filter-group .form-control {
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+    /* Select2 стилі для однакової висоти */
+    .select2-container {
+        width: 100% !important;
+    }
+    
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+        display: flex !important;
+        align-items: center !important;
+        border: 1px solid #ccc !important;
+        border-radius: 4px !important;
+    }
+    
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 38px !important;
+        padding-left: 12px !important;
+        padding-right: 20px !important;
+        color: #333;
+    }
+    
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 36px !important;
+        right: 8px !important;
+    }
+    
+    .select2-container--default .select2-selection--single .select2-selection__placeholder {
+        color: #999;
+    }
+
+    .filter-buttons {
+        flex-basis: 100%;
+        margin-top: 20px;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    
+    .btn {
+        display: inline-block;
+        padding: 10px 24px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        font-size: 14px;
+        color: white;
+        background-color: #0779e4;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background-color 0.2s;
+        font-weight: 500;
+    }
+    
+    .btn:hover {
+        background-color: #0056b3;
+        color: white;
+        text-decoration: none;
+    }
+    
+    .btn-secondary {
+        background-color: #6c757d;
+    }
+    
+    .btn-secondary:hover {
+        background-color: #5a6268;
+    }
+    
+    .segments-table-section {
+        background-color: #ffffff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+    }
+    
+    .segments-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    
+    .segments-table th,
+    .segments-table td {
+        padding: 12px 8px;
+        text-align: left;
+        border-bottom: 1px solid #dee2e6;
+        font-size: 0.9em;
+    }
+    
+    .segments-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        color: #333;
+        position: sticky;
+        top: 0;
+    }
+    
+    .segments-table tr:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.8em;
+        font-weight: 500;
+        text-transform: uppercase;
+    }
+    
+    .status-pending {
+        background-color: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeaa7;
+    }
+    
+    .status-completed {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    
+    .status-archived {
+        background-color: #e2e3e5;
+        color: #383d41;
+        border: 1px solid #d6d8db;
+    }
+    
+    .confidence-value {
+        font-weight: 600;
+    }
+    
+    .confidence-high {
+        color: #28a745;
+    }
+    
+    .confidence-medium {
+        color: #ffc107;
+    }
+    
+    .confidence-low {
+        color: #dc3545;
+    }
+    
+    .verification-info {
+        font-size: 0.85em;
+        color: #666;
+    }
+    
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    
+    .pagination button {
+        padding: 8px 12px;
+        border: 1px solid #dee2e6;
+        background: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    
+    .pagination button:hover:not(:disabled) {
+        background-color: #e9ecef;
+    }
+    
+    .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .pagination .current-page {
+        background-color: #0779e4;
+        color: white;
+        border-color: #0779e4;
+    }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 40px;
+    }
+    
+    .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        color: #0779e4;
+    }
+    
+    .no-data-message {
+        text-align: center;
+        color: #666;
+        font-style: italic;
+        padding: 40px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        margin-top: 20px;
+    }
+    
+    .summary-info {
+        background-color: #e7f3ff;
+        border: 1px solid #b3d9ff;
+        border-radius: 6px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        margin-top: 10px;
+    }
+    
+    .summary-item {
+        text-align: center;
+    }
+    
+    .summary-value {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #0779e4;
+    }
+    
+    .summary-label {
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 5px;
+    }
+    
+    @media (max-width: 768px) {
+        .filters-row {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .filter-group {
+            min-width: auto;
+        }
+        
+        .segments-table {
+            font-size: 0.8em;
+        }
+        
+        .segments-table th,
+        .segments-table td {
+            padding: 8px 4px;
+        }
+        
+        .summary-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="segments-container">
+        <div class="page-header mb-4">
+            <h1>{{ _('Перегляд завантажених сегментів') }}</h1>
+            <p class="lead">{{ _('Перегляд та фільтрація завантажених аудіосегментів з інформацією про статус верифікації') }}</p>
+        </div>
+
+        <!-- Фільтри -->
+        <div class="filters-panel">
+            <div class="filters-row">
+                <div class="filter-group">
+                    <label for="species-filter">{{ _('Вид:') }}</label>
+                    <select id="species-filter" class="form-control" style="width: 100%;">
+                        <option value="">{{ _('-- Усі види --') }}</option>
+                        {% for species in available_species %}
+                            <option value="{{ species.id }}">{{ species.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="status-filter">{{ _('Статус:') }}</label>
+                    <select id="status-filter" class="form-control">
+                        <option value="all">{{ _('-- Усі статуси --') }}</option>
+                        <option value="pending">{{ _('На верифікацію') }}</option>
+                        <option value="completed">{{ _('Завершено') }}</option>
+                        <option value="archived">{{ _('Архівовано') }}</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="per-page-filter">{{ _('На сторінці:') }}</label>
+                    <select id="per-page-filter" class="form-control">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+
+                <div class="filter-buttons">
+                    <button id="apply-filters-btn" class="btn">
+                        {{ _('Застосувати') }}
+                    </button>
+                    <button id="reset-filters-btn" class="btn btn-secondary">
+                        {{ _('Скинути') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Загальна інформація -->
+        <div id="summary-info" class="summary-info" style="display: none;">
+            <h4 style="margin-top: 0;">{{ _('Загальна статистика (відфільтровано)') }}</h4>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="summary-value" id="total-segments">-</div>
+                    <div class="summary-label">{{ _('Сегментів') }}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="pending-segments">-</div>
+                    <div class="summary-label">{{ _('На верифікацію') }}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="completed-segments">-</div>
+                    <div class="summary-label">{{ _('Завершено') }}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="archived-segments">-</div>
+                    <div class="summary-label">{{ _('Архівовано') }}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-value" id="avg-confidence">-</div>
+                    <div class="summary-label">{{ _('Сер. точність') }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="verifiers-rating-section" class="verifiers-rating-section" style="display: none; margin-bottom: 25px;">
+            <div class="segments-table-section">
+                <h4 style="margin-top: 0;">{{ _('Топ верифікаторів (за фільтром)') }}</h4>
+                <div id="verifiers-rating-container">
+                    <!-- Сюди буде вставлено рейтинг через JS -->
+                    <div class="loading-spinner">
+                        <div class="spinner-border" role="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Таблиця сегментів -->
+        <div class="segments-table-section">
+            <h4 style="margin-top: 0;">{{ _('Список сегментів') }}</h4>
+            
+            <div id="segments-container">
+                <div class="loading-spinner">
+                    <div class="spinner-border" role="status">
+                        <span class="sr-only">{{ _('Завантаження...') }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Пагінація -->
+            <div id="pagination-container"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    let currentPage = 1;
+    let currentFilters = {
+        species_id: '',
+        status: 'all',
+        per_page: 50
+    };
+    
+    // Ініціалізація елементів DOM
+    const speciesFilter = $('#species-filter');
+    const statusFilter = $('#status-filter');
+    const perPageFilter = $('#per-page-filter');
+    const applyButton = $('#apply-filters-btn');
+    const resetButton = $('#reset-filters-btn');
+    const segmentsContainer = $('#segments-container');
+    const paginationContainer = $('#pagination-container');
+    const summaryInfo = $('#summary-info');
+    
+    // Нові елементи для рейтингу
+    const verifiersRatingContainer = $('#verifiers-rating-container');
+    const verifiersRatingSection = $('#verifiers-rating-section');
+    
+    // Ініціалізація Select2
+    speciesFilter.select2({
+        placeholder: "{{ _('-- Усі види --') }}",
+        allowClear: true
+    });
+    
+    statusFilter.select2({
+        minimumResultsForSearch: Infinity
+    });
+
+    perPageFilter.select2({
+        minimumResultsForSearch: Infinity
+    });
+    
+    // Початкове завантаження даних
+    loadSegments();
+    loadVerifiersRating(); // Завантажуємо рейтинг
+    
+    // Обробники подій для кнопок
+    applyButton.on('click', function() {
+        currentPage = 1;
+        updateFiltersFromForm();
+        loadSegments();
+        loadVerifiersRating(); // Оновлюємо рейтинг при застосуванні фільтрів
+    });
+    
+    resetButton.on('click', function() {
+        speciesFilter.val('').trigger('change');
+        statusFilter.val('all').trigger('change');
+        perPageFilter.val('50').trigger('change');
+        
+        currentPage = 1;
+        updateFiltersFromForm();
+        loadSegments();
+        loadVerifiersRating(); // Оновлюємо рейтинг при скиданні
+    });
+    
+    // Функція для оновлення поточних фільтрів
+    function updateFiltersFromForm() {
+        currentFilters = {
+            species_id: speciesFilter.val(),
+            status: statusFilter.val(),
+            per_page: parseInt(perPageFilter.val())
+        };
+    }
+    
+    // --- Логіка завантаження основної таблиці сегментів ---
+    function loadSegments(page = 1) {
+        segmentsContainer.html('<div class="loading-spinner"><div class="spinner-border" role="status"></div></div>');
+        paginationContainer.empty();
+        
+        const params = new URLSearchParams({
+            page: page,
+            per_page: currentFilters.per_page
+        });
+        
+        if (currentFilters.species_id) {
+            params.append('species_id', currentFilters.species_id);
+        }
+        
+        if (currentFilters.status !== 'all') {
+            params.append('status', currentFilters.status);
+        }
+        
+        $.ajax({
+            url: '{{ url_for("pam.api_verification_segments", lang_code=g.lang_code) }}?' + params.toString(),
+            method: 'GET',
+            success: function(data) {
+                displaySegments(data.segments);
+                updatePagination(data.pagination);
+                updateSummary(data);
+                currentPage = page;
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON ? xhr.responseJSON.error : '{{ _("Помилка завантаження даних") }}';
+                segmentsContainer.html(`<div class="no-data-message">${error}</div>`);
+                summaryInfo.hide();
+            }
+        });
+    }
+
+    // --- Нова, окрема логіка для завантаження рейтингу ---
+    function loadVerifiersRating() {
+        verifiersRatingSection.show();
+        verifiersRatingContainer.html('<div class="loading-spinner"><div class="spinner-border" role="status"></div></div>');
+
+        const params = new URLSearchParams();
+        
+        if (currentFilters.species_id) {
+            params.append('species_id', currentFilters.species_id);
+        }
+        
+        if (currentFilters.status !== 'all') {
+            params.append('status', currentFilters.status);
+        }
+
+        $.ajax({
+            url: '{{ url_for("pam.api_top_verifiers", lang_code=g.lang_code) }}?' + params.toString(),
+            method: 'GET',
+            success: function(data) {
+                displayVerifiersRating(data.verifiers);
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON ? xhr.responseJSON.error : '{{ _("Помилка завантаження рейтингу") }}';
+                verifiersRatingContainer.html(`<div class="no-data-message">${error}</div>`);
+            }
+        });
+    }
+    
+    // --- Функції відображення даних ---
+    
+    function displaySegments(segments) {
+        if (!segments || segments.length === 0) {
+            segmentsContainer.html('<div class="no-data-message">{{ _("Сегменти не знайдено за вибраними критеріями") }}</div>');
+            return;
+        }
+        
+        let html = `
+            <table class="segments-table">
+                <thead>
+                    <tr>
+                        <th>{{ _('Файл') }}</th>
+                        <th>{{ _('Вид') }}</th>
+                        <th>{{ _('Точність') }}</th>
+                        <th>{{ _('Локація') }}</th>
+                        <th>{{ _('Дата запису') }}</th>
+                        <th>{{ _('Час запису') }}</th>
+                        <th>{{ _('Статус') }}</th>
+                        <th>{{ _('Верифікації') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        segments.forEach(function(segment) {
+            const confidenceClass = getConfidenceClass(segment.confidence_level);
+            const statusClass = `status-${segment.status}`;
+            
+            let verificationInfo = '-';
+            if (segment.verification_count > 0) {
+                verificationInfo = `${segment.positive_verifications}/${segment.verification_count}`;
+            }
+            
+            html += `
+                <tr>
+                    <td>
+                        <strong>${segment.filename}</strong>
+                    </td>
+                    <td>${segment.species_name}</td>
+                    <td>
+                        <span class="confidence-value ${confidenceClass}">
+                            ${segment.confidence_level}
+                        </span>
+                    </td>
+                    <td>${segment.location_name}</td>
+                    <td>${segment.recorded_date}</td>
+                    <td>${segment.recorded_time}</td>
+                    <td>
+                        <span class="status-badge ${statusClass}">
+                            ${getStatusText(segment.status)}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="verification-info">${verificationInfo}</span>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table>';
+        segmentsContainer.html(html);
+    }
+
+    function displayVerifiersRating(verifiers) {
+        if (!verifiers || verifiers.length === 0) {
+            verifiersRatingContainer.html('<div class="no-data-message">{{ _("Дані для рейтингу відсутні за вибраними критеріями") }}</div>');
+            return;
+        }
+
+        // Використовуємо нумерований список для рейтингу
+        let html = '<ol style="padding-left: 0; margin: 0; list-style-type: decimal; list-style-position: inside;">';
+        
+        verifiers.forEach(function(verifier, index) {
+            // Додаємо стиль для нижнього підкреслення, крім останнього елемента
+            const itemStyle = (index < verifiers.length - 1) ? 'padding: 6px 0; border-bottom: 1px solid #eee;' : 'padding: 6px 0;';
+            
+            html += `
+                <li style="${itemStyle}">
+                    <strong>${verifier.username}</strong>: 
+                    <span style="font-weight: 600; color: #0779e4;">${verifier.verifications_count}</span>
+                    {{ _('верифікацій') }}
+                </li>
+            `;
+        });
+        
+        html += '</ol>';
+        verifiersRatingContainer.html(html);
+    }
+    
+    // --- Допоміжні функції та пагінація ---
+    
+    function getConfidenceClass(confidence) {
+        if (confidence >= 0.8) return 'confidence-high';
+        if (confidence >= 0.6) return 'confidence-medium';
+        return 'confidence-low';
+    }
+    
+    function getStatusText(status) {
+        const statusTexts = {
+            'pending': '{{ _("На верифікацію") }}',
+            'completed': '{{ _("Завершено") }}',
+            'archived': '{{ _("Архівовано") }}'
+        };
+        return statusTexts[status] || status;
+    }
+    
+    function updateSummary(data) {
+        if (data.pagination && data.pagination.total > 0) {
+            $('#total-segments').text(data.pagination.total);
+            $('#pending-segments').text(data.summary.pending_count);
+            $('#completed-segments').text(data.summary.completed_count);
+            $('#archived-segments').text(data.summary.archived_count);
+            $('#avg-confidence').text(data.summary.avg_confidence);
+            summaryInfo.show();
+        } else {
+            summaryInfo.hide();
+        }
+    }
+
+    function updatePagination(pagination) {
+        if (pagination.pages <= 1) {
+            paginationContainer.empty();
+            return;
+        }
+        
+        let html = '<div class="pagination">';
+        
+        html += `<button ${pagination.page <= 1 ? 'disabled' : ''} onclick="changePage(${pagination.page - 1})">{{ _('← Попередня') }}</button>`;
+        
+        const startPage = Math.max(1, pagination.page - 2);
+        const endPage = Math.min(pagination.pages, pagination.page + 2);
+        
+        if (startPage > 1) {
+            html += `<button onclick="changePage(1)">1</button>`;
+            if (startPage > 2) {
+                html += '<span>...</span>';
+            }
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            const activeClass = i === pagination.page ? 'current-page' : '';
+            html += `<button class="${activeClass}" onclick="changePage(${i})">${i}</button>`;
+        }
+        
+        if (endPage < pagination.pages) {
+            if (endPage < pagination.pages - 1) {
+                html += '<span>...</span>';
+            }
+            html += `<button onclick="changePage(${pagination.pages})">${pagination.pages}</button>`;
+        }
+        
+        html += `<button ${pagination.page >= pagination.pages ? 'disabled' : ''} onclick="changePage(${pagination.page + 1})">{{ _('Наступна →') }}</button>`;
+        
+        html += '</div>';
+        paginationContainer.html(html);
+    }
+    
+    // Глобальна функція для кнопок пагінації
+    window.changePage = function(page) {
+        loadSegments(page);
+    };
+});
+</script>
+{% endblock %}

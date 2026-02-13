@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Аналіз багаторічних трендів') }}{% endblock %}
+
+{% block head_extra %}
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        .species-analysis-page { max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; }
+        .page-header h1 { font-size: 1.75rem; font-weight: 600; color: #1a202c; margin-bottom: 1.5rem; }
+        .filters-container { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+        .filters-grid { display: grid; grid-template-columns: 1fr auto auto auto; gap: 1rem; align-items: end; }
+        .filter-item { display: flex; flex-direction: column; }
+        .filter-item label { font-weight: 500; color: #4a5568; margin-bottom: 0.5rem; font-size: 0.875rem; }
+        .filter-item.species-filter { grid-column: 1; }
+        .filter-item.year-filter { min-width: 140px; max-width: 160px; }
+        .filter-item select.form-control { height: 38px; border: 1px solid #cbd5e0; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.875rem; }
+        .filter-item select.form-control:focus { border-color: #4299e1; outline: none; box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1); }
+        .filter-actions { display: flex; gap: 0.75rem; align-items: flex-end; }
+        .btn { padding: 0.5rem 1.25rem; border-radius: 6px; font-size: 0.875rem; font-weight: 500; border: none; cursor: pointer; transition: all 0.2s; white-space: nowrap; height: 38px; display: inline-flex; align-items: center; justify-content: center; }
+        .btn-primary { background: #0d6efd; color: white; }
+        .btn-primary:hover { background: #0b5ed7; }
+        .btn-secondary { background: #6c757d; color: white; text-decoration: none; }
+        .btn-secondary:hover { background: #5a6268; color: white; text-decoration: none; }
+        .message-container { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem 1.5rem; text-align: center; color: #6c757d; max-width: 768px; margin-left: auto; margin-right: auto; }
+        .message-container.info { background: #e7f3ff; border-color: #b3d9ff; color: #004085; }
+        .message-container.error { background: #ffe7e7; border-color: #ffb3b3; color: #721c24; }
+        .spinner-border { width: 2rem; height: 2rem; border: 0.25rem solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spinner-border 0.75s linear infinite; margin: 0 auto 1rem; }
+        @keyframes spinner-border { to { transform: rotate(360deg); } }
+        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 2rem; }
+        .chart-section { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+        .chart-title { font-size: 1.125rem; font-weight: 600; color: #2d3748; margin-bottom: 1rem; }
+        .chart-container { position: relative; height: 400px; width: 100%; }
+        .chart-section.full-width { grid-column: span 2; }
+        .chart-container.bar-chart { height: 500px; }
+        @media (max-width: 992px) {
+            .filters-grid { grid-template-columns: 1fr; gap: 1rem; }
+            .filter-item.year-filter { max-width: none; }
+            .filter-actions { flex-direction: column; width: 100%; }
+            .filter-actions .btn { width: 100%; }
+            .dashboard-grid { grid-template-columns: 1fr; }
+            .chart-section.full-width { grid-column: span 1; }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="species-analysis-page">
+    <div class="page-header">
+        <h1>{{ _('Аналіз багаторічних трендів') }}</h1>
+        <h4>{{ _('УВАГА! Це експериментальна сторінка. Не варто тренди на основі ПАМ сприймати за справжню популяційну динаміку.') }}</h4>
+    </div>
+
+    <!-- Панель фільтрів -->
+    <div class="filters-container">
+        <div class="filters-grid">
+            <div class="filter-item species-filter">
+                <label for="species-select">{{ _('Виберіть вид:') }}</label>
+                <select id="species-select" class="form-control">
+                    <option></option>
+                    {% for species in available_species %}
+                        <option value="{{ species.id }}">{{ species.text }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-item year-filter">
+                <label for="start-year-select">{{ _('Початковий рік:') }}</label>
+                <select id="start-year-select" class="form-control">
+                    {% for year in available_years %}
+                    <option value="{{ year }}" {% if year == start_year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-item year-filter">
+                <label for="end-year-select">{{ _('Кінцевий рік:') }}</label>
+                <select id="end-year-select" class="form-control">
+                    {% for year in available_years %}
+                    <option value="{{ year }}" {% if year == end_year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button id="apply-filters-btn" class="btn btn-primary">{{ _('Побудувати графіки') }}</button>
+                <a href="{{ url_for('pam.pam_home', lang_code=g.lang_code) }}" class="btn btn-secondary">{{ _('До головної сторінки ПАМ') }}</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Контейнер для графіків або повідомлення -->
+    <div id="dashboard-content">
+        <div class="message-container info">
+            <p>{{ _('Будь ласка, виберіть вид та натисніть "Побудувати графіки" для аналізу.') }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+$(document).ready(function() {
+    const speciesSelect = $('#species-select');
+    const startYearSelect = $('#start-year-select');
+    const endYearSelect = $('#end-year-select');
+    const applyButton = $('#apply-filters-btn');
+    const contentContainer = $('#dashboard-content');
+    
+    let seasonalChartInstance = null;
+    let yearlyChartInstance = null;
+    let biotopeChartInstance = null;
+
+    speciesSelect.select2({
+        placeholder: '{{ _("-- Пошук та вибір виду --") }}',
+        allowClear: true,
+        width: '100%'
+    });
+
+    function validateYearRange() {
+        const startYear = parseInt(startYearSelect.val(), 10);
+        const endYear = parseInt(endYearSelect.val(), 10);
+        endYearSelect.find('option').each(function() {
+            $(this).prop('disabled', parseInt($(this).val(), 10) < startYear);
+        });
+        if (endYear < startYear) {
+            endYearSelect.val(startYear);
+        }
+    }
+
+    startYearSelect.on('change', validateYearRange);
+    validateYearRange();
+    applyButton.on('click', runAnalysis);
+
+    function runAnalysis() {
+        const speciesId = speciesSelect.val();
+        const startYear = startYearSelect.val();
+        const endYear = endYearSelect.val();
+
+        if (!speciesId) {
+            alert('{{ _("Будь ласка, виберіть вид.") }}');
+            return;
+        }
+
+        showLoading();
+
+        const apiUrl = new URL("{{ url_for('pam.api_pam_species_dynamics', lang_code=g.lang_code, _external=True) }}");
+        apiUrl.searchParams.set('species_id', speciesId);
+        apiUrl.searchParams.set('start_year', startYear);
+        apiUrl.searchParams.set('end_year', endYear);
+        
+        fetch(apiUrl)
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => { renderCharts(data); })
+            .catch(error => {
+                console.error("Fetch error:", error);
+                showError('{{ _("Не вдалося завантажити дані для аналізу.") }}');
+            });
+    }
+
+    function showLoading() {
+        contentContainer.html(`<div class="message-container"><div class="spinner-border" role="status"></div><p>{{ _("Завантаження даних...") }}</p></div>`);
+    }
+
+    function showError(message) {
+        contentContainer.html(`<div class="message-container error">${message}</div>`);
+    }
+
+    function renderCharts(data) {
+        const hasAnyData = (data.seasonal_activity && data.seasonal_activity.length > 0) || 
+                           (data.yearly_trend && data.yearly_trend.length > 0);
+
+        if (!hasAnyData) {
+            showError('{{ _("Для вибраного виду та періоду немає даних.") }}');
+            return;
+        }
+
+        contentContainer.html(`
+            <div class="dashboard-grid">
+                <div class="chart-section">
+                    <h3 class="chart-title">{{ _("Сезонна активність (кількість детекцій)") }}</h3>
+                    <div class="chart-container"><canvas id="seasonalActivityChart"></canvas></div>
+                </div>
+                <div class="chart-section">
+                    <h3 class="chart-title">{{ _("Багаторічна динаміка (індекс RAI)") }}</h3>
+                    <div class="chart-container"><canvas id="yearlyTrendChart"></canvas></div>
+                </div>
+                <div class="chart-section full-width" id="biotope-chart-section" style="display: none;">
+                    <!-- ### ЗМІНА 1: Оновлено заголовок ### -->
+                    <h3 class="chart-title">{{ _("ЕКСПЕРИМЕНТ! Відносна активність у біотопах (детекцій / годину)") }}</h3>
+                    <div class="chart-container bar-chart"><canvas id="biotopeActivityChart"></canvas></div>
+                </div>
+            </div>
+        `);
+        
+        if (seasonalChartInstance) seasonalChartInstance.destroy();
+        if (yearlyChartInstance) yearlyChartInstance.destroy();
+        if (biotopeChartInstance) biotopeChartInstance.destroy();
+
+        if (data.seasonal_activity && data.seasonal_activity.length > 0) {
+            const seasonalCtx = document.getElementById('seasonalActivityChart').getContext('2d');
+            const seasonalData = processSeasonalData(data.seasonal_activity);
+            seasonalChartInstance = new Chart(seasonalCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['{{ _("Січ") }}', '{{ _("Лют") }}', '{{ _("Бер") }}', '{{ _("Кві") }}', '{{ _("Тра") }}', '{{ _("Чер") }}', '{{ _("Лип") }}', '{{ _("Сер") }}', '{{ _("Вер") }}', '{{ _("Жов") }}', '{{ _("Лис") }}', '{{ _("Гру") }}'],
+                    datasets: seasonalData.datasets
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, title: { display: true, text: '{{ _("Кількість детекцій") }}' } } } }
+            });
+        }
+
+        if (data.yearly_trend && data.yearly_trend.length > 0) {
+            const yearlyCtx = document.getElementById('yearlyTrendChart').getContext('2d');
+            yearlyChartInstance = new Chart(yearlyCtx, {
+                type: 'line',
+                data: {
+                    labels: data.yearly_trend.map(d => d.year),
+                    datasets: [
+                        { label: '{{ _("Середній тренд (RAI)") }}', data: data.yearly_trend.map(d => d.mean_dr_index), borderColor: '#0072B2', backgroundColor: '#0072B2', tension: 0, fill: false, pointRadius: 4 },
+                        { label: '{{ _("95%% Довірчий інтервал") }}', data: data.yearly_trend.map(d => d.upper_ci), fill: '+1', backgroundColor: 'rgba(0, 114, 178, 0.2)', borderColor: 'transparent', pointRadius: 0, tension: 0 },
+                        { label: 'Lower CI Bound', data: data.yearly_trend.map(d => d.lower_ci), fill: false, borderColor: 'transparent', pointRadius: 0, tension: 0 }
+                    ]
+                },
+                options: { 
+                    responsive: true, maintainAspectRatio: false, 
+                    scales: { y: { beginAtZero: true, title: { display: true, text: '{{ _("Індекс RAI (детекцій/год)") }}' } } },
+                    plugins: { legend: { labels: { filter: (item) => item.datasetIndex < 2 } } }
+                }
+            });
+        }
+
+        if (data.biotope_activity && data.biotope_activity.length > 0) {
+            document.getElementById('biotope-chart-section').style.display = 'block';
+            const biotopeCtx = document.getElementById('biotopeActivityChart').getContext('2d');
+            renderBiotopeBarChart(biotopeCtx, data.biotope_activity);
+        } else {
+            document.getElementById('biotope-chart-section').style.display = 'none';
+        }
+    }
+    
+    function processSeasonalData(rawData) {
+        const datasets = {};
+        const colors = ['#0d6efd', '#6c757d', '#198754', '#dc3545', '#ffc107', '#0dcaf0'];
+        rawData.forEach(item => {
+            const year = item.year;
+            if (!datasets[year]) {
+                datasets[year] = { label: String(year), data: new Array(12).fill(0), backgroundColor: colors[(Object.keys(datasets).length) % colors.length] };
+            }
+            datasets[year].data[item.month - 1] = item.count;
+        });
+        return { datasets: Object.values(datasets) };
+    }
+
+    function renderBiotopeBarChart(ctx, rawData) {
+        const biotopes = [...new Set(rawData.map(d => d.biotope_name))].sort();
+        const years = [...new Set(rawData.map(d => d.year))].sort((a, b) => a - b);
+        
+        const colors = ['#fee6ce', '#fdd0a2', '#fdae6b', '#fd8d3c', '#f16913', '#d94801', '#a63603', '#7f2704'];
+
+        const datasets = years.map((year, index) => {
+            const dataForYear = new Array(biotopes.length).fill(0);
+            rawData.forEach(item => {
+                if (item.year === year) {
+                    const biotopeIndex = biotopes.indexOf(item.biotope_name);
+                    if (biotopeIndex !== -1) {
+                        // ### ЗМІНА 2: Використовуємо нове поле 'relative_activity' ###
+                        dataForYear[biotopeIndex] = item.relative_activity;
+                    }
+                }
+            });
+            return {
+                label: String(year),
+                data: dataForYear,
+                backgroundColor: colors[index % colors.length]
+            };
+        });
+
+        biotopeChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: biotopes,
+                datasets: datasets
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        stacked: true,
+                        title: {
+                            display: true,
+                            // ### ЗМІНА 3: Оновлено підпис осі ###
+                            text: '{{ _("Відносна активність (детекцій / годину)") }}'
+                        }
+                    },
+                    y: {
+                        stacked: true
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            // ### ЗМІНА 4: Повністю нова логіка для підказок ###
+                            label: function(context) {
+                                const year = parseInt(context.dataset.label, 10);
+                                const biotopeName = context.label;
+                                
+                                // Знаходимо вихідні дані для цієї точки
+                                const originalData = rawData.find(d => d.year === year && d.biotope_name === biotopeName);
+                                
+                                if (originalData) {
+                                    const relativeVal = context.raw.toFixed(3);
+                                    const absoluteCount = originalData.detection_count;
+                                    return `${year}: ${relativeVal} дет/год (${absoluteCount} детекцій)`;
+                                }
+                                
+                                // Запасний варіант, якщо щось піде не так
+                                return `${year}: ${context.raw.toFixed(3)}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

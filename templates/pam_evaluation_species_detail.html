@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block title %}{{ display_name }} - {{ _('Детальна оцінка') }}{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+    .detail-container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        margin-bottom: 30px;
+    }
+    .coeffs-table th { width: 50%; color: #666; font-size: 0.9em; }
+    .coeffs-table td { font-family: monospace; font-weight: bold; color: #0779e4; }
+    .formula-box {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 0.85em;
+        margin-top: 15px;
+        border: 1px solid #e9ecef;
+        word-break: break-all;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4" style="max-width: 1400px;">
+    
+    <!-- ГАРАНТОВАНЕ ЦЕНТРУВАННЯ ЧЕРЕЗ СІТКУ (GRID) -->
+    <div class="row mb-4">
+        <div class="col-12 text-center">
+            <h2 class="mb-2 font-weight-bold">{{ display_name }}</h2>
+            <p class="text-muted mb-3">{{ _('Аналіз логістичної регресії BirdNET') }}</p>
+            
+            <div class="d-inline-block">
+                {% if current_user.is_authenticated and current_user.has_role('admin', 'roztochya_user') %}
+                <a href="{{ url_for('pam.download_species_evaluation_excel', lang_code=g.lang_code, species_id=species_id) }}" class="btn btn-success">
+                    <i class="fas fa-file-excel"></i> {{ _('Експорт (.xlsx)') }}
+                </a>
+                {% endif %}
+                <button onclick="window.close();" class="btn btn-secondary ml-2">{{ _('Закрити') }}</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Ліва колонка: Графік (ширша, 9 cols) -->
+        <div class="col-lg-9">
+            <div class="detail-container">
+                <div id="regression-plot" style="height: 600px;"></div>
+            </div>
+        </div>
+
+        <!-- Права колонка: Статистика (вужча, 3 cols) -->
+        <div class="col-lg-3">
+            <div class="detail-container">
+                <h5 class="border-bottom pb-2 mb-3">{{ _('Параметри моделі') }}</h5>
+                
+                <table class="table table-sm table-borderless coeffs-table">
+                    <tbody>
+                        <tr>
+                            <th>{{ _('R² (псевдо):') }}</th>
+                            <td>{{ "%.3f"|format(data.info.logistic_r_squared) if data.info.logistic_r_squared is not none else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th>{{ _('β0 (Intercept):') }}</th>
+                            <td>{{ "%.3f"|format(data.info.logistic_beta0) if data.info.logistic_beta0 is not none else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th>{{ _('β1 (Slope):') }}</th>
+                            <td>{{ "%.3f"|format(data.info.logistic_beta1) if data.info.logistic_beta1 is not none else '-' }}</td>
+                        </tr>
+                        <tr>
+                            <th>{{ _('Всього точок:') }}</th>
+                            <td>{{ data.points|length }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h5 class="border-bottom pb-2 mb-2 mt-3">{{ _('Пороги (Thresholds)') }}</h5>
+                <table class="table table-sm table-striped" style="font-size: 0.9em;">
+                    <thead>
+                        <tr><th>Target</th><th>Value</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>{{ _('Precision 90%%') }}</td><td><strong>{{ "%.3f"|format(data.info.p0_9_threshold) if data.info.p0_9_threshold else '-' }}</strong></td></tr>
+                        <tr><td>{{ _('Precision 95%%') }}</td><td><strong>{{ "%.3f"|format(data.info.p0_95_threshold) if data.info.p0_95_threshold else '-' }}</strong></td></tr>
+                        <tr><td>{{ _('Precision 99%%') }}</td><td><strong>{{ "%.3f"|format(data.info.p0_99_threshold) if data.info.p0_99_threshold else '-' }}</strong></td></tr>
+                    </tbody>
+                </table>
+                
+                <div class="formula-box mt-3">
+                    <strong>{{ _('Формула:') }}</strong><br>
+                    P = 1 / (1 + e<sup>-(β0 + β1*x)</sup>)
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const data = {{ data | tojson }};
+        const params = data.info;
+        const points = data.points;
+
+        // Debugging: Виводимо параметри в консоль браузера
+        console.log("Model Params:", params);
+
+        // --- 1. Підготовка точок ---
+        const xRaw = points.map(p => p.confidence);
+        const yRaw = points.map(p => p.avg_verification);
+        
+        // Jitter: додаємо шум тільки якщо точок багато, щоб вони не злипались
+        const yJitter = yRaw.map(y => {
+            const noise = (Math.random() - 0.5) * 0.05; 
+            // Обмежуємо, щоб не вилазило за межі графіка занадто сильно
+            return Math.max(-0.02, Math.min(1.02, y + noise));
+        });
+
+        const colors = yRaw.map(y => {
+            if (y >= 0.99) return 'rgba(40, 167, 69, 0.7)'; 
+            if (y <= 0.01) return 'rgba(220, 53, 69, 0.7)'; 
+            return 'rgba(255, 193, 7, 0.8)'; 
+        });
+
+        const hoverTexts = points.map(p => 
+            `ID: ${p.segment_id}<br>` +
+            `Conf: ${p.confidence.toFixed(3)}<br>` +
+            `Result: ${p.avg_verification.toFixed(2)}<br>` +
+            `Votes: <b>${p.verification_count}</b>`
+        );
+
+        const tracePoints = {
+            x: xRaw,
+            y: yJitter,
+            mode: 'markers',
+            type: 'scatter',
+            name: '{{ _("Дані") }}',
+            text: hoverTexts,
+            hoverinfo: 'text',
+            marker: { 
+                color: colors,
+                size: 8,
+                line: { color: '#555', width: 0.5 }
+            }
+        };
+
+        // --- 2. Крива регресії ---
+        const traceLine = {
+            x: [],
+            y: [],
+            mode: 'lines',
+            name: '{{ _("Модель") }}',
+            line: { color: '#0779e4', width: 3 },
+            hoverinfo: 'x+y'
+        };
+
+        // Перевіряємо наявність коефіцієнтів
+        if (params.logistic_beta0 !== null && params.logistic_beta1 !== null && 
+            params.logistic_beta0 !== undefined && params.logistic_beta1 !== undefined) {
+            
+            const b0 = parseFloat(params.logistic_beta0);
+            const b1 = parseFloat(params.logistic_beta1);
+
+            for (let x = 0.0; x <= 1.05; x += 0.01) {
+                traceLine.x.push(x);
+                // Формула: 1 / (1 + exp(-(b0 + b1*x)))
+                const logit = b0 + (b1 * x);
+                const prob = 1 / (1 + Math.exp(-logit));
+                traceLine.y.push(prob);
+            }
+        } else {
+            console.warn("Beta coefficients are NULL or missing. Curve will not be drawn.");
+        }
+
+        // --- 3. Порогові лінії ---
+        const shapes = [];
+        const annotations = [];
+        const thresholds = [
+            { val: params.p0_9_threshold, label: '90%', color: '#ffc107' },
+            { val: params.p0_95_threshold, label: '95%', color: '#fd7e14' },
+            { val: params.p0_99_threshold, label: '99%', color: '#dc3545' }
+        ];
+
+        thresholds.forEach(t => {
+            if (t.val && t.val > 0.01 && t.val <= 1.0) {
+                shapes.push({
+                    type: 'line',
+                    x0: t.val, x1: t.val,
+                    y0: 0, y1: 1,
+                    line: { color: t.color, width: 2, dash: 'dot' }
+                });
+                annotations.push({
+                    x: t.val, y: 1.05,
+                    xref: 'x', yref: 'y',
+                    text: t.label,
+                    showarrow: false,
+                    xanchor: 'center', // Центруємо текст над лінією
+                    font: { color: t.color, size: 10, weight: 'bold' }
+                });
+            }
+        });
+
+        const layout = {
+            title: { text: 'Probability vs Confidence', font: { size: 18 } },
+            xaxis: { 
+                title: 'BirdNET Confidence Score', 
+                range: [0, 1.05], 
+                zeroline: false
+            },
+            yaxis: { 
+                title: 'Probability', 
+                range: [-0.1, 1.15], 
+                zeroline: false
+            },
+            shapes: shapes,
+            annotations: annotations,
+            hovermode: 'closest',
+            legend: { orientation: 'h', y: -0.15 },
+            margin: { t: 50, r: 20, l: 60, b: 50 }
+        };
+
+        const config = { responsive: true, displayModeBar: true, displaylogo: false };
+
+        Plotly.newPlot('regression-plot', [tracePoints, traceLine], layout, config);
+    });
+</script>
+{% endblock %}

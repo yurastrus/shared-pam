@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Акустичний моніторинг') }} - {{ _('yurastrus | персональний сайт') }}{% endblock %}
+
+{% block head_extra %}
+<style>
+    .pam-block-list {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 0;
+        list-style: none;
+    }
+
+    .pam-block-item {
+        width: 80%;
+        max-width: 700px;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header mb-4">
+        <h1>{{ _('Пасивний Акустичний Моніторинг (PAM)') }}</h1>
+    </div>
+    
+    <p class="lead">
+        {{ _('Цей розділ присвячений аналізу та візуалізації даних, отриманих за допомогою пасивного акустичного моніторингу. Тут ви можете ознайомитися з результатами досліджень фауни Розточчя з використанням ПАМ, переглянути динаміку детекцій різних видів тварин та дослідити їх добову активність.') }}
+        {{ _('Cирі дані частково вже доступні через') }}
+        <a href="https://doi.org/10.15468/kn8y8x" target="_blank" style="font-weight: bold; text-decoration: underline;">GBIF.</a>
+    </p>
+
+    <hr>
+
+    <h3>{{ _('Дослідження фауни Розточчя методами ПАМ') }}</h3>
+    
+    <ul class="pam-block-list">
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.pam_overview', lang_code=g.lang_code) }}">
+                    {{ _('Загальна динамічна таблиця з списком видів') }}
+                </a>
+            </h3>
+            
+            <p class="article-meta">
+                <span class="meta-icon">🔊</span>
+                {{ _('Рейтингова таблиця видів за кількістю автоматичних детекцій за допомогою алгоритму BirdNET.') }}
+            </p>
+        </li>
+        
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.pam_detailed', lang_code=g.lang_code) }}">
+                    {{ _('Детальний повидовий аналіз') }}
+                </a>
+            </h3>
+            <p class="article-meta">
+                <span class="meta-icon">🔊</span>
+                {{ _('Інтерактивні графіки та карта для конкретного виду. Як і у загальній таблиці, використано дані автоматичної класифікації видів на основі алгоритму BirdNET.') }}
+            </p>
+        </li>
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.pam_species_dashboard', lang_code=g.lang_code) }}">
+                    {{ _('Аналіз багаторічних трендів') }}
+                </a>
+            </h3>
+            <p class="article-meta">
+                <span class="meta-icon">🔊</span>
+                {{ _('Міжрічні тренди детекцій та сезонна активність видів агрегована до місяців.') }}
+            </p>
+        </li>
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.pam_yearly_table', lang_code=g.lang_code) }}">
+                    {{ _('Міжрічна порівняльна таблиця') }}
+                </a>
+            </h3>
+            <p class="article-meta">
+                <span class="meta-icon">🔊</span>
+                {{ _('Міжрічна динамічна порівняльна таблиця, що показує нормалізовану кількість детекцій (на 24 год записів) видів.') }}
+            </p>
+        </li>
+    </ul>
+
+    <hr>
+
+    <h3>{{ _('Верифікація класифікацій BirdNET') }}</h3>
+    
+    <ul class="pam-block-list">
+        {% if current_user.is_authenticated and current_user.has_role('admin') %}
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.verification_upload', lang_code=g.lang_code) }}">
+                    {{ _('Завантаження аудіосегментів') }}
+                </a>
+            </h3>
+            
+            <p class="article-meta">
+                <span class="meta-icon">📁</span>
+                {{ _('Завантаження ZIP архівів з аудіосегментами для верифікації точності автоматичних класифікацій.') }}
+            </p>
+        </li>
+        {% endif %}
+        
+        {% if current_user.is_authenticated and current_user.has_role('roztochya_user', 'fzs_user', 'volunteer_user') %}
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.verification_interface', lang_code=g.lang_code) }}">
+                    {{ _('Верифікація сегментів') }}
+                </a>
+            </h3>
+            
+            <p class="article-meta">
+                <span class="meta-icon">🎧</span>
+                {{ _('Прослуховування та верифікація аудіосегментів для оцінки точності BirdNET класифікацій.') }}
+            </p>
+        </li>
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.verification_segments', lang_code=g.lang_code) }}">
+                    {{ _('Перегляд завантажених сегментів') }}
+                </a>
+            </h3>
+            
+            <p class="article-meta">
+                <span class="meta-icon">📊</span>
+                {{ _('Перегляд списку завантажених аудіосегментів з фільтрацією по видах та статусу верифікації.') }}
+            </p>
+        </li>
+        {% endif %}
+              
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.evaluation_results', lang_code=g.lang_code) }}">
+                    {{ _('Результати оцінки точності') }}
+                </a>
+            </h3>
+            
+            <p class="article-meta">
+                <span class="meta-icon">📈</span>
+                {{ _('Перегляд метрик точності (precision, recall, F1) для різних видів на основі верифікованих даних.') }}
+            </p>
+        </li>
+    </ul>
+    
+  
+    
+    {% if current_user.is_authenticated and current_user.has_role('admin', 'roztochya_user') %}
+    <hr>
+    <h3>{{ _('Управління') }}</h3>
+    
+    <ul class="pam-block-list">
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.pam_data_export', lang_code=g.lang_code) }}">
+                    {{ _('Експорт даних') }}
+                </a>
+            </h3>
+            
+            <p class="article-meta">
+                <span class="meta-icon">📁</span>
+                {{ _('Експорт даних ПАМ моніторнгу у CSV таблиці.') }}
+            </p>
+        </li>
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.pam_service_log', lang_code=g.lang_code) }}">
+                    {{ _('Журнал обслуговування') }}
+                </a>
+            </h3>
+            
+            <p class="article-meta">
+                <span class="meta-icon">📁</span>
+                {{ _('Журнал обслуговування акустичних ресиверів, з інтерактивною картою і прогнозуванням роботи приладів.') }}
+            </p>
+        </li>
+        {% if current_user.has_role('admin') %}
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
+                <a href="{{ url_for('pam.manage_pam_locations', lang_code=g.lang_code) }}">
+                    {{ _('Управління локаціями ПАМ') }}
+                </a>
+            </h3>
+            
+            <p class="article-meta">
+                <span class="meta-icon">⚙️</span>
+                {{ _('Редагування назв та біотопів для точок акустичного моніторингу.') }}
+            </p>
+        </li>
+        {% endif %}
+    </ul>
+    {% endif %}
+    
+
+
+
+</div>
+{% endblock %}

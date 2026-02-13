@@ -1,0 +1,632 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Результати оцінки точності BirdNET') }} - {{ _('yurastrus | персональний сайт') }}{% endblock %}
+
+{% block head_extra %}
+<style>
+    .evaluation-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+    
+    .summary-card {
+        background-color: #ffffff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .summary-card h5 {
+        margin: 0 0 10px 0;
+        color: #666;
+        font-size: 0.9em;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .summary-value {
+        font-size: 2em;
+        font-weight: 600;
+        color: #0779e4;
+        margin-bottom: 5px;
+    }
+    
+    .summary-subtitle {
+        font-size: 0.8em;
+        color: #999;
+    }
+    
+    .admin-panel {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .admin-panel h4 {
+        color: #856404;
+        margin-top: 0;
+    }
+    
+    .admin-buttons {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .btn-warning {
+        background-color: #ffc107;
+        border-color: #ffc107;
+        color: #212529;
+    }
+    
+    .btn-danger {
+        background-color: #dc3545;
+        border-color: #dc3545;
+    }
+    
+    .top-species-table {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .detailed-results-section {
+        background-color: #ffffff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+    }
+    
+    .results-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    
+    .results-table th,
+    .results-table td {
+        padding: 12px 8px;
+        text-align: left;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .results-table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+    }
+    
+    .results-table th:hover {
+        background-color: #e9ecef;
+    }
+    
+    .results-table th.sortable::after {
+        content: ' ↕';
+        color: #666;
+        font-size: 0.8em;
+    }
+    
+    .results-table th.sort-asc::after {
+        content: ' ↑';
+        color: #0779e4;
+    }
+    
+    .results-table th.sort-desc::after {
+        content: ' ↓';
+        color: #0779e4;
+    }
+    
+    .results-table td {
+        font-size: 0.9em;
+    }
+    
+    .metric-value {
+        font-weight: 600;
+    }
+    
+    .metric-excellent {
+        color: #28a745;
+    }
+    
+    .metric-good {
+        color: #17a2b8;
+    }
+    
+    .metric-fair {
+        color: #ffc107;
+    }
+    
+    .metric-poor {
+        color: #dc3545;
+    }
+    
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    
+    .pagination button {
+        padding: 8px 12px;
+        border: 1px solid #dee2e6;
+        background: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    
+    .pagination button:hover:not(:disabled) {
+        background-color: #e9ecef;
+    }
+    
+    .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .pagination .current-page {
+        background-color: #0779e4;
+        color: white;
+        border-color: #0779e4;
+    }
+    
+    .loading-spinner {
+        text-align: center;
+        padding: 40px;
+    }
+    
+    .filters-row {
+        display: flex;
+        gap: 15px;
+        align-items: end;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .filter-group label {
+        font-size: 0.9em;
+        margin-bottom: 5px;
+        color: #666;
+    }
+    
+    .no-data-message {
+        text-align: center;
+        color: #666;
+        font-style: italic;
+        padding: 40px;
+    }
+    
+    .text-muted {
+        color: #6c757d;
+    }
+    
+    @media (max-width: 768px) {
+        .results-table {
+            font-size: 0.8em;
+        }
+        
+        .results-table th,
+        .results-table td {
+            padding: 8px 4px;
+        }
+        
+        .admin-buttons {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .admin-buttons .btn {
+            margin-bottom: 10px;
+        }
+        .ci-range {
+            display: block;
+            font-size: 0.75em;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="evaluation-container">
+        <div class="page-header mb-4">
+            <h1>{{ _('Результати оцінки точності BirdNET') }}</h1>
+            <p class="lead">{{ _('Метрики точності автоматичної класифікації видів на основі людських верифікацій') }}</p>
+        </div>
+
+        <!-- Загальна статистика -->
+        <div class="summary-grid">
+            <div class="summary-card">
+                <h5>{{ _('Оцінених видів') }}</h5>
+                <div class="summary-value">{{ summary.summary.total_species }}</div>
+                <div class="summary-subtitle">{{ _('з верифікованими даними') }}</div>
+            </div>
+            <div class="summary-card">
+                <h5>{{ _('Всього зразків') }}</h5>
+                <div class="summary-value">{{ summary.summary.total_samples }}</div>
+                <div class="summary-subtitle">{{ _('верифіковано') }}</div>
+            </div>
+            <div class="summary-card">
+                <h5>{{ _('Логістична регресія') }}</h5>
+                <div class="summary-value">{{ summary.logistic_summary.logistic_calculated }}</div>
+                <div class="summary-subtitle">{{ _('видів з розрахованою регресією') }}</div>
+            </div>
+        </div>
+
+        <!-- Панель адміністратора -->
+        {% if current_user.is_authenticated and current_user.has_role('admin') %}
+        <div class="admin-panel">
+            <h4>{{ _('Адміністраторські функції') }}</h4>
+            <div class="admin-buttons">
+            <form method="post" action="{{ url_for('pam.admin_recalculate_metrics', lang_code=g.lang_code) }}" class="form-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                
+                <div class="d-flex align-items-end flex-wrap" style="gap: 10px;">
+                    
+                    <!-- Група: Кількість -->
+                    <div class="form-group mb-0">
+                        <label for="min_verifications" class="small text-muted mb-1 d-block">{{ _('Мін. вер.') }}</label>
+                        <input type="number" id="min_verifications" name="min_verifications" 
+                            value="1" min="1" max="5" 
+                            class="form-control form-control-sm text-center" 
+                            style="width: 60px;">
+                    </div>
+
+                    <!-- Група: Вибір виду -->
+                    <div class="form-group mb-0">
+                       <!-- <label for="species_choice" class="small text-muted mb-1 d-block">{{ _('Вид') }}</label>  -->
+                        <select name="species_choice" id="species_choice" 
+                                class="form-control form-control-sm" 
+                                style="width: auto; min-width: 150px; max-width: 180px;">
+                            <option value="all" class="font-weight-bold">-- {{ _('Усі види') }} --</option>
+                            {% if species_list %}
+                                <optgroup label="{{ _('Окремі види') }}">
+                                {% for sp in species_list %}
+                                <option value="{{ sp.species_id }}">
+                                    {% set local_name = sp.common_name_uk if g.lang_code == 'uk' else sp.common_name_en %}
+                                    {{ sp.scientific_name }}{{ " (" ~ local_name ~ ")" if local_name else "" }}
+                                </option>
+                                {% endfor %}
+                                </optgroup>
+                            {% endif %}
+                        </select>
+                    </div>
+
+                    <!-- Кнопка (без лейблу, вирівняна по низу) -->
+                    <div class="form-group mb-0">
+                        <button type="submit" class="btn btn-warning btn-sm" 
+                                onclick="return confirm('{{ _('Підтвердіть перерахунок метрик.') }}')"
+                                title="{{ _('Запустити перерахунок') }}">
+                            <i class="fas fa-sync-alt"></i> {{ _('Перерахувати') }}
+                        </button>
+                    </div>
+                </div>
+                {% if summary and summary.summary.last_calculation %}
+                <!-- <p class="mt-2 mb-0"> -->
+                    <small class="text-muted">
+                        <!-- {{ _('Останній перерахунок:') }} -->
+                        {{ summary.summary.last_calculation.strftime('%d.%m.%Y %H:%M') }}
+                    </small>
+                <!-- </p> -->
+                {% else %}
+                <p class="mt-2 mb-0">
+                    <small class="text-muted">
+                        {{ _('Метрики ще не розраховувались. Натисніть "Перерахувати метрики" для початкового розрахунку.') }}
+                    </small>
+                </p>
+                {% endif %}
+            </form>
+            
+                <form method="post" action="{{ url_for('pam.admin_cleanup_verifications', lang_code=g.lang_code) }}" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}"/>
+                    <button type="submit" class="btn btn-danger" 
+                            onclick="return confirm('{{ _('УВАГА! Це видалить файли завершених верифікацій. Продовжити?') }}')">
+                        {{ _('Видалити завершені файли') }}
+                    </button>
+                </form>
+                <form action="{{ url_for('pam.admin_build_spectrograms', lang_code=g.lang_code) }}" method="POST" style="display: inline-block; margin-right: 10px;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="mode" value="missing">
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-plus-square"></i> {{ _('Додати сонограми') }}
+                    </button>
+                </form>
+                <form action="{{ url_for('pam.admin_build_spectrograms', lang_code=g.lang_code) }}" method="POST" style="display: inline-block;" onsubmit="return confirm('{{ _('Це перегенерує ВСІ спектрограми і може зайняти дуже багато часу. Ви впевнені?') }}');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="mode" value="all">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-sync-alt"></i> {{ _('Замінити сонограми') }}
+                    </button>
+                </form>
+                <form method="post" action="{{ url_for('pam.admin_convert_to_flac', lang_code=g.lang_code) }}" style="display: inline;"
+                      onsubmit="return confirm('{{ _('УВАГА! Це конвертує всі файли .wav у .flac та видалить оригінали. Ця дія незворотна. Продовжити?') }}');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" class="btn btn-info">
+                        <i class="fas fa-compact-disc"></i> {{ _('Конвертувати WAV → FLAC') }}
+                    </button>
+                </form>
+            </form>
+        </div>
+            
+
+        </div>
+        {% endif %}
+
+        <!-- Детальні результати -->
+        <div class="detailed-results-section">
+            <h4>{{ _('Детальні результати по всіх видах') }}</h4>
+            
+            <!-- Фільтри та сортування -->
+            <div class="filters-row">
+                <div class="filter-group">
+                    <label for="sort-select">{{ _('Сортувати за:') }}</label>
+                    <select id="sort-select" class="form-control">
+                        <option value="precision_score">{{ _('Precision') }}</option>
+                        <option value="total_samples">{{ _('Кількість зразків') }}</option>
+                        <option value="logistic_r_squared">{{ _('R² (якість моделі)') }}</option>
+                        <option value="p0_9_threshold">{{ _('Поріг 90%%') }}</option>
+                        <option value="p0_95_threshold">{{ _('Поріг 95%%') }}</option>
+                        <option value="p0_99_threshold">{{ _('Поріг 99%%') }}</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="order-select">{{ _('Порядок:') }}</label>
+                    <select id="order-select" class="form-control">
+                        <option value="desc">{{ _('За спаданням') }}</option>
+                        <option value="asc">{{ _('За зростанням') }}</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <button id="refresh-results" class="btn btn-primary">
+                        {{ _('Оновити') }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Таблиця результатів -->
+            <div id="results-container">
+                <div class="loading-spinner">
+                    <div class="spinner-border" style="width: 3rem; height: 3rem; color: #0779e4;" role="status">
+                        <span class="sr-only">{{ _('Завантаження...') }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Пагінація -->
+            <div id="pagination-container"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Зберігаємо код мови для формування URL у JS
+    const g_lang_code = '{{ g.lang_code }}';
+    
+    let currentPage = 1;
+    let currentSort = 'precision_score';
+    let currentOrder = 'desc';
+
+    // Переклади для JS
+    const translations = {
+        species: '{{ _("Вид") }}',
+        samples: '{{ _("Зразків") }}', 
+        threshold90: '{{ _("Поріг 90%%") }}',
+        threshold95: '{{ _("Поріг 95%%") }}',
+        threshold99: '{{ _("Поріг 99%%") }}',
+        noData: '{{ _("Немає даних для відображення") }}',
+        precision: 'Precision (95% CI)',
+        r2: 'R²'
+    };
+    
+    // Початкове завантаження
+    loadDetailedResults();
+    
+    // Обробник кнопки оновлення
+    $('#refresh-results').on('click', function() {
+        currentPage = 1;
+        currentSort = $('#sort-select').val();
+        currentOrder = $('#order-select').val();
+        loadDetailedResults();
+    });
+
+    // Обробник зміни сортування в селектах
+    $('#sort-select, #order-select').on('change', function() {
+        // Можна зробити автооновлення при зміні селекта, або чекати натискання кнопки
+        // Тут чекаємо натискання кнопки "Оновити", як в попередньому коді
+    });
+    
+    function loadDetailedResults(page = 1) {
+        $('#results-container').html('<div class="loading-spinner"><div class="spinner-border text-primary" role="status"></div></div>');
+        
+        const params = {
+            page: page,
+            per_page: 20,
+            sort_by: currentSort,
+            order: currentOrder
+        };
+        
+        $.ajax({
+            url: `/${g_lang_code}/api/evaluation/detailed-results`,
+            method: 'GET',
+            data: params,
+            success: function(data) {
+                displayResults(data);
+                updatePagination(data.pagination);
+                currentPage = page;
+            },
+            error: function(xhr) {
+                const error = xhr.responseJSON ? xhr.responseJSON.error : '{{ _("Помилка завантаження результатів") }}';
+                $('#results-container').html(`<div class="no-data-message">${error}</div>`);
+            }
+        });
+    }
+    
+    function formatThreshold(value) {
+        if (value == null) return '<span class="text-muted">-</span>';
+
+        const numValue = parseFloat(value);
+        if (isNaN(numValue)) return '<span class="text-muted">-</span>';
+        
+        if (numValue <= 0.100001) {
+            return '<span class="metric-value">&le; 0.10</span>';
+        }
+        return '<span class="metric-value">' + numValue.toFixed(3) + '</span>';
+    }
+
+    function formatValueWithCI(value, lower, upper) {
+        const formattedMain = formatThreshold(value); 
+        
+        // Перевірка на наявність даних для інтервалів
+        if (value == null || lower == null || upper == null) {
+            return formattedMain;
+        }
+
+        const numLower = parseFloat(lower);
+        const numUpper = parseFloat(upper);
+
+        if (isNaN(numLower) || isNaN(numUpper)) {
+            return formattedMain;
+        }
+
+        // Якщо інтервал "схлопнувся" в мінімум (все <= 0.1), не показуємо його
+        if (numLower <= 0.100001 && numUpper <= 0.100001) {
+            return formattedMain;
+        }
+
+        // Форматування меж
+        const fmtLower = (numLower <= 0.100001) ? '&le;0.10' : numLower.toFixed(2);
+        let fmtUpper = (numUpper <= 0.100001) ? '&le;0.10' : numUpper.toFixed(2);
+        
+        // Красиве відображення для 1.0
+        if (parseFloat(numUpper) >= 0.999) fmtUpper = '1.00';
+        
+        return `
+            ${formattedMain}
+            <div class="ci-range">[${fmtLower} - ${fmtUpper}]</div>
+        `;
+    }
+
+    function displayResults(data) {
+        if (!data.results || data.results.length === 0) {
+            $('#results-container').html(`<div class="no-data-message">${translations.noData}</div>`);
+            return;
+        }
+        
+        let html = `
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>${translations.species}</th>
+                        <th>${translations.precision}</th>
+                        <th>${translations.samples}</th>
+                        <th>${translations.threshold90}</th>
+                        <th>${translations.threshold95}</th>
+                        <th>${translations.threshold99}</th>
+                        <th>${translations.r2}</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        data.results.forEach(function(result) {
+            const precisionClass = getMetricClass(result.precision);
+            
+            // Інтервал для Precision
+            let ciHtml = '';
+            if (result.precision_lower != null && result.precision_upper != null) {
+                ciHtml = `<div class="ci-range">[${result.precision_lower} - ${result.precision_upper}]</div>`;
+            }
+
+            // Формування лінка для R2 (ОНОВЛЕНО)
+            let r2Html = '<span class="text-muted">-</span>';
+            if (result.logistic_r_squared !== null) {
+                // Формуємо URL до сторінки деталей
+                const detailUrl = `/${g_lang_code}/pam/evaluation/species/${result.species_id}`;
+                
+                // Створюємо посилання, що відкривається в новій вкладці
+                r2Html = `
+                    <a href="${detailUrl}" target="_blank" class="metric-link" title="{{ _('Відкрити графік регресії') }}">
+                        ${result.logistic_r_squared} <i class="fas fa-external-link-alt fa-xs" style="margin-left: 2px; opacity: 0.6;"></i>
+                    </a>
+                `;
+            }
+            
+            html += `
+                <tr>
+                    <td>
+                        <strong>${result.species_name}</strong><br>
+                        <small class="text-muted"><i>${result.scientific_name}</i></small>
+                    </td>
+                    <td>
+                        <span class="metric-value ${precisionClass}">${result.precision}</span>
+                        ${ciHtml}
+                    </td>
+                    <td>${result.total_samples}</td>
+                    
+                    <td>${formatValueWithCI(result.p0_9_threshold, result.p0_9_lower, result.p0_9_upper)}</td>
+                    <td>${formatValueWithCI(result.p0_95_threshold, result.p0_95_lower, result.p0_95_upper)}</td>
+                    <td>${formatValueWithCI(result.p0_99_threshold, result.p0_99_lower, result.p0_99_upper)}</td>
+                    
+                    <td>${r2Html}</td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table>';
+        $('#results-container').html(html);
+    }
+    
+    function getMetricClass(value) {
+        if (value >= 0.8) return 'metric-excellent';
+        if (value >= 0.6) return 'metric-good';
+        if (value >= 0.4) return 'metric-fair';
+        return 'metric-poor';
+    }
+    
+    function updatePagination(pagination) {
+        if (pagination.pages <= 1) {
+            $('#pagination-container').empty();
+            return;
+        }
+        
+        let html = '<div class="pagination">';
+        html += `<button ${pagination.page <= 1 ? 'disabled' : ''} onclick="loadDetailedResults(${pagination.page - 1})">{{ _('← Попередня') }}</button>`;
+        html += `<span>{{ _('Сторінка') }} ${pagination.page} {{ _('з') }} ${pagination.pages}</span>`;
+        html += `<button ${pagination.page >= pagination.pages ? 'disabled' : ''} onclick="loadDetailedResults(${pagination.page + 1})">{{ _('Наступна →') }}</button>`;
+        html += '</div>';
+        $('#pagination-container').html(html);
+    }
+    
+    // Експортуємо функцію в window (для пагінації onclick)
+    window.loadDetailedResults = loadDetailedResults;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,931 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Моніторинг Розточчя') }} - {{ _('Акустичний моніторинг') }}{% endblock %}
+
+{% block head_extra %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+    <style>
+    .dashboard-wrapper {
+        width: 100%;
+        text-align: left;
+    }
+    .dashboard-wrapper .page-header {
+        text-align: center;
+    }
+    .filters-panel {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px 20px;
+        padding: 20px;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        margin-bottom: 25px;
+    }
+    .filters-panel .filter-group {
+        display: flex;
+        flex-direction: column;
+    }
+    .filters-panel .filter-group.full-width {
+        grid-column: 1 / -1;
+        flex-direction: row;
+    }
+    .filters-panel label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    .filters-panel .form-control, 
+    .filters-panel .form-control-range,
+    .filters-panel .select2-container {
+        width: 100%;
+    }
+    .filters-panel .select2-container .select2-selection--single { 
+        height: 38px; 
+        border: 1px solid #ced4da; 
+    }
+    .filters-panel .select2-container .select2-selection--multiple { 
+        min-height: 38px; 
+        border: 1px solid #ced4da; 
+        padding: 2px; 
+    }
+    
+    .filters-panel .action-group {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding-top: 10px;
+    }
+
+    .filters-panel .btn {
+        display: inline-block;
+        padding: 10px 24px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        vertical-align: middle;
+        font-size: 14px;
+        line-height: 1.5;
+        color: white !important;
+        text-align: center;
+        text-decoration: none;
+        background-color: #0779e4;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        white-space: nowrap;
+        flex: 0 1 auto;
+    }
+    .filters-panel .btn:hover { 
+        background-color: #0056b3; 
+        color: white !important; 
+        text-decoration: none; 
+    }
+    .filters-panel .btn.btn-secondary { 
+        background-color: #6c757d; 
+    }
+    .filters-panel .btn.btn-secondary:hover { 
+        background-color: #5a6268; 
+    }
+    .filters-panel .btn:disabled { 
+        cursor: not-allowed; 
+        opacity: 0.65; 
+    }
+    
+    .dashboard-layout { 
+        display: flex; 
+        gap: 25px; 
+        align-items: flex-start; 
+    }
+    .dashboard-sidebar { 
+        flex: 1 1 35%; 
+    }
+    .dashboard-main { 
+        flex: 1 1 65%; 
+    }
+    .summary-grid { 
+        display: grid; 
+        grid-template-columns: 1fr 1fr; 
+        gap: 15px; 
+        margin-bottom: 25px; 
+    }
+    .summary-card { 
+        background-color: #f8f9fa; 
+        border: 1px solid #e9ecef; 
+        border-radius: 6px; 
+        padding: 15px; 
+        text-align: center; 
+    }
+    .summary-card h5 { 
+        margin: 0 0 10px 0; 
+        color: #666; 
+        font-size: 0.9em; 
+        text-transform: uppercase; 
+    }
+    .summary-card .stat-value { 
+        font-size: 24px; 
+        font-weight: 600; 
+        color: #0779e4; 
+    }
+    #map { 
+        height: 450px; 
+        border-radius: 8px; 
+        border: 1px solid #ddd; 
+    }
+    .dashboard-section-title { 
+        margin-top: 0; 
+        margin-bottom: 15px; 
+        font-size: 22px; 
+        border-bottom: 2px solid #eee; 
+        padding-bottom: 8px; 
+    }
+    .dashboard-message { 
+        padding: 20px; 
+        border-radius: 8px; 
+        text-align: center; 
+    }
+    .dashboard-message.info { 
+        background-color: #e7f3fe; 
+        border: 1px solid #d0e7ff; 
+    }
+    .dashboard-message.error { 
+        background-color: #f8d7da; 
+        border: 1px solid #f5c6cb; 
+    }
+    .chart-container { 
+        background-color: #f8f9fa; 
+        border: 1px solid #e0e0e0; 
+        border-radius: 8px; 
+        padding: 15px; 
+        margin-bottom: 25px; 
+        height: 300px; 
+    }
+    .spinner-wrapper { 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        height: 100%; 
+    }
+    
+    /* Стилі для панелі погоди */
+    .weather-controls-panel {
+        margin-bottom: 15px; 
+        padding: 12px 15px; 
+        background: #eef2f5; 
+        border: 1px solid #dee2e6;
+        border-radius: 5px; 
+        display: flex; 
+        gap: 20px; 
+        align-items: center; 
+        flex-wrap: wrap;
+        font-size: 14px;
+    }
+    .weather-controls-panel strong {
+        color: #495057;
+        margin-right: 5px;
+    }
+    .custom-checkbox {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+    }
+    .custom-checkbox input {
+        margin-right: 6px;
+        cursor: pointer;
+    }
+    .custom-checkbox label {
+        margin-bottom: 0;
+        font-weight: normal;
+        cursor: pointer;
+    }
+    
+    @media (max-width: 1200px) {
+        .filters-panel { 
+            grid-template-columns: 1fr;
+        }
+    }
+    @media (max-width: 992px) {
+        .dashboard-layout { 
+            flex-direction: column; 
+        }
+    }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="dashboard-wrapper">
+        <h1 class="page-header" style="margin-bottom: 20px;">{{ _('Аналіз даних акустичного моніторингу фауни Розточчя') }}</h1>
+
+        {% if available_species %}
+            <form id="pam-filters-form" class="filters-panel">
+                <!-- Рядок 1: Вибір виду та діапазон дат -->
+                <div class="filter-group">
+                    <label for="species-select">{{ _('Виберіть вид:') }}</label>
+                    <select class="form-control" id="species-select" name="species">
+                        <option></option>
+                        {% for species in available_species %}
+                            <option value="{{ species.value }}">{{ species.text }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>{{ _('Діапазон дат:') }}</label>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="date" id="start-date-select" class="form-control">
+                        <input type="date" id="end-date-select" class="form-control">
+                    </div>
+                </div>
+                
+                <!-- Рядок 2: Біотопи та локації -->
+                <div class="filter-group">
+                    <label for="biotopes-select">{{ _('Біотопи:') }}</label>
+                    <select id="biotopes-select" class="form-control" multiple></select>
+                </div>
+                <div class="filter-group">
+                    <label for="locations-select">{{ _('Локації:') }}</label>
+                    <select id="locations-select" class="form-control" multiple></select>
+                </div>
+                
+                <!-- Рядок 3: Повзунки -->
+                <div class="filter-group">
+                    <label for="confidence-slider">{{ _('Впевненість:') }} <span id="confidence-value">0.95</span></label>
+                    <input type="range" class="form-control-range" id="confidence-slider" min="0.7" max="1" step="0.01" value="0.95">
+                </div>
+                
+                <div class="filter-group">
+                    <label for="min-obs-slider">{{ _('Мін. детекцій:') }} <span id="min-obs-value">5</span></label>
+                    <input type="range" class="form-control-range" id="min-obs-slider" min="1" max="100" step="1" value="5">
+                </div>
+                
+                <!-- Рядок 4: Кнопки дій -->
+                <div class="filter-group full-width action-group">
+                    <button type="button" id="apply-filters-btn" class="btn">{{ _('Застосувати') }}</button>
+                    <button type="button" id="set-threshold-btn" class="btn btn-secondary" disabled title="{{ _('Спочатку виберіть вид.') }}">
+                        {{ _('Поріг p≥0.95') }}
+                    </button>
+                    <a href="{{ url_for('pam.pam_overview', lang_code=g.lang_code) }}" class="btn">
+                        {{ _('До загальної таблиці') }}
+                    </a>
+                    {% if current_user.is_authenticated and current_user.has_role('admin', 'roztochya_user', 'volunteer_user') %}
+                    <button type="button" id="export-data-btn" class="btn btn-secondary" disabled title="{{ _('Застосуйте фільтри для активації') }}" style="margin-left: auto; background-color: #28a745; border-color: #28a745;">
+                        <i class="fa fa-download"></i> {{ _('Експорт в Excel') }}
+                     </button>
+                    {% endif %}
+                </div>
+            </form>
+
+            <div id="dashboard-container" style="display: none;">
+                <div class="dashboard-layout">
+                    <div class="dashboard-sidebar">
+                        <h3 class="dashboard-section-title">{{ _('Загальна статистика') }}</h3>
+                        <div id="species-summary-container" class="mb-4"></div>
+                        <h3 class="dashboard-section-title">{{ _('Карта виявлень') }}</h3>
+                        <div id="map"></div>
+                    </div>
+                    <div class="dashboard-main">
+                        <h3 class="dashboard-section-title">{{ _('Візуалізація даних') }}</h3>
+                        
+                        <!-- Легенда кольорів -->
+                        <div id="color-legend" style="margin-bottom: 15px; text-align: center; font-size: 14px;">
+                            <span style="margin-right: 20px;">
+                                <span style="display: inline-block; width: 12px; height: 12px; background-color: green; vertical-align: middle; margin-right: 5px; border: 1px solid #555;"></span>
+                                {{ _('Підтверджено людиною') }}
+                            </span>
+                            <span style="margin-right: 20px;">
+                                <span style="display: inline-block; width: 12px; height: 12px; background-color: red; vertical-align: middle; margin-right: 5px; border: 1px solid #555;"></span>
+                                {{ _('Відхилено людиною') }}
+                            </span>
+                            <span>
+                                <span style="display: inline-block; width: 12px; height: 12px; background-color: #0779e4; vertical-align: middle; margin-right: 5px; border: 1px solid #555;"></span>
+                                {{ _('Лише автоматична ідентифікація') }}
+                            </span>
+                        </div>
+                        
+                        <div id="charts-container">
+                            <div id="time-scatter-plot-container" class="chart-container"></div>
+
+                            <!-- Панель керування погодою -->
+                            <div class="weather-controls-panel">
+                                <strong>{{ _('Накласти погоду:') }}</strong>
+                                
+                                <div class="custom-checkbox">
+                                    <input type="checkbox" class="weather-toggle" id="show-temp-mean" value="temp_mean">
+                                    <label for="show-temp-mean">{{ _('Т cер.') }}</label>
+                                </div>
+                                
+                                <div class="custom-checkbox">
+                                    <input type="checkbox" class="weather-toggle" id="show-temp-min" value="temp_min">
+                                    <label for="show-temp-min">{{ _('Т мін') }}</label>
+                                </div>
+
+                                <div class="custom-checkbox">
+                                    <input type="checkbox" class="weather-toggle" id="show-temp-max" value="temp_max">
+                                    <label for="show-temp-max">{{ _('Т макс') }}</label>
+                                </div>
+
+                                <div class="custom-checkbox">
+                                    <input type="checkbox" class="weather-toggle" id="show-precipitation" value="precipitation">
+                                    <label for="show-precipitation">{{ _('Опади') }}</label>
+                                </div>
+                                
+                                <div class="custom-checkbox">
+                                    <input type="checkbox" class="weather-toggle" id="show-wind" value="wind_speed_max">
+                                    <label for="show-wind">{{ _('Вітер') }}</label>
+                                </div>
+                                
+                                <div class="custom-checkbox">
+                                    <input type="checkbox" class="weather-toggle" id="show-humidity" value="humidity">
+                                    <label for="show-humidity">{{ _('Вологість') }}</label>
+                                </div>
+                                <div class="custom-checkbox">
+                                    <input type="checkbox" class="weather-toggle" id="show-pressure" value="pressure">
+                                    <label for="show-pressure">{{ _('Тиск') }}</label>
+                                </div>
+                            </div>
+                            <!-- Кінець панелі керування погодою -->
+
+                            <div id="barchart-plot-container" class="chart-container"></div>
+                            <div id="scatter-plot-container" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="plot-message" class="dashboard-message info">
+                <i>{{ _('Будь ласка, виберіть вид, налаштуйте фільтри та натисніть "Застосувати".') }}</i>
+            </div>
+        {% else %}
+            <div class="dashboard-message error"><strong>{{ _('Помилка:') }}</strong> {{ _('Не вдалося завантажити список видів.') }}</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script>
+    $(document).ready(function() {
+        // --- Ініціалізація змінних UI ---
+        const speciesSelect = $('#species-select');
+        const startDateInput = $('#start-date-select');
+        const endDateInput = $('#end-date-select');
+        const confidenceSlider = $('#confidence-slider');
+        const confidenceValueSpan = $('#confidence-value');
+        const applyButton = $('#apply-filters-btn');
+        const setThresholdButton = $('#set-threshold-btn');
+        const exportButton = $('#export-data-btn');
+        const biotopesSelect = $('#biotopes-select');
+        const locationsSelect = $('#locations-select');
+        const minObsSlider = $('#min-obs-slider');
+        const minObsValueSpan = $('#min-obs-value');
+        
+        const dashboardContainer = $('#dashboard-container');
+        const plotMessage = $('#plot-message');
+        const summaryContainer = $('#species-summary-container');
+        const mapContainer = document.getElementById('map');
+        const scatterPlotContainer = document.getElementById('scatter-plot-container');
+        const barchartPlotContainer = document.getElementById('barchart-plot-container');
+        const timeScatterPlotContainer = document.getElementById('time-scatter-plot-container');
+
+        let map, markersLayer, speciesThresholdsMap = {}, greenIcon;
+        const DEFAULT_MIN_CONFIDENCE = 0.7;
+
+        // --- Глобальні змінні для кешування даних графіків ---
+        let cachedBirdData = null;
+        let cachedWeatherData = null;
+
+        let graphRangeStart = null; 
+        let graphRangeEnd = null;
+
+        const addDays = (dateStr, days) => {
+            if (!dateStr) return null;
+            const date = new Date(dateStr);
+            date.setDate(date.getDate() + days);
+            
+            // Форматуємо назад у YYYY-MM-DD вручну, щоб уникнути проблем з часовими поясами
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        // --- Ініціалізація сторінки ---
+        (function setupInitialValues() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const today = new Date();
+            const yearAgo = new Date();
+            yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+            startDateInput.val(yearAgo.toISOString().split('T')[0]);
+            endDateInput.val(today.toISOString().split('T')[0]);
+            confidenceSlider.val(urlParams.get('confidence') || '0.95');
+            confidenceValueSpan.text(parseFloat(confidenceSlider.val()).toFixed(2));
+            
+            minObsSlider.val(urlParams.get('min_detections') || '5');
+            minObsValueSpan.text(minObsSlider.val());
+            
+            speciesSelect.select2({ placeholder: '{{ _("-- Будь ласка, виберіть --") }}', allowClear: true });
+            biotopesSelect.select2({ placeholder: '{{ _("-- Всі біотопи --") }}', allowClear: true });
+            locationsSelect.select2({ placeholder: '{{ _("-- Всі локації --") }}', allowClear: true });
+
+            updateDynamicFilters(() => {
+                const species = urlParams.get('species');
+                const locations = urlParams.get('locations');
+                const biotopes = urlParams.get('biotopes');
+
+                if (species) speciesSelect.val(species).trigger('change');
+                if (locations) locationsSelect.val(locations.split(',')).trigger('change');
+                if (biotopes) biotopesSelect.val(biotopes.split(',')).trigger('change');
+                
+                if (species) {
+                    setTimeout(() => runDashboardUpdate(), 100);
+                }
+            });
+
+            loadAllThresholds();
+        })();
+
+        // --- Обробники подій ---
+        applyButton.on('click', runDashboardUpdate);
+        exportButton.on('click', function() {
+            const params = getApiParams();
+            const exportUrl = `/{{ g.lang_code }}/api/pam/export-detailed-data?${params.toString()}`;
+            window.location.href = exportUrl;
+        });
+        confidenceSlider.on('input', () => confidenceValueSpan.text(parseFloat(confidenceSlider.val()).toFixed(2)));
+        minObsSlider.on('input', () => minObsValueSpan.text(minObsSlider.val()));
+        startDateInput.on('change', updateDynamicFilters);
+        endDateInput.on('change', updateDynamicFilters);
+        speciesSelect.on('change', handleSpeciesChange);
+        setThresholdButton.on('click', applyThreshold);
+
+        // Обробка кліку на чекбокси погоди (МИТТЄВЕ ОНОВЛЕННЯ)
+        $('.weather-toggle').on('change', function() {
+            // Якщо дані вже є в кеші, просто перемальовуємо графік локально
+            if (cachedBirdData && cachedWeatherData) {
+                renderBarchart(); 
+            } else if (dashboardContainer.is(':visible')) {
+                // Якщо даних немає, але дашборд активний (рідкісний випадок)
+                updateAllCharts();
+            }
+        });
+        
+        function updateDynamicFilters(callback) {
+            const params = new URLSearchParams({ start_date: startDateInput.val(), end_date: endDateInput.val() });
+            fetch(`/{{ g.lang_code }}/api/pam/get-filters-data?${params.toString()}`)
+                .then(response => response.ok ? response.json() : Promise.reject(response))
+                .then(data => {
+                    const currentLocs = locationsSelect.val();
+                    const currentBios = biotopesSelect.val();
+
+                    biotopesSelect.empty().select2({ data: data.biotopes, placeholder: '{{ _("-- Всі біотопи --") }}', allowClear: true }).val(currentBios).trigger('change');
+                    locationsSelect.empty().select2({ data: data.locations, placeholder: '{{ _("-- Всі локації --") }}', allowClear: true }).val(currentLocs).trigger('change');
+                    
+                    if (callback) callback();
+                })
+                .catch(error => console.error('Error loading dynamic filters:', error));
+        }
+
+        function loadAllThresholds() {
+            fetch(`{{ url_for('pam.api_get_evaluation_thresholds', lang_code=g.lang_code) }}`)
+                .then(r => r.ok ? r.json() : {})
+                .then(data => {
+                    speciesThresholdsMap = data;
+                    if (speciesSelect.val()) speciesSelect.trigger('change');
+                })
+                .catch(error => console.error("Could not load species thresholds:", error));
+        }
+
+        function handleSpeciesChange() {
+            const selectedSpecies = $(this).val();
+            if (selectedSpecies && speciesThresholdsMap[selectedSpecies]) {
+                const threshold = speciesThresholdsMap[selectedSpecies];
+                setThresholdButton.prop('disabled', false).removeClass('btn-secondary')
+                    .text(`{{ _('Поріг') }} ${threshold} (p≥0.95)`).data('threshold', threshold);
+                confidenceSlider.prop('min', Math.min(threshold, DEFAULT_MIN_CONFIDENCE));
+            } else {
+                setThresholdButton.prop('disabled', true).addClass('btn-secondary')
+                    .text(`{{ _('Поріг p≥0.95') }}`).removeData('threshold');
+                confidenceSlider.val('0.95').trigger('input').prop('min', DEFAULT_MIN_CONFIDENCE);
+            }
+        }
+        
+        function applyThreshold() {
+            const threshold = $(this).data('threshold');
+            if (threshold) {
+                confidenceSlider.val(threshold).trigger('input');
+            }
+        }
+
+        function initializeMap() {
+            if (!map) {
+                map = L.map(mapContainer).setView([49.95, 23.7], 10);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
+                markersLayer = L.layerGroup().addTo(map);
+                greenIcon = new L.Icon({
+                  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                  iconSize: [25, 41],
+                  iconAnchor: [12, 41],
+                  popupAnchor: [1, -34],
+                  shadowSize: [41, 41]
+                });
+            }
+        }
+        
+        // Головна функція оновлення (натискання "Застосувати")
+        function runDashboardUpdate() {
+            if (!speciesSelect.val()) {
+                alert('{{ _("Будь ласка, виберіть вид.") }}');
+                return;
+            }
+
+            const sVal = startDateInput.val(); 
+            const eVal = endDateInput.val();
+            graphRangeStart = sVal ? addDays(sVal, -1) : null;
+            graphRangeEnd = eVal ? addDays(eVal, 1) : null;
+
+            plotMessage.hide();
+            dashboardContainer.show();
+            if(exportButton.length) {
+                exportButton.prop('disabled', false).removeClass('btn-secondary');
+            }
+            initializeMap();
+            updateSummary();
+            updateMap();
+            
+            // Скидаємо кеш перед новим завантаженням
+            cachedBirdData = null;
+            cachedWeatherData = null;
+            
+            updateAllCharts();
+        }
+
+        const getApiParams = () => {
+            const params = new URLSearchParams({
+                species: speciesSelect.val(),
+                confidence: parseFloat(confidenceSlider.val()).toFixed(2),
+                min_detections: minObsSlider.val()
+            });
+            if (startDateInput.val()) params.append('start_date', startDateInput.val());
+            if (endDateInput.val()) params.append('end_date', endDateInput.val());
+            
+            const selectedLocations = locationsSelect.val();
+            if (selectedLocations && selectedLocations.length > 0) params.append('locations', selectedLocations.join(','));
+            const selectedBiotopes = biotopesSelect.val();
+            if (selectedBiotopes && selectedBiotopes.length > 0) params.append('biotopes', selectedBiotopes.join(','));
+
+            return params;
+        };
+
+        const getSpinnerHtml = () => `<div class="spinner-wrapper"><div class="spinner-border text-primary" role="status"></div></div>`;
+        const getErrorHtml = (message) => `<div class="dashboard-message error">${message}</div>`;
+
+        function updateSummary() {
+            summaryContainer.html(getSpinnerHtml());
+            fetch(`/{{ g.lang_code }}/api/pam/get-species-summary?${getApiParams().toString()}`)
+                .then(r => r.ok ? r.json() : Promise.reject(r))
+                .then(d => {
+                    summaryContainer.html(`
+                        <div class="summary-grid">
+                            <div class="summary-card"><h5>{{ _('Детекції') }}</h5><div class="stat-value">${d.total_detections.toLocaleString()}</div></div>
+                            <div class="summary-card"><h5>{{ _('Локалітети') }}</h5><div class="stat-value">${d.unique_locations}</div></div>
+                            <div class="summary-card"><h5>{{ _('Дні з детекціями') }}</h5><div class="stat-value">${d.days_with_detections}</div><small class="text-muted">(${d.percent_days_with_detections}%)</small></div>
+                            <div class="summary-card"><h5>{{ _('Частка від усіх') }}</h5><div class="stat-value">${d.percent_from_all}%</div></div>
+                        </div>`);
+                }).catch(() => summaryContainer.html(getErrorHtml('{{ _("Помилка статистики.") }}')));
+        }
+
+        function updateMap() {
+            markersLayer.clearLayers();
+            fetch(`/{{ g.lang_code }}/api/pam/get-unique-points?${getApiParams().toString()}`)
+                .then(r => r.ok ? r.json() : Promise.reject(r))
+                .then(points => {
+                    if (points && points.length > 0) {
+                        points.forEach(point => {
+                            const popupContent = `
+                                <b>${point.location_name}</b><br>
+                                {{ _('Детекцій:') }} <b>${point.detection_count}</b>
+                            `;
+                            const markerOptions = point.is_verified ? { icon: greenIcon } : {};
+                            L.marker([point.lat, point.lon], markerOptions)
+                             .bindPopup(popupContent)
+                             .addTo(markersLayer);
+                        });
+                        if (markersLayer.getBounds().isValid()) {
+                            map.fitBounds(markersLayer.getBounds().pad(0.1));
+                        }
+                    }
+                }).catch(() => console.error("Could not load map points."));
+        }
+
+        // --- ФУНКЦІЇ МАЛЮВАННЯ ГРАФІКІВ ---
+
+        function updateAllCharts() {
+            const apiParams = getApiParams();
+            const unfilteredApiParams = new URLSearchParams(apiParams);
+            unfilteredApiParams.delete('min_detections');
+            const unfilteredApiParamsStr = unfilteredApiParams.toString();
+
+            // Ставимо спінери
+            [timeScatterPlotContainer, barchartPlotContainer, scatterPlotContainer].forEach(c => c.innerHTML = getSpinnerHtml());
+            
+            // 1. Добовий розподіл
+            fetch(`/{{ g.lang_code }}/api/pam/get-time-scatter-data?${unfilteredApiParamsStr}`)
+                .then(r => r.ok ? r.json() : Promise.reject(r))
+                .then(data => renderTimeScatterChart(data))
+                .catch(() => timeScatterPlotContainer.innerHTML = getErrorHtml('{{ _("Помилка завантаження даних.") }}'));
+
+            // 2. Кількість за день + ПОГОДА (Кешування)
+            const barchartPromise = fetch(`/{{ g.lang_code }}/api/pam/get-barchart-data?${apiParams.toString()}`).then(r => r.json());
+            const weatherPromise = fetch(`/{{ g.lang_code }}/api/pam/get-weather-overlay?${apiParams.toString()}`).then(r => r.json());
+
+            Promise.all([barchartPromise, weatherPromise])
+                .then(([birdData, weatherData]) => {
+                    // Зберігаємо в глобальні змінні
+                    cachedBirdData = birdData;
+                    cachedWeatherData = weatherData;
+                    // Малюємо
+                    renderBarchart();
+                })
+                .catch(err => {
+                    console.error(err);
+                    barchartPlotContainer.innerHTML = getErrorHtml('{{ _("Помилка завантаження даних.") }}');
+                });
+            
+            // 3. Scatter plot
+            fetch(`/{{ g.lang_code }}/api/pam/get-plot-data?${unfilteredApiParamsStr}`)
+                .then(r => r.ok ? r.json() : Promise.reject(r))
+                .then(data => renderScatterPlot(data))
+                .catch(() => scatterPlotContainer.innerHTML = getErrorHtml('{{ _("Помилка завантаження даних.") }}'));
+        }
+
+
+        // --- Функція малювання Combo Chart (Птахи + Погода) ---
+        function renderBarchart() {
+            if (!cachedBirdData || !cachedBirdData.dates || cachedBirdData.dates.length === 0) {
+                barchartPlotContainer.innerHTML = getErrorHtml('{{ _("Дані не знайдено.") }}');
+                return;
+            }
+
+            const birdData = cachedBirdData;
+            const weatherData = cachedWeatherData;
+                        
+            // Основний трейс (птахи)
+            const birdTrace = {
+                x: birdData.dates,
+                y: birdData.counts,
+                type: 'bar',
+                name: '{{ _("Детекції") }}',
+                marker: { color: '#0779e4' },
+                yaxis: 'y1'
+            };
+            
+            const plotTraces = [birdTrace];
+            
+            // Додаткові трейси (погода) - додаються тільки якщо вибрані чекбокси
+            if (weatherData && weatherData.dates && weatherData.dates.length > 0) {
+                
+                if ($('#show-temp-mean').is(':checked')) {
+                    plotTraces.push({
+                        x: weatherData.dates,
+                        y: weatherData.temp_mean,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: '{{ _("Темп. (°C)") }}',
+                        line: { color: '#FB8C00', width: 2 },
+                        yaxis: 'y2'
+                    });
+                }
+                if ($('#show-temp-min').is(':checked')) {
+                    plotTraces.push({
+                        x: weatherData.dates,
+                        y: weatherData.temp_min,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: '{{ _("Темп. мін. (°C)") }}',
+                        line: { color: '#03A9F4', width: 2 },
+                        yaxis: 'y2'
+                    });
+                }
+
+                if ($('#show-temp-max').is(':checked')) {
+                    plotTraces.push({
+                        x: weatherData.dates,
+                        y: weatherData.temp_max,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: '{{ _("Темп. макс (°C)") }}',
+                        line: { color: '##D32F2F', width: 2 },
+                        yaxis: 'y2'
+                    });
+                }
+                
+                if ($('#show-precipitation').is(':checked')) {
+                    plotTraces.push({
+                        x: weatherData.dates,
+                        y: weatherData.precipitation,
+                        type: 'bar',
+                        name: '{{ _("Опади (мм)") }}',
+                        marker: { color: '#00f3ff', opacity: 0.5 },
+                        yaxis: 'y2'
+                    });
+                }
+
+                if ($('#show-wind').is(':checked')) {
+                    plotTraces.push({
+                        x: weatherData.dates,
+                        y: weatherData.wind_speed_max,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: '{{ _("Вітер макс. (км/год)") }}',
+                        line: { color: '#607d8b', dash: 'dot' },
+                        yaxis: 'y2'
+                    });
+                }
+
+                if ($('#show-humidity').is(':checked')) {
+                    plotTraces.push({
+                        x: weatherData.dates,
+                        y: weatherData.humidity,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: '{{ _("Вологість (%%)") }}',
+                        line: { color: '#4caf50', width: 1 },
+                        yaxis: 'y2'
+                        // visible: 'legendonly' прибрано, щоб лінія була видима одразу
+                    });
+                }
+
+                if ($('#show-pressure').is(':checked')) {
+                    plotTraces.push({
+                        x: weatherData.dates, 
+                        y: weatherData.pressure, 
+                        type: 'scatter', 
+                        mode: 'lines',
+                        name: '{{ _("Тиск (гПа)") }}', 
+                        // Коричневий колір, пунктир
+                        line: { color: '#795548', width: 1, dash: 'dot' }, 
+                        yaxis: 'y2'
+                    });
+                }
+            }
+
+            const minObs = parseInt(minObsSlider.val());
+            const maxY_Birds = birdData.counts.length > 0 ? Math.max(...birdData.counts, minObs) : 10;
+            
+            const layout = {
+                margin: { l: 50, r: 80, b: 75, t: 50 }, // r: 80 - відступ для правої осі
+                paper_bgcolor: 'rgba(0,0,0,0)', 
+                plot_bgcolor: 'rgba(0,0,0,0)', 
+                autosize: true,
+                title: { 
+                    text: `{{ _('Кількість детекцій за день') }}`, 
+                    font: {size: 16},
+                    y: 0.97, // Позиція заголовка відносно висоти контейнера
+                    x: 0.5,
+                    xanchor: 'center'
+                },
+                showlegend: true,
+                legend: { 
+                    orientation: "h", 
+                    yanchor: "bottom", 
+                    y: 1, // Піднімаємо легенду
+                    xanchor: "center", 
+                    x: 0.5   // Центруємо легенду
+                },
+                xaxis: { title: '{{ _("Дата") }}', tickformat: '%d.%m', range: [graphRangeStart, graphRangeEnd] },
+                
+                // Ліва вісь (Птахи)
+                yaxis: { 
+                    title: '{{ _("Кількість детекцій") }}', 
+                    range: [0, maxY_Birds * 1.1],
+                    side: 'left'
+                },
+                
+                // Права вісь (Погода)
+                yaxis2: {
+                    title: '{{ _("Погодні показники") }}',
+                    titlefont: {color: '#444'},
+                    tickfont: {color: '#444'},
+                    overlaying: 'y', 
+                    side: 'right',
+                    showgrid: false,
+                    automargin: true // Автоматичне налаштування відступу тексту
+                },
+                
+                shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: minObs, y1: minObs, line: { color: 'red', width: 1, dash: 'dash' }}]
+            };
+            
+            const plotlyConfig = { responsive: true, displayModeBar: 'hover', displaylogo:false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] };
+
+            // Використовуємо newPlot для чистого малювання
+            Plotly.newPlot(document.getElementById('barchart-plot-container'), plotTraces, layout, plotlyConfig);
+        }
+
+        function renderTimeScatterChart(data) {
+            const commonLayout = { margin: { l: 50, r: 80, b: 75, t: 50 }, showlegend: false, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', autosize: true};
+            const plotlyConfig = { responsive: true, displayModeBar: 'hover', displaylogo:false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] };
+
+            if (data.detections && data.detections.length > 0) {
+                const convertTimeToDecimal = t => t ? parseInt(t.slice(0,2)) + parseInt(t.slice(3,5))/60 + parseInt(t.slice(6,8))/3600 : 0;
+
+                const unverified = data.detections.filter(d => d.verification_result === null || d.verification_result === undefined);
+                const rejected = data.detections.filter(d => d.verification_result === 0);
+                const confirmed = data.detections.filter(d => d.verification_result === 1);
+
+                const unverifiedTrace = {
+                    x: unverified.map(d => d.date), y: unverified.map(d => convertTimeToDecimal(d.time)),
+                    mode: 'markers', type: 'scatter', name: '{{ _("Не перевірено") }}',
+                    marker: { color: '#0779e4', size: 5, opacity: 0.7 },
+                    showlegend: false
+                };
+                const rejectedTrace = {
+                    x: rejected.map(d => d.date), y: rejected.map(d => convertTimeToDecimal(d.time)),
+                    mode: 'markers', type: 'scatter', name: '{{ _("Відхилено") }}',
+                    marker: { color: 'red', size: 5, opacity: 0.9 },
+                    showlegend: false
+                };
+                const confirmedTrace = {
+                    x: confirmed.map(d => d.date), y: confirmed.map(d => convertTimeToDecimal(d.time)),
+                    mode: 'markers', type: 'scatter', name: '{{ _("Підтверджено") }}',
+                    marker: { color: 'green', size: 5, opacity: 0.9 },
+                    showlegend: false
+                };
+
+                const traces = [
+                    unverifiedTrace,
+                    rejectedTrace,
+                    confirmedTrace,
+                    { x: data.sun_times.map(st => st.date), y: data.sun_times.map(st => convertTimeToDecimal(st.sunrise)), mode: 'lines', type: 'scatter', name: '{{ _("Схід") }}', line: { color: '#ffc107', dash: 'dash' }, hoverinfo: 'skip' },
+                    { x: data.sun_times.map(st => st.date), y: data.sun_times.map(st => convertTimeToDecimal(st.sunset)), mode: 'lines', type: 'scatter', name: '{{ _("Захід") }}', line: { color: '#6f42c1', dash: 'dash' }, hoverinfo: 'skip' }
+                ];
+
+                const layout = { ...commonLayout, showlegend: true, 
+                    title: { text: `{{ _('Добовий розподіл детекцій') }}`, font: {size: 16}}, 
+                    legend: { orientation: "h", yanchor: "bottom", y: 1.02, xanchor: "right", x: 1 }, 
+                    yaxis: { title: '{{ _("Час доби") }}', range: [0, 24], tickmode: 'array', tickvals: [0, 6, 12, 18, 24]},
+                    xaxis: { title: '{{ _("Дата") }}', tickformat: '%d.%m', range: [graphRangeStart, graphRangeEnd] }
+                };
+                Plotly.newPlot(timeScatterPlotContainer, traces, layout, plotlyConfig);
+            } else {
+                timeScatterPlotContainer.innerHTML = getErrorHtml('{{ _("Дані для цього графіка не знайдено.") }}');
+            }
+        }
+
+        function renderScatterPlot(data) {
+            const commonLayout = { margin: { l: 50, r: 80, b: 75, t: 50 },
+                                   showlegend: false, paper_bgcolor: 'rgba(0,0,0,0)',
+                                   plot_bgcolor: 'rgba(0,0,0,0)', autosize: true};
+            const plotlyConfig = { responsive: true, displayModeBar: 'hover', displaylogo:false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] };
+
+            if (data.detections && data.detections.length > 0) {
+                const unverified = data.detections.filter(d => d.verification_result === null || d.verification_result === undefined);
+                const rejected = data.detections.filter(d => d.verification_result === 0);
+                const confirmed = data.detections.filter(d => d.verification_result === 1);
+
+                const unverifiedTrace = {
+                    x: unverified.map(d => d.datetime), y: unverified.map(d => d.confidence),
+                    mode: 'markers', type: 'scatter', name: '{{ _("Не перевірено") }}',
+                    cliponaxis: false,
+                    marker: { symbol: 'cross-thin-open', color: '#0779e4', size: 8, opacity: 0.7 }
+                };
+                const rejectedTrace = {
+                    x: rejected.map(d => d.datetime), y: rejected.map(d => d.confidence),
+                    mode: 'markers', type: 'scatter', name: '{{ _("Відхилено") }}',
+                    cliponaxis: false,
+                    marker: { symbol: 'cross-thin-open', color: 'red', size: 8, opacity: 0.9 }
+                };
+                const confirmedTrace = {
+                    x: confirmed.map(d => d.datetime), y: confirmed.map(d => d.confidence),
+                    mode: 'markers', type: 'scatter', name: '{{ _("Підтверджено") }}',
+                    cliponaxis: false,
+                    marker: { symbol: 'cross-thin-open', color: 'green', size: 8, opacity: 0.9 }
+                };
+
+                const plotData = [unverifiedTrace, rejectedTrace, confirmedTrace];
+                
+                const layout = { ...commonLayout, title: { 
+                    text: `{{ _('Усі детекції та їх точність (confidence)') }}`, font: {size: 16}}, 
+                    yaxis: { title: '{{ _("Рівень впевненості") }}', range: [parseFloat(confidenceSlider.val()), 1.00] },
+                    xaxis: { title: '{{ _("Дата") }}', tickformat: '%d.%m', range: [graphRangeStart, graphRangeEnd], 
+                        showline: true,
+                        linecolor: 'black',
+                        linewidth: 1
+                    }
+                };
+
+                Plotly.newPlot(scatterPlotContainer, plotData, layout, plotlyConfig);
+            } else {
+                 scatterPlotContainer.innerHTML = getErrorHtml('{{ _("Дані для цього графіка не знайдено.") }}');
+            }
+        }
+    });
+    </script>
+{% endblock %}
