@@ -12,7 +12,7 @@ import pandas as pd
 from .pam_upload_utils import process_zip_archive, get_upload_statistics
 from app.utils.decorators import role_required
 from . import pam_bp
-from .utils import get_pam_db_connection, generate_spectrogram_image, get_occurrence_data
+from .utils import get_pam_db_connection, generate_spectrogram_image, get_occurrence_data, get_institution_filter
 import io
 import csv
 from app.models import User
