@@ -92,6 +92,31 @@ def get_geodata_db_connection():
     engine = get_geodata_engine()
     return engine.connect()
 
+def get_institution_filter(user_inst_ids=None, is_admin=False):
+    """
+    Генерує SQL-умову для фільтрації за установами та публічністю.
+    :param user_inst_ids: список ID установ, до яких належить користувач [1, 2, ...]
+    :param is_admin: чи є користувач супер-адміном
+    """
+    # 1. Якщо це супер-адмін — він бачить усе, фільтр не потрібен
+    if is_admin:
+        return "1=1", {}
+
+    # 2. Якщо користувач не залогінений (inst_ids порожній) — тільки публічні (level 0)
+    if not user_inst_ids:
+        return "l.visibility_level = 0", {}
+
+    # 3. Якщо користувач залогінений — бачить публічні АБО ті, що належать його установам
+    # Використовуємо підзапит для перевірки зв'язку в location_institutions
+    condition = """
+        (l.visibility_level = 0 OR EXISTS (
+            SELECT 1 FROM location_institutions li 
+            WHERE li.location_id = l.location_id 
+            AND li.institution_id = ANY(:user_inst_ids)
+        ))
+    """
+    return condition, {"user_inst_ids": user_inst_ids}
+
 def calculate_sun_times_simple(date_obj, longitude, latitude):
     """
     Спрощений розрахунок часу сходу та заходу сонця.
@@ -215,13 +240,22 @@ def get_filtered_detections(species_name, start_date=None, end_date=None, confid
     try:
         conn = get_pam_db_connection()
         params = {'species_name': species_name, 'confidence': confidence}
+
+        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        is_admin = current_user.is_authenticated and current_user.has_role('admin')
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(inst_params)
         
         joins = """
             JOIN recordings r ON d.recording_id = r.recording_id 
             JOIN locations l ON r.location_id = l.location_id
             LEFT JOIN detection_verification_map dvm ON d.detection_id = dvm.detection_id
         """
-        conditions = ["s.scientific_name = :species_name", "d.confidence >= :confidence"]
+        conditions = [
+                    "s.scientific_name = :species_name",
+                    "d.confidence >= :confidence",
+                    inst_condition
+                    ]
 
         if start_date:
             conditions.append("DATE(r.datetime_start) >= :start_date")
@@ -282,12 +316,18 @@ def get_daily_detection_counts(species_name, start_date, end_date, confidence, l
             'end_date': end_date_obj
         }
         
+        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        is_admin = current_user.is_authenticated and current_user.has_role('admin')
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(inst_params)
+
         joins = "JOIN recordings r ON d.recording_id = r.recording_id JOIN locations l ON r.location_id = l.location_id"
         conditions = [
             "s.scientific_name = :species_name",
             "d.confidence >= :confidence",
             "DATE(r.datetime_start) >= :start_date",
-            "DATE(r.datetime_start) <= :end_date"
+            "DATE(r.datetime_start) <= :end_date",
+            inst_condition
         ]
 
         if location_ids:
@@ -358,6 +398,11 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
             'start_date': start_date_obj, 
             'end_date': end_date_obj
         }
+
+        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        is_admin = current_user.is_authenticated and current_user.has_role('admin')
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(inst_params)
         
         joins = """
             JOIN locations l ON r.location_id = l.location_id
@@ -367,7 +412,8 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
             "s.scientific_name = :species_name",
             "d.confidence >= :confidence",
             "DATE(r.datetime_start) >= :start_date",
-            "DATE(r.datetime_start) <= :end_date"
+            "DATE(r.datetime_start) <= :end_date",
+            inst_condition
         ]
 
         if location_ids:
@@ -463,17 +509,23 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
             'min_detections': min_detections
         }
 
+        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        is_admin = current_user.is_authenticated and current_user.has_role('admin')
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(inst_params)
+
         base_joins = """
             FROM detections d
             JOIN recordings r ON d.recording_id = r.recording_id
             JOIN species s ON d.species_id = s.species_id
             JOIN locations l ON r.location_id = l.location_id
         """
-        base_conditions = """
+        base_conditions = f"""
             WHERE s.scientific_name = :species_name
               AND d.confidence >= :confidence
               AND DATE(r.datetime_start) >= :start_date
               AND DATE(r.datetime_start) <= :end_date
+              AND {inst_condition}
         """
 
         # CTE для відбору локацій, що задовольняють умову min_detections
@@ -581,9 +633,6 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
             conn.close()
 
 def get_unique_detection_points(lang_code, species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None, min_detections=1):
-    """
-    ОНОВЛЕНО: Додано прапорець is_verified, якщо на локації є хоча б одна позитивна верифікація.
-    """
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -598,12 +647,23 @@ def get_unique_detection_points(lang_code, species_name, start_date=None, end_da
             'min_detections': min_detections
         }
 
+        user_inst_ids = []
+        is_admin = False
+        if current_user.is_authenticated:
+            # Збираємо ID всіх установ, до яких належить користувач
+            user_inst_ids = [inst.id for inst in current_user.institutions]
+            is_admin = current_user.has_role('admin')
+
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(inst_params)
+
         joins = "LEFT JOIN detection_verification_map dvm ON d.detection_id = dvm.detection_id"
         conditions = [
             "s.scientific_name = :species_name",
             "d.confidence >= :confidence",
             "DATE(r.datetime_start) >= :start_date",
-            "DATE(r.datetime_start) <= :end_date"
+            "DATE(r.datetime_start) <= :end_date",
+            inst_condition
         ]
 
         if location_ids:
@@ -680,7 +740,10 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
             'min_detections': min_detections
         }
         
-        # --- ПОЧАТОК ЗМІНЕНОГО БЛОКУ ---
+        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        is_admin = current_user.is_authenticated and current_user.has_role('admin')
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(inst_params)
         
         # Базові JOIN'и, які потрібні завжди
         from_clause = """
@@ -698,7 +761,8 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
         conditions = [
             "d.confidence >= :confidence",
             "DATE(r.datetime_start) >= :start_date",
-            "DATE(r.datetime_start) <= :end_date"
+            "DATE(r.datetime_start) <= :end_date",
+            inst_condition
         ]
 
         if location_ids:
@@ -795,6 +859,11 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
             'end_date': end_date_obj,
             'min_detections': min_detections
         }
+
+        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        is_admin = current_user.is_authenticated and current_user.has_role('admin')
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(inst_params)
         
         # Формуємо динамічні частини запиту
         joins = ""
@@ -844,6 +913,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
             AND d.confidence >= :confidence
             AND DATE(r.datetime_start) >= :start_date
             AND DATE(r.datetime_start) <= :end_date
+            AND {inst_condition}
             {condition_sql}
         """
         total_detections = conn.execute(text(total_detections_sql), params).scalar() or 0
@@ -861,6 +931,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
                 AND d.confidence >= :confidence
                 AND DATE(r.datetime_start) >= :start_date
                 AND DATE(r.datetime_start) <= :end_date
+                AND {inst_condition}
                 {condition_sql}
                 GROUP BY s.species_id
                 HAVING COUNT(r.recording_id) >= :min_detections
@@ -880,15 +951,26 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
             AND d.confidence >= :confidence
             AND DATE(r.datetime_start) >= :start_date
             AND DATE(r.datetime_start) <= :end_date
+            AND {inst_condition}
             {condition_sql}
         """
         locations_count = conn.execute(text(locations_count_sql), params).scalar() or 0
+
+        active_days_sql = f"""
+            SELECT COUNT(DISTINCT DATE(r.datetime_start))
+            FROM recordings r
+            JOIN locations l ON r.location_id = l.location_id
+            WHERE {inst_condition}
+            AND DATE(r.datetime_start) >= :start_date
+            AND DATE(r.datetime_start) <= :end_date
+        """
+        active_days_count = conn.execute(text(active_days_sql), params).scalar() or 0
         
         return {
             'total_detections': total_detections,
             'unique_species': unique_species,
             'locations_count': locations_count,
-            'period_days': (end_date_obj - start_date_obj).days + 1
+            'period_days': active_days_count
         }
         
     except Exception as e:
@@ -916,6 +998,11 @@ def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=
             'end_date': end_date_obj,
             'min_detections': min_detections # <-- ДОДАНО
         }
+
+        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        is_admin = current_user.is_authenticated and current_user.has_role('admin')
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(inst_params)
         
         joins = ""
         conditions = []
@@ -969,6 +1056,7 @@ def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=
             AND d.confidence >= :confidence
             AND DATE(r.datetime_start) >= :start_date
             AND DATE(r.datetime_start) <= :end_date
+            AND {inst_condition}
             {condition_sql}
             GROUP BY l.location_id, l.location_name, l.location_name_en, l.lat, l.lon
             HAVING COUNT(d.detection_id) >= :min_detections -- <-- ЗМІНЕНО
@@ -1091,8 +1179,6 @@ def generate_spectrogram_image(audio_path, spectrogram_type='linear', force_rege
         print(f"Error generating spectrogram: {e}")
         return False
 
-# myproject/app/pam/utils.py
-
 def get_occurrence_data(filters, limit=None):
     """
     Отримує дані Occurrence.
@@ -1121,6 +1207,11 @@ def get_occurrence_data(filters, limit=None):
             # Якщо Smart Filter - ігноруємо слайдер (ставимо 0), інакше беремо значення
             'confidence': 0.0 if export_mode == 'smart_filter' else float(filters.get('confidence', 0))
         }
+
+        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        is_admin = current_user.is_authenticated and current_user.has_role('admin')
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(inst_params)
 
         # --- ТАКСОНОМІЧНІ ФІЛЬТРИ ---
         taxo_conditions = []
@@ -1188,6 +1279,7 @@ def get_occurrence_data(filters, limit=None):
                     r.datetime_start BETWEEN :start_ts AND :end_ts
                     AND (dvm.verification_result = 1 OR dvm.positive_votes >= 1) -- Позитивна верифікація
                     AND (dvm.verification_result IS NULL OR dvm.verification_result != 0) -- Не відхилені
+                    AND {inst_condition}
                     {taxo_where}
             """
 
@@ -1203,6 +1295,7 @@ def get_occurrence_data(filters, limit=None):
                 LEFT JOIN detection_verification_map dvm ON d.detection_id = dvm.detection_id
                 WHERE 
                     r.datetime_start BETWEEN :start_ts AND :end_ts
+                    AND {inst_condition}
                     {taxo_where}
                     -- Умови Розумного фільтра:
                     AND eval.total_samples >= 200
@@ -1241,6 +1334,7 @@ def get_occurrence_data(filters, limit=None):
                 LEFT JOIN Verifiers v ON seg.id = v.segment_id
                 LEFT JOIN evaluation eval ON s.species_id = eval.species_id AND eval.is_current = TRUE
                 WHERE r.datetime_start BETWEEN :start_ts AND :end_ts
+                  AND {inst_condition}
                   AND d.confidence >= :confidence
                   {mode_condition}
                   {taxo_where}

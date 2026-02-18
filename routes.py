@@ -596,7 +596,7 @@ def api_get_unique_points(lang_code):
 
 @pam_bp.route('/<lang_code>/api/pam/get-filters-data')
 def api_get_pam_filters_data(lang_code):
-    """API для отримання даних для динамічних фільтрів (локації, біотопи)."""
+    """API для отримання даних для динамічних фільтрів (локації, біотопи) з урахуванням доступу."""
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -606,17 +606,23 @@ def api_get_pam_filters_data(lang_code):
         params = {}
         date_filter = ""
         if start_date and end_date:
-            date_filter = " WHERE r.datetime_start BETWEEN :start_date AND :end_date"
+            date_filter = " AND r.datetime_start BETWEEN :start_date AND :end_date"
             params['start_date'] = start_date
             params['end_date'] = end_date
 
-        # 1. Отримуємо біотопи, де були записи за вибраний період
+        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        is_admin = current_user.is_authenticated and current_user.has_role('admin')
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(inst_params)
+
+        # 1. Отримуємо біотопи (фільтруємо через доступність локацій)
         biotopes_query = f"""
             SELECT DISTINCT b.id, b.name_ua, b.name_en
             FROM biotopes b
             JOIN location_biotopes lb ON b.id = lb.biotope_id
             JOIN locations l ON lb.location_id = l.location_id
             JOIN recordings r ON l.location_id = r.location_id
+            WHERE {inst_condition} 
             {date_filter}
             ORDER BY b.name_ua
         """
@@ -627,15 +633,14 @@ def api_get_pam_filters_data(lang_code):
             display_name = row['name_ua'] if lang_code == 'uk' else row['name_en']
             biotopes.append({'id': row['id'], 'text': display_name})
 
-        # 2. Отримуємо локації, де були детекції за вибраний період
-        # Змінюємо фільтр з WHERE на AND, якщо date_filter вже існує
-        locations_date_filter = date_filter.replace("WHERE", "AND") if date_filter else ""
+        # 2. Отримуємо локації (також з фільтром inst_condition)
         locations_query = f"""
             SELECT DISTINCT l.location_id, l.location_name, l.location_name_en
             FROM locations l
             JOIN recordings r ON l.location_id = r.location_id
             WHERE EXISTS (SELECT 1 FROM detections WHERE recording_id = r.recording_id)
-            {locations_date_filter}
+            AND {inst_condition}
+            {date_filter}
             ORDER BY l.location_name
         """
         locations_result = conn.execute(text(locations_query), params).mappings().fetchall()
