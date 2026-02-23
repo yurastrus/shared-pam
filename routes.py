@@ -367,6 +367,7 @@ def api_get_plot_data(lang_code):
         end_date = request.args.get('end_date')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
+        institution_id = request.args.get('institution_id', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
         biotope_ids = [int(id) for id in biotope_ids_str.split(',') if id.isdigit()] or None
         
@@ -389,7 +390,8 @@ def api_get_plot_data(lang_code):
             end_date=end_date,
             confidence=confidence,
             location_ids=location_ids,
-            biotope_ids=biotope_ids
+            biotope_ids=biotope_ids,
+            institution_id=institution_id
         )
         
         # Замість розділення на окремі списки, повертаємо один масив об'єктів
@@ -412,6 +414,7 @@ def api_get_barchart_data(lang_code):
         species_name = request.args.get('species')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        institution_id = request.args.get('institution_id', '')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -436,7 +439,8 @@ def api_get_barchart_data(lang_code):
             end_date=end_date,
             confidence=confidence,
             location_ids=location_ids,
-            biotope_ids=biotope_ids
+            biotope_ids=biotope_ids,
+            institution_id=institution_id
         )
         
         return jsonify(barchart_data)
@@ -455,6 +459,7 @@ def api_get_time_scatter_data(lang_code):
         species_name = request.args.get('species')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        institution_id = request.args.get('institution_id', '')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -481,7 +486,8 @@ def api_get_time_scatter_data(lang_code):
             end_date=end_date,
             confidence=confidence,
             location_ids=location_ids,
-            biotope_ids=biotope_ids
+            biotope_ids=biotope_ids,
+            institution_id=institution_id
         )
         
         current_app.logger.info(f"Returning time scatter data: {len(plot_data.get('detections', []))} detections, {len(plot_data.get('sun_times', []))} sun times")
@@ -502,6 +508,7 @@ def api_get_species_summary(lang_code):
         species_name = request.args.get('species')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        institution_id = request.args.get('institution_id', '')
         location_id = request.args.get('location_id')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
@@ -534,7 +541,8 @@ def api_get_species_summary(lang_code):
             location_id=location_id,
             location_ids=location_ids,
             biotope_ids=biotope_ids,
-            min_detections=min_detections
+            min_detections=min_detections,
+            institution_id=institution_id
         )
 
         return jsonify(summary)
@@ -553,6 +561,7 @@ def api_get_unique_points(lang_code):
         species_name = request.args.get('species')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        institution_id = request.args.get('institution_id', '')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -584,7 +593,8 @@ def api_get_unique_points(lang_code):
             confidence=confidence,
             location_ids=location_ids,
             biotope_ids=biotope_ids,
-            min_detections=min_detections
+            min_detections=min_detections,
+            institution_id=institution_id
         )
 
         return jsonify(points)
@@ -596,12 +606,13 @@ def api_get_unique_points(lang_code):
 
 @pam_bp.route('/<lang_code>/api/pam/get-filters-data')
 def api_get_pam_filters_data(lang_code):
-    """API для отримання даних для динамічних фільтрів (локації, біотопи) з урахуванням доступу."""
+    """API для отримання даних фільтрів: установи, біотопи, локації."""
     conn = None
     try:
         conn = get_pam_db_connection()
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        selected_inst_id = request.args.get('institution_id', '') # Новий параметр
 
         params = {}
         date_filter = ""
@@ -610,41 +621,75 @@ def api_get_pam_filters_data(lang_code):
             params['start_date'] = start_date
             params['end_date'] = end_date
 
+        # Базові права доступу
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
-        params.update(inst_params)
+        base_inst_condition, base_inst_params = get_institution_filter(user_inst_ids, is_admin)
+        params.update(base_inst_params)
 
-        # 1. Отримуємо біотопи (фільтруємо через доступність локацій)
+        # Додаткова умова, якщо користувач вибрав конкретну установу у фільтрі
+        selected_inst_filter = ""
+        inst_ids = []
+        if selected_inst_id:
+            inst_ids = [int(i) for i in selected_inst_id.split(',') if i.strip().isdigit()]
+            if inst_ids:
+                selected_inst_filter = """
+                    AND EXISTS (
+                        SELECT 1 FROM location_institutions li_sel 
+                        WHERE li_sel.location_id = l.location_id 
+                        AND li_sel.institution_id = ANY(:selected_inst_ids)
+                    )
+                """
+        params['selected_inst_ids'] = inst_ids
+
+        # 1. Отримуємо список Установ (каскадність: залежить тільки від дат і прав)
+        # Показуємо тільки ті установи, де є записи у вибраний період
+        inst_query = f"""
+            SELECT DISTINCT i.id, i.name_uk, i.name_en, i.code
+            FROM institutions i
+            JOIN location_institutions li ON i.id = li.institution_id
+            JOIN locations l ON li.location_id = l.location_id
+            JOIN recordings r ON l.location_id = r.location_id
+            WHERE {base_inst_condition}
+            {date_filter}
+            ORDER BY i.name_uk
+        """
+        inst_result = conn.execute(text(inst_query), params).mappings().fetchall()
+        institutions = []
+        for row in inst_result:
+            display_name = row['name_uk']
+            if lang_code == 'en' and row['name_en']:
+                display_name = row['name_en']
+            
+            institutions.append({'id': row['id'], 'text': display_name})
+
+        # 2. Отримуємо Біотопи (залежать від дати, прав + вибраної установи)
         biotopes_query = f"""
             SELECT DISTINCT b.id, b.name_ua, b.name_en
             FROM biotopes b
             JOIN location_biotopes lb ON b.id = lb.biotope_id
             JOIN locations l ON lb.location_id = l.location_id
             JOIN recordings r ON l.location_id = r.location_id
-            WHERE {inst_condition} 
+            WHERE {base_inst_condition} 
             {date_filter}
+            {selected_inst_filter}
             ORDER BY b.name_ua
         """
         biotopes_result = conn.execute(text(biotopes_query), params).mappings().fetchall()
-        
-        biotopes = []
-        for row in biotopes_result:
-            display_name = row['name_ua'] if lang_code == 'uk' else row['name_en']
-            biotopes.append({'id': row['id'], 'text': display_name})
+        biotopes = [{'id': row['id'], 'text': row['name_ua'] if lang_code == 'uk' else row['name_en']} for row in biotopes_result]
 
-        # 2. Отримуємо локації (також з фільтром inst_condition)
+        # 3. Отримуємо Локації (залежать від дати, прав + вибраної установи)
         locations_query = f"""
             SELECT DISTINCT l.location_id, l.location_name, l.location_name_en
             FROM locations l
             JOIN recordings r ON l.location_id = r.location_id
             WHERE EXISTS (SELECT 1 FROM detections WHERE recording_id = r.recording_id)
-            AND {inst_condition}
+            AND {base_inst_condition}
             {date_filter}
+            {selected_inst_filter}
             ORDER BY l.location_name
         """
         locations_result = conn.execute(text(locations_query), params).mappings().fetchall()
-
         locations = []
         for row in locations_result:
             display_name = row['location_name']
@@ -653,6 +698,7 @@ def api_get_pam_filters_data(lang_code):
             locations.append({'id': row['location_id'], 'text': display_name})
 
         return jsonify({
+            'institutions': institutions,
             'biotopes': biotopes,
             'locations': locations
         })
@@ -679,7 +725,7 @@ def api_get_species_ranking(lang_code):
             'family': request.args.get('family'),
             'genus': request.args.get('genus')
         }
-        
+        institution_id = request.args.get('institution_id', '')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -703,7 +749,8 @@ def api_get_species_ranking(lang_code):
             min_detections=min_detections,
             location_ids=location_ids,
             biotope_ids=biotope_ids,
-            tax_filters=tax_filters
+            tax_filters=tax_filters,
+            institution_id=institution_id
         )
         
         return jsonify(ranking)
@@ -721,7 +768,7 @@ def api_get_overview_stats(lang_code):
     try:
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        
+        institution_id = request.args.get('institution_id', '')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -752,7 +799,8 @@ def api_get_overview_stats(lang_code):
             min_detections=min_detections,
             location_ids=location_ids,
             biotope_ids=biotope_ids,
-            tax_filters=tax_filters
+            tax_filters=tax_filters,
+            institution_id=institution_id
         )
         
         return jsonify(stats)
@@ -770,7 +818,7 @@ def api_get_locations_map(lang_code):
     try:
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        
+        institution_id = request.args.get('institution_id', '')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -802,7 +850,8 @@ def api_get_locations_map(lang_code):
             location_ids=location_ids,
             biotope_ids=biotope_ids,
             min_detections=min_detections,
-            tax_filters=tax_filters
+            tax_filters=tax_filters,
+            institution_id=institution_id
         )
         
         return jsonify(locations)
@@ -2407,12 +2456,15 @@ def pam_yearly_table(lang_code):
 @pam_bp.route('/<lang_code>/api/pam/get-trends-filters')
 def api_get_trends_filters(lang_code):
     """
-    API для отримання даних для всіх динамічних фільтрів на сторінці трендів.
-    Враховує вже вибрані значення для каскадного оновлення.
+    API для отримання даних фільтрів на сторінці Огляду (Overview).
+    ОНОВЛЕНО: Додано підтримку institution_id.
     """
     conn = None
     try:
         conn = get_pam_db_connection()
+        
+        # 1. Збір параметрів
+        institution_id = request.args.get('institution_id', '')
         
         p = {
             'start_year': request.args.get('start_year', type=int),
@@ -2425,20 +2477,60 @@ def api_get_trends_filters(lang_code):
             'genus': request.args.get('genus')
         }
 
-        years_query = text("SELECT DISTINCT EXTRACT(YEAR FROM datetime_start)::integer as year FROM recordings WHERE datetime_start IS NOT NULL ORDER BY year DESC")
-        all_years = [row.year for row in conn.execute(years_query).fetchall()]
+        # 2. Базові права доступу + Вибрана установа
+        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        is_admin = current_user.is_authenticated and current_user.has_role('admin')
         
+        # Використовуємо нашу універсальну функцію
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
+        
+        # 3. Отримуємо список доступних установ (для дропдауна)
+        # Враховуємо права доступу (але не selected_institution, щоб можна було перемикати)
+        base_access_cond, base_access_params = get_institution_filter(user_inst_ids, is_admin)
+        
+        inst_query = f"""
+            SELECT DISTINCT i.id, i.name_uk, i.name_en, i.code
+            FROM institutions i
+            JOIN location_institutions li ON i.id = li.institution_id
+            JOIN locations l ON li.location_id = l.location_id
+            JOIN recordings r ON l.location_id = r.location_id
+            WHERE {base_access_cond}
+            ORDER BY i.name_uk
+        """
+        inst_result = conn.execute(text(inst_query), base_access_params).mappings().fetchall()
+        institutions = []
+        for row in inst_result:
+            name = row['name_uk'] if lang_code == 'uk' and row['name_uk'] else row['name_en']
+            institutions.append({'id': row['id'], 'text': name})
+
+        # 4. Роки (Фільтруємо по установі)
+        # Додаємо inst_condition до запиту років
+        years_query = text(f"""
+            SELECT DISTINCT EXTRACT(YEAR FROM r.datetime_start)::integer as year 
+            FROM recordings r
+            JOIN locations l ON r.location_id = l.location_id
+            WHERE r.datetime_start IS NOT NULL 
+            AND {inst_condition}
+            ORDER BY year DESC
+        """)
+        all_years = [row.year for row in conn.execute(years_query, inst_params).fetchall()]
+        
+        response_data = {
+            'years': all_years,
+            'institutions': institutions # <-- Повертаємо список установ
+        }
+
+        # --- Підготовка умов для каскадних фільтрів ---
         base_joins = " FROM recordings r JOIN locations l ON r.location_id = l.location_id "
-        base_conditions = []
-        params = {}
+        base_conditions = [inst_condition] # <-- Додаємо умову установи сюди
+        params = inst_params.copy()
 
         if p['start_year'] and p['end_year']:
             base_conditions.append("EXTRACT(YEAR FROM r.datetime_start) BETWEEN :start_year AND :end_year")
             params['start_year'] = p['start_year']
             params['end_year'] = p['end_year']
 
-        response_data = {'years': all_years}
-
+        # 5. Біотопи
         biotope_params = params.copy()
         biotope_joins = base_joins + " JOIN location_biotopes lb ON l.location_id = lb.location_id "
         biotope_conditions = base_conditions.copy()
@@ -2446,7 +2538,7 @@ def api_get_trends_filters(lang_code):
             biotope_conditions.append("l.location_id = ANY(:locations)")
             biotope_params['locations'] = p['locations']
         
-        where_clause = " WHERE " + " AND ".join(biotope_conditions) if biotope_conditions else ""
+        where_clause = " WHERE " + " AND ".join(biotope_conditions)
         biotopes_query = text(f"""
             SELECT DISTINCT b.id, b.name_ua, b.name_en
             {biotope_joins}
@@ -2456,6 +2548,7 @@ def api_get_trends_filters(lang_code):
         biotopes_result = conn.execute(biotopes_query, biotope_params).mappings().fetchall()
         response_data['biotopes'] = [{'id': r['id'], 'text': r['name_ua'] if lang_code == 'uk' else r['name_en']} for r in biotopes_result]
 
+        # 6. Локації
         location_params = params.copy()
         location_joins = base_joins
         location_conditions = base_conditions.copy()
@@ -2464,7 +2557,7 @@ def api_get_trends_filters(lang_code):
             location_conditions.append("lb.biotope_id = ANY(:biotopes)")
             location_params['biotopes'] = p['biotopes']
             
-        where_clause = " WHERE " + " AND ".join(location_conditions) if location_conditions else ""
+        where_clause = " WHERE " + " AND ".join(location_conditions)
         locations_query = text(f"""
             SELECT DISTINCT l.location_id, l.location_name, l.location_name_en
             {location_joins} {where_clause} ORDER BY l.location_name
@@ -2472,7 +2565,11 @@ def api_get_trends_filters(lang_code):
         locations_result = conn.execute(locations_query, location_params).mappings().fetchall()
         response_data['locations'] = [{'id': r['location_id'], 'text': r['location_name'] if lang_code != 'en' or not r['location_name_en'] else r['location_name_en']} for r in locations_result]
 
-        # --- ВИПРАВЛЕННЯ ТУТ ---
+        # 7. Таксономія (Тут складніше, бо таблиця species не зв'язана прямо з recordings в цьому контексті, 
+        # але ми повертаємо доступні таксони глобально або фільтруємо через recordings->detections->species, 
+        # що важко. Зазвичай таксономічні фільтри лишають глобальними або фільтрують окремо. 
+        # Залишимо поки логіку "наявних видів", але якщо треба строго по установі - треба джойнити detections)
+        
         def fetch_distinct_taxa(column, filter_by):
             # Перетворюємо рядок на f-рядок, додавши літеру 'f'
             taxa_conditions = [f"s.{column} IS NOT NULL"]
@@ -2485,7 +2582,6 @@ def api_get_trends_filters(lang_code):
             where_clause = "WHERE " + " AND ".join(taxa_conditions)
             query = text(f"SELECT DISTINCT s.{column} FROM species s {where_clause} ORDER BY s.{column}")
             return [row[0] for row in conn.execute(query, taxa_params).fetchall()]
-        # --- КІНЕЦЬ ВИПРАВЛЕННЯ ---
         
         response_data['classes'] = fetch_distinct_taxa('class', {})
         response_data['orders'] = fetch_distinct_taxa('order_rank', {'class': p['class']})
@@ -2499,6 +2595,7 @@ def api_get_trends_filters(lang_code):
         return jsonify({'error': 'Failed to load filter data'}), 500
     finally:
         if conn: conn.close()
+
 
 @pam_bp.route('/<lang_code>/api/pam/yearly-trends-table')
 def api_yearly_trends_table(lang_code):
@@ -2541,9 +2638,7 @@ def api_yearly_trends_table(lang_code):
                 db_column = 'order_rank' if key == 'order' else key
                 conditions.append(f"s.{db_column} = :{key}")
                 params[key] = value
-        
-        # --- ПОЧАТОК ВИПРАВЛЕННЯ ---
-        
+
         # 3. Розрахунок "зусилля" (effort)
         # Створюємо окремий список умов для цього запиту, бо в ньому немає таблиці species (s)
         effort_conditions = ["EXTRACT(YEAR FROM r.datetime_start) BETWEEN :start_year AND :end_year"]
@@ -2587,7 +2682,6 @@ def api_yearly_trends_table(lang_code):
         """)
         detections_result = conn.execute(detections_query, params).mappings().fetchall()
         
-        # --- КІНЕЦЬ ВИПРАВЛЕННЯ ---
 
         # 5. Обробка та нормалізація (без змін)
         data_by_species, total_detections_by_species = {}, {}
@@ -2889,7 +2983,7 @@ def api_get_weather_overlay(lang_code):
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         species_name = request.args.get('species')
-        
+        institution_id = request.args.get('institution_id', '')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         
@@ -2908,12 +3002,18 @@ def api_get_weather_overlay(lang_code):
         conn = None
         try:
             conn = get_pam_db_connection()
-            
+
+            user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+            is_admin = current_user.is_authenticated and current_user.has_role('admin')
+            inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
+            params.update(inst_params)
+
             # 3. Спроба 1: Знайти центр фактичних детекцій
             conditions = [
                 "s.scientific_name = :species",
                 "d.confidence >= :confidence",
-                "DATE(r.datetime_start) BETWEEN :start_date AND :end_date"
+                "DATE(r.datetime_start) BETWEEN :start_date AND :end_date",
+                inst_condition
             ]
             
             params = {
@@ -3034,7 +3134,7 @@ def export_detailed_data(lang_code):
         species_name = request.args.get('species')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        
+        institution_id = request.args.get('institution_id', '')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -3063,13 +3163,15 @@ def export_detailed_data(lang_code):
         # Лист 1: Карта (Map Locations)
         map_points = get_unique_detection_points(
             lang_code=lang_code, species_name=species_name, start_date=start_date, end_date=end_date,
-            confidence=confidence, location_ids=location_ids, biotope_ids=biotope_ids, min_detections=min_detections
+            confidence=confidence, location_ids=location_ids, biotope_ids=biotope_ids, min_detections=min_detections,
+            institution_id=institution_id
         )
         
         # Лист 2: Динаміка + Погода (Daily Dynamics & Weather)
         daily_data = get_daily_detection_counts(
             species_name=species_name, start_date=start_date, end_date=end_date,
-            confidence=confidence, location_ids=location_ids, biotope_ids=biotope_ids, excel_exp=True
+            confidence=confidence, location_ids=location_ids, biotope_ids=biotope_ids, excel_exp=True,
+            institution_id=institution_id
         )
         
         # Для погоди нам потрібні координати. Використовуємо логіку з api_get_weather_overlay
@@ -3086,7 +3188,8 @@ def export_detailed_data(lang_code):
         # Лист 3: Добова активність + Сонце (Time Activity)
         time_scatter = get_time_scatter_data(
             species_name=species_name, start_date=start_date, end_date=end_date,
-            confidence=confidence, location_ids=location_ids, biotope_ids=biotope_ids, excel_exp=True
+            confidence=confidence, location_ids=location_ids, biotope_ids=biotope_ids, excel_exp=True,
+            institution_id=institution_id
         )
 
         # Лист 4: Сирі дані (All Raw Detections)

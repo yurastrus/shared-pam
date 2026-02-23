@@ -92,30 +92,49 @@ def get_geodata_db_connection():
     engine = get_geodata_engine()
     return engine.connect()
 
-def get_institution_filter(user_inst_ids=None, is_admin=False):
+def get_institution_filter(user_inst_ids=None, is_admin=False, selected_inst_id=None):
     """
-    Генерує SQL-умову для фільтрації за установами та публічністю.
-    :param user_inst_ids: список ID установ, до яких належить користувач [1, 2, ...]
-    :param is_admin: чи є користувач супер-адміном
+    Генерує SQL-умову для фільтрації за правами доступу ТА вибраними установами.
+    selected_inst_id — може бути рядком '1,2,3', числом 2, або списком [1, 2]
     """
-    # 1. Якщо це супер-адмін — він бачить усе, фільтр не потрібен
+    # 1. Базова умова прав доступу
     if is_admin:
-        return "1=1", {}
+        base_condition = "1=1"
+        params = {}
+    elif not user_inst_ids:
+        base_condition = "l.visibility_level = 0"
+        params = {}
+    else:
+        base_condition = """
+            (l.visibility_level = 0 OR EXISTS (
+                SELECT 1 FROM location_institutions li_perm 
+                WHERE li_perm.location_id = l.location_id 
+                AND li_perm.institution_id = ANY(:user_inst_ids)
+            ))
+        """
+        params = {"user_inst_ids": user_inst_ids}
 
-    # 2. Якщо користувач не залогінений (inst_ids порожній) — тільки публічні (level 0)
-    if not user_inst_ids:
-        return "l.visibility_level = 0", {}
+    # 2. Додаткова умова вибраних установ (якщо вибрані у фільтрі)
+    if selected_inst_id:
+        # Нормалізуємо до списку int
+        if isinstance(selected_inst_id, str):
+            ids = [int(i) for i in selected_inst_id.split(',') if i.strip().isdigit()]
+        elif isinstance(selected_inst_id, (int, float)):
+            ids = [int(selected_inst_id)]
+        else:
+            ids = [int(i) for i in selected_inst_id]
 
-    # 3. Якщо користувач залогінений — бачить публічні АБО ті, що належать його установам
-    # Використовуємо підзапит для перевірки зв'язку в location_institutions
-    condition = """
-        (l.visibility_level = 0 OR EXISTS (
-            SELECT 1 FROM location_institutions li 
-            WHERE li.location_id = l.location_id 
-            AND li.institution_id = ANY(:user_inst_ids)
-        ))
-    """
-    return condition, {"user_inst_ids": user_inst_ids}
+        if ids:
+            base_condition += """
+                AND EXISTS (
+                    SELECT 1 FROM location_institutions li_sel 
+                    WHERE li_sel.location_id = l.location_id 
+                    AND li_sel.institution_id = ANY(:selected_inst_id)
+                )
+            """
+            params['selected_inst_id'] = ids
+
+    return base_condition, params
 
 def calculate_sun_times_simple(date_obj, longitude, latitude):
     """
@@ -232,7 +251,7 @@ def get_available_species(lang_code):
             except Exception as close_error:
                 current_app.logger.error(f"Error closing connection: {close_error}")
 
-def get_filtered_detections(species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None):
+def get_filtered_detections(species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None, institution_id=None):
     """
     ОНОВЛЕНО: Додано статус верифікації для кожної детекції.
     """
@@ -243,7 +262,7 @@ def get_filtered_detections(species_name, start_date=None, end_date=None, confid
 
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
         
         joins = """
@@ -302,7 +321,7 @@ def get_filtered_detections(species_name, start_date=None, end_date=None, confid
         if conn is not None:
             conn.close()
 
-def get_daily_detection_counts(species_name, start_date, end_date, confidence, location_ids=None, biotope_ids=None, excel_exp=False):
+def get_daily_detection_counts(species_name, start_date, end_date, confidence, location_ids=None, biotope_ids=None, excel_exp=False, institution_id=None):
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -318,7 +337,7 @@ def get_daily_detection_counts(species_name, start_date, end_date, confidence, l
         
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
 
         joins = "JOIN recordings r ON d.recording_id = r.recording_id JOIN locations l ON r.location_id = l.location_id"
@@ -381,7 +400,7 @@ def get_daily_detection_counts(species_name, start_date, end_date, confidence, l
         if conn is not None:
             conn.close()
 
-def get_time_scatter_data(species_name, start_date, end_date, confidence, location_ids=None, biotope_ids=None, excel_exp=False):
+def get_time_scatter_data(species_name, start_date, end_date, confidence, location_ids=None, biotope_ids=None, excel_exp=False, institution_id=None):
     """
     ОНОВЛЕНО: Додано статус верифікації для кожної точки на графіку добової активності.
     """
@@ -401,7 +420,7 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
 
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
         
         joins = """
@@ -492,7 +511,7 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
         if conn is not None:
             conn.close()
 
-def get_species_summary(species_name, start_date=None, end_date=None, confidence=0.0, location_id=None, location_ids=None, biotope_ids=None, min_detections=1):
+def get_species_summary(species_name, start_date=None, end_date=None, confidence=0.0, location_id=None, location_ids=None, biotope_ids=None, min_detections=1, institution_id=None):
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -511,7 +530,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
 
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
 
         base_joins = """
@@ -632,7 +651,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
         if conn is not None:
             conn.close()
 
-def get_unique_detection_points(lang_code, species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None, min_detections=1):
+def get_unique_detection_points(lang_code, species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None, min_detections=1, institution_id=None):
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -654,7 +673,7 @@ def get_unique_detection_points(lang_code, species_name, start_date=None, end_da
             user_inst_ids = [inst.id for inst in current_user.institutions]
             is_admin = current_user.has_role('admin')
 
-        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
 
         joins = "LEFT JOIN detection_verification_map dvm ON d.detection_id = dvm.detection_id"
@@ -721,7 +740,7 @@ def get_unique_detection_points(lang_code, species_name, start_date=None, end_da
         if conn is not None:
             conn.close()
 
-def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.0, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None):
+def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.0, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None, institution_id=None):
     """
     Повертає рейтингову таблицю видів з кількістю детекцій.
     ВИПРАВЛЕНО: Коректна фільтрація з використанням INNER JOIN.
@@ -742,7 +761,7 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
         
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
         
         # Базові JOIN'и, які потрібні завжди
@@ -841,7 +860,7 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
             except Exception as close_error:
                 current_app.logger.error(f"Error closing connection: {close_error}")
 
-def get_overview_statistics(lang_code, start_date=None, end_date=None, confidence=0.75, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None):
+def get_overview_statistics(lang_code, start_date=None, end_date=None, confidence=0.75, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None, institution_id=None):
     """
     Повертає загальну статистику для overview сторінки.
     ОНОВЛЕНО: враховує фільтри по локаціях та біотопах.
@@ -862,7 +881,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
 
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
         
         # Формуємо динамічні частини запиту
@@ -980,7 +999,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
         if conn:
             conn.close()
 
-def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=0.75, location_ids=None, biotope_ids=None, min_detections=1, tax_filters=None):
+def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=0.75, location_ids=None, biotope_ids=None, min_detections=1, tax_filters=None, institution_id=None):
     """
     Повертає дані локацій для відображення на карті.
     ОНОВЛЕНО: враховує фільтри по локаціях, біотопах та мінімальній кількості детекцій.
@@ -996,12 +1015,12 @@ def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=
             'confidence': confidence,
             'start_date': start_date_obj,
             'end_date': end_date_obj,
-            'min_detections': min_detections # <-- ДОДАНО
+            'min_detections': min_detections
         }
 
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
         
         joins = ""

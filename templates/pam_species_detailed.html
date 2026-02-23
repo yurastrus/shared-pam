@@ -240,7 +240,11 @@
                     </div>
                 </div>
                 
-                <!-- Рядок 2: Біотопи та локації -->
+                <!-- Рядок 2: Установи, проекти, біотопи та локації -->
+                <div class="filter-group">
+                    <label for="institution-select">{{ _('Установа/проект:') }}</label>
+                    <select id="institution-select" class="form-control" multiple></select>
+                </div>
                 <div class="filter-group">
                     <label for="biotopes-select">{{ _('Біотопи:') }}</label>
                     <select id="biotopes-select" class="form-control" multiple></select>
@@ -381,11 +385,11 @@
         const applyButton = $('#apply-filters-btn');
         const setThresholdButton = $('#set-threshold-btn');
         const exportButton = $('#export-data-btn');
+        const institutionSelect = $('#institution-select');
         const biotopesSelect = $('#biotopes-select');
         const locationsSelect = $('#locations-select');
         const minObsSlider = $('#min-obs-slider');
         const minObsValueSpan = $('#min-obs-value');
-        
         const dashboardContainer = $('#dashboard-container');
         const plotMessage = $('#plot-message');
         const summaryContainer = $('#species-summary-container');
@@ -431,7 +435,13 @@
             minObsValueSpan.text(minObsSlider.val());
             
             speciesSelect.select2({ placeholder: '{{ _("-- Будь ласка, виберіть --") }}', allowClear: true });
-            biotopesSelect.select2({ placeholder: '{{ _("-- Всі біотопи --") }}', allowClear: true });
+            institutionSelect.select2({ 
+                placeholder: '{{ _("-- Всі установи/проекти --") }}', 
+                allowClear: true,
+                multiple: true
+
+            });
+                        biotopesSelect.select2({ placeholder: '{{ _("-- Всі біотопи --") }}', allowClear: true });
             locationsSelect.select2({ placeholder: '{{ _("-- Всі локації --") }}', allowClear: true });
 
             updateDynamicFilters(() => {
@@ -464,6 +474,11 @@
         endDateInput.on('change', updateDynamicFilters);
         speciesSelect.on('change', handleSpeciesChange);
         setThresholdButton.on('click', applyThreshold);
+        institutionSelect.on('change', function() {
+            // Коли міняється установа -> оновлюємо списки локацій/біотопів
+            updateDynamicFilters(); 
+        });
+
 
         // Обробка кліку на чекбокси погоди (МИТТЄВЕ ОНОВЛЕННЯ)
         $('.weather-toggle').on('change', function() {
@@ -477,19 +492,56 @@
         });
         
         function updateDynamicFilters(callback) {
-            const params = new URLSearchParams({ start_date: startDateInput.val(), end_date: endDateInput.val() });
+            const currentInst = institutionSelect.val(); // масив при multiple
+            
+            const params = new URLSearchParams({ 
+                start_date: startDateInput.val(), 
+                end_date: endDateInput.val() 
+            });
+            
+            // Передаємо ВСІ вибрані установи через кому
+            if (currentInst && currentInst.length > 0) {
+                const instArray = Array.isArray(currentInst) ? currentInst : [currentInst];
+                params.append('institution_id', instArray.join(','));
+            }
+
             fetch(`/{{ g.lang_code }}/api/pam/get-filters-data?${params.toString()}`)
                 .then(response => response.ok ? response.json() : Promise.reject(response))
                 .then(data => {
                     const currentLocs = locationsSelect.val();
                     const currentBios = biotopesSelect.val();
 
-                    biotopesSelect.empty().select2({ data: data.biotopes, placeholder: '{{ _("-- Всі біотопи --") }}', allowClear: true }).val(currentBios).trigger('change');
-                    locationsSelect.empty().select2({ data: data.locations, placeholder: '{{ _("-- Всі локації --") }}', allowClear: true }).val(currentLocs).trigger('change');
+                    // Оновлюємо список Установ (зберігаючи вибір, якщо він ще валидний)
+                    // Важливо: не перемальовувати, якщо ми самі ініціювали зміну (щоб не скинути селект)
+                    // Але для спрощення поки перемалюємо, Select2 збереже значення якщо ID співпадає
+                    updateSelectOptions(institutionSelect, data.institutions, currentInst);
+
+                    // Оновлюємо залежні списки
+                    updateSelectOptions(biotopesSelect, data.biotopes, currentBios);
+                    updateSelectOptions(locationsSelect, data.locations, currentLocs);
                     
-                    if (callback) callback();
+                    if (typeof callback === 'function') callback();
                 })
                 .catch(error => console.error('Error loading dynamic filters:', error));
+        }
+
+        // Допоміжна функція для оновлення Select2 (щоб не дублювати код)
+        function updateSelectOptions(element, items, currentValue) {
+            element.empty();
+            // Додаємо пустий опшн для плейсхолдера
+            element.append(new Option('', '', false, false));
+            
+            items.forEach(item => {
+                const option = new Option(item.text, item.id, false, false);
+                element.append(option);
+            });
+            
+            // Відновлюємо значення, якщо воно є в новому списку
+            if (currentValue) {
+                element.val(currentValue).trigger('change.select2');
+            } else {
+                element.trigger('change.select2'); // Оновити UI
+            }
         }
 
         function loadAllThresholds() {
@@ -527,7 +579,7 @@
             if (!map) {
                 map = L.map(mapContainer).setView([49.95, 23.7], 10);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(map);
-                markersLayer = L.layerGroup().addTo(map);
+                markersLayer = L.featureGroup().addTo(map);
                 greenIcon = new L.Icon({
                   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
                   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -576,6 +628,13 @@
             if (startDateInput.val()) params.append('start_date', startDateInput.val());
             if (endDateInput.val()) params.append('end_date', endDateInput.val());
             
+            // Додаємо установу
+            const instVal = institutionSelect.val();
+                if (instVal && instVal.length > 0) {
+                    const instArray = Array.isArray(instVal) ? instVal : [instVal];
+                    params.append('institution_id', instArray.join(','));
+                }
+
             const selectedLocations = locationsSelect.val();
             if (selectedLocations && selectedLocations.length > 0) params.append('locations', selectedLocations.join(','));
             const selectedBiotopes = biotopesSelect.val();
@@ -622,7 +681,7 @@
                             map.fitBounds(markersLayer.getBounds().pad(0.1));
                         }
                     }
-                }).catch(() => console.error("Could not load map points."));
+                }).catch((err) => console.error("Could not load map points.", err));
         }
 
         // --- ФУНКЦІЇ МАЛЮВАННЯ ГРАФІКІВ ---
