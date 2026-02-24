@@ -2194,8 +2194,7 @@ def pam_species_dashboard(lang_code):
 @pam_bp.route('/<lang_code>/api/pam/species-dynamics')
 def api_pam_species_dynamics(lang_code):
     """
-    API для отримання даних для графіків сезонної активності, річної динаміки
-    ТА ВІДНОСНОЇ АКТИВНОСТІ ПО БІОТОПАХ (детекцій/годину).
+    API для отримання даних трендів з урахуванням інституції.
     """
     g.lang_code = lang_code
     conn = None
@@ -2203,6 +2202,10 @@ def api_pam_species_dynamics(lang_code):
         species_id = request.args.get('species_id', type=int)
         start_year = request.args.get('start_year', type=int)
         end_year = request.args.get('end_year', type=int)
+        
+        # Отримуємо ID інституції (якщо передано)
+        inst_param = request.args.get('institution_id')
+        institution_id = int(inst_param) if inst_param and inst_param.isdigit() else None
 
         if not all([species_id, start_year, end_year]):
             return jsonify({'error': 'Missing required parameters'}), 400
@@ -2214,28 +2217,48 @@ def api_pam_species_dynamics(lang_code):
             'end_year': end_year
         }
         
-        # 1. Сезонна активність (без змін)
-        seasonal_query = text("""
-            SELECT year, month, SUM(detection_count) as count
-            FROM analysis_intermediate
-            WHERE species_id = :species_id AND year BETWEEN :start_year AND :end_year
-            GROUP BY year, month ORDER BY year, month
+        # --- 1. Сезонна активність (Динамічний розрахунок) ---
+        # Таблиця analysis_intermediate прив'язана до location_id. 
+        # Якщо обрана установа - фільтруємо через JOIN.
+        seasonal_join = ""
+        seasonal_where = ""
+        
+        if institution_id is not None:
+            seasonal_join = "JOIN location_institutions li ON ai.location_id = li.location_id"
+            seasonal_where = "AND li.institution_id = :inst_id"
+            params['inst_id'] = institution_id
+
+        seasonal_query = text(f"""
+            SELECT ai.year, ai.month, SUM(ai.detection_count) as count
+            FROM analysis_intermediate ai
+            {seasonal_join}
+            WHERE ai.species_id = :species_id 
+              AND ai.year BETWEEN :start_year AND :end_year
+              {seasonal_where}
+            GROUP BY ai.year, ai.month 
+            ORDER BY ai.year, ai.month
         """)
         seasonal_result = conn.execute(seasonal_query, params).mappings().fetchall()
         seasonal_data = [dict(row) for row in seasonal_result]
         
-        # 2. Річна динаміка (без змін)
-        yearly_query = text("""
+        # --- 2. Річна динаміка (Пре-калькульовані дані) ---
+        # Вибираємо або глобальний тренд (IS NULL), або конкретної установи (= id)
+        trend_condition = "institution_id IS NULL" if institution_id is None else "institution_id = :inst_id"
+        
+        yearly_query = text(f"""
             SELECT year, mean_rai, lower_ci, upper_ci
             FROM species_yearly_trends
-            WHERE species_id = :species_id AND year BETWEEN :start_year AND :end_year
+            WHERE species_id = :species_id 
+              AND year BETWEEN :start_year AND :end_year
+              AND {trend_condition}
             ORDER BY year ASC
         """)
         yearly_result = conn.execute(yearly_query, params).mappings().fetchall()
         yearly_data = [{'year': r['year'], 'mean_dr_index': r['mean_rai'], 'lower_ci': r['lower_ci'], 'upper_ci': r['upper_ci']} for r in yearly_result]
         
-        # --- ПОЧАТОК ОНОВЛЕННЯ ---
-        # 3. Активність по біотопах (тепер з effort_hours)
+        # --- 3. Активність по біотопах (Пре-калькульовані дані) ---
+        biotope_condition = "sba.institution_id IS NULL" if institution_id is None else "sba.institution_id = :inst_id"
+
         biotope_query = text(f"""
             SELECT
                 sba.year,
@@ -2244,23 +2267,21 @@ def api_pam_species_dynamics(lang_code):
                 CASE WHEN '{lang_code}' = 'uk' THEN b.name_ua ELSE b.name_en END as biotope_name
             FROM species_biotope_yearly_activity sba
             JOIN biotopes b ON sba.biotope_id = b.id
-            WHERE sba.species_id = :species_id AND sba.year BETWEEN :start_year AND :end_year
+            WHERE sba.species_id = :species_id 
+              AND sba.year BETWEEN :start_year AND :end_year
+              AND {biotope_condition}
             ORDER BY sba.year, biotope_name
         """)
         biotope_result = conn.execute(biotope_query, params).mappings().fetchall()
         
         biotope_data = []
         for row in biotope_result:
-            # Створюємо копію, щоб додати нове поле
             data_point = dict(row)
             count = data_point.get('detection_count', 0)
             effort = data_point.get('effort_hours', 0)
-            
-            # Розраховуємо відносну активність (RAI), уникаючи ділення на нуль
             relative_activity = (count / effort) if effort > 0 else 0
             data_point['relative_activity'] = relative_activity
             biotope_data.append(data_point)
-        # --- КІНЕЦЬ ОНОВЛЕННЯ ---
 
         return jsonify({
             'seasonal_activity': seasonal_data, 
@@ -2275,6 +2296,7 @@ def api_pam_species_dynamics(lang_code):
         if conn:
             conn.close()
 
+            
 @pam_bp.route('/<lang_code>/pam/data-export')
 @login_required
 @role_required('admin')
