@@ -1,29 +1,68 @@
 {# /myproject/app/templates/pam_yearly_trends.html #}
 
 {% extends "base.html" %}
-{% block title %}{{ _('Багаторічні тренди') }} - {{ _('Акустичний моніторинг') }}{% endblock %}
+{% block title %}{{ _('Порівняльна таблиця') }} - {{ _('Акустичний моніторинг') }}{% endblock %}
 
 {% block head_extra %}
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style>
         .trends-wrapper { width: 100%; text-align: left; }
-        .page-header { text-align: center; }
+        .page-header { text-align: center; margin-bottom: 30px; }
+        
         .filters-panel {
-            display: grid; grid-template-columns: repeat(4, 1fr); /* Змінено на 4 колонки */
-            gap: 15px 20px; padding: 20px; background-color: #f8f9fa;
-            border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 25px;
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); /* Базова сітка на 4 колонки */
+            gap: 15px 20px; 
+            padding: 25px; 
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6; 
+            border-radius: 12px; 
+            margin-bottom: 25px;
+            align-items: end;
         }
+
         .filter-group { display: flex; flex-direction: column; }
-        .filter-group.span-2 { grid-column: span 2; } /* Для елементів на 2 колонки */
-        .filter-group.full-width { grid-column: 1 / -1; }
-        .filters-panel label { margin-bottom: 5px; font-weight: bold; }
-        .filters-panel .select2-container .select2-selection--multiple { min-height: 38px; border: 1px solid #ced4da; }
-        .action-group { display: flex; justify-content: center; align-items: center; padding-top: 10px; }
+        
+        /* Специфічні розміри для компактності */
+        .span-2 { grid-column: span 2; }
+        .full-width { grid-column: 1 / -1; }
+        
+        /* Роки будуть займати по 1 колонці (25% ширини) */
+        .year-group { grid-column: span 1; } 
+
+        .filters-panel label { 
+            margin-bottom: 8px; 
+            font-weight: bold; 
+            font-size: 14px; 
+            color: #495057;
+        }
+
+        /* Стилізація Select2 */
+        .filters-panel .select2-container .select2-selection--single,
+        .filters-panel .select2-container .select2-selection--multiple { 
+            min-height: 38px; 
+            border: 1px solid #ced4da; 
+            border-radius: 6px;
+        }
+
+        .action-group { 
+            display: flex; 
+            justify-content: center; 
+            margin-top: 15px;
+        }
+
+        .btn-primary {
+            padding: 10px 30px;
+            font-weight: bold;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
         .results-container {
             margin-top: 25px; padding: 20px; background-color: #ffffff;
             border: 1px solid #e0e0e0; border-radius: 8px; overflow-x: auto;
         }
-        .message-box { padding: 20px; border-radius: 8px; text-align: center; background-color: #e7f3fe; border: 1px solid #d0e7ff; }
+
         .trends-table {
             border-collapse: collapse; margin-top: 15px; font-size: 0.9em;
             width: auto; min-width: 600px; margin-left: auto; margin-right: auto;
@@ -43,28 +82,61 @@
     <div class="trends-wrapper">
         <h1 class="page-header">{{ _('Порівняльна таблиця річної активності видів') }}</h1>
         <div id="trends-filters-form" class="filters-panel">
-            <!-- Рядок 1: Роки -->
-            <div class="filter-group span-2"><label for="start-year-select">{{ _('Рік початку:') }}</label><select id="start-year-select" class="form-control filter-param"></select></div>
-            <div class="filter-group span-2"><label for="end-year-select">{{ _('Рік кінця:') }}</label><select id="end-year-select" class="form-control filter-param"></select></div>
+            <!-- Рядок 1: Роки + Повзунки (4 колонки) -->
+            <div class="filter-group">
+                <label for="start-year-select">{{ _('Рік початку:') }}</label>
+                <select id="start-year-select" class="form-control filter-param"></select>
+            </div>
+            <div class="filter-group">
+                <label for="end-year-select">{{ _('Рік кінця:') }}</label>
+                <select id="end-year-select" class="form-control filter-param"></select>
+            </div>
+            <div class="filter-group">
+                <label for="confidence-slider">{{ _('Впевненість:') }} <span id="confidence-value">0.95</span></label>
+                <input type="range" class="form-control-range" id="confidence-slider" min="0.7" max="1" step="0.01" value="0.95">
+            </div>
+            <div class="filter-group">
+                <label for="min-detections-slider">{{ _('Мін. детекцій:') }} <span id="min-detections-value">5</span></label>
+                <input type="range" class="form-control-range" id="min-detections-slider" min="1" max="100" step="1" value="5">
+            </div>
 
-            <!-- Рядок 2: Таксономія -->
-            <div class="filter-group"><label for="class-select">{{ _('Клас:') }}</label><select id="class-select" class="form-control filter-param tax-filter"></select></div>
-            <div class="filter-group"><label for="order-select">{{ _('Ряд:') }}</label><select id="order-select" class="form-control filter-param tax-filter"></select></div>
-            <div class="filter-group"><label for="family-select">{{ _('Родина:') }}</label><select id="family-select" class="form-control filter-param tax-filter"></select></div>
-            <div class="filter-group"><label for="genus-select">{{ _('Рід:') }}</label><select id="genus-select" class="form-control filter-param tax-filter"></select></div>
+            <!-- Рядок 2: Таксономія (4 колонки) -->
+            <div class="filter-group">
+                <label for="class-select">{{ _('Клас:') }}</label>
+                <select id="class-select" class="form-control filter-param tax-filter"></select>
+            </div>
+            <div class="filter-group">
+                <label for="order-select">{{ _('Ряд:') }}</label>
+                <select id="order-select" class="form-control filter-param tax-filter"></select>
+            </div>
+            <div class="filter-group">
+                <label for="family-select">{{ _('Родина:') }}</label>
+                <select id="family-select" class="form-control filter-param tax-filter"></select>
+            </div>
+            <div class="filter-group">
+                <label for="genus-select">{{ _('Рід:') }}</label>
+                <select id="genus-select" class="form-control filter-param tax-filter"></select>
+            </div>
 
-            <!-- Рядок 3: Географія -->
-            <div class="filter-group span-2"><label for="biotopes-select">{{ _('Біотопи:') }}</label><select id="biotopes-select" class="form-control filter-param" multiple></select></div>
-            <div class="filter-group span-2"><label for="locations-select">{{ _('Локації:') }}</label><select id="locations-select" class="form-control filter-param" multiple></select></div>
+            <!-- Рядок 3: Установи (2) + Географія (1+1) -->
+            <div class="filter-group">
+                <label for="institution-select">{{ _('Установи/проекти:') }}</label>
+                <select id="institution-select" class="form-control filter-param" multiple="multiple"></select>
+            </div>
+            <div class="filter-group">
+                <label for="biotopes-select">{{ _('Біотопи:') }}</label>
+                <select id="biotopes-select" class="form-control filter-param" multiple></select>
+            </div>
+            <div class="filter-group span-2">
+                <label for="locations-select">{{ _('Локації:') }}</label>
+                <select id="locations-select" class="form-control filter-param" multiple></select>
+            </div>
             
-            <!-- Рядок 4: Повзунки -->
-            <div class="filter-group span-2"><label for="confidence-slider">{{ _('Впевненість:') }} <span id="confidence-value">0.95</span></label><input type="range" class="form-control-range" id="confidence-slider" min="0.7" max="1" step="0.01" value="0.95"></div>
-            <div class="filter-group span-2"><label for="min-detections-slider">{{ _('Мін. детекцій на рік:') }} <span id="min-detections-value">5</span></label><input type="range" class="form-control-range" id="min-detections-slider" min="1" max="100" step="1" value="5"></div>
-            
-            <!-- Рядок 5: Кнопка -->
-            <div class="filter-group full-width action-group"><button type="button" id="apply-filters-btn" class="btn btn-primary">{{ _('Згенерувати таблицю') }}</button></div>
+            <!-- Рядок 4: Кнопка (по центру на всю ширину) -->
+            <div class="filter-group full-width action-group">
+                <button type="button" id="apply-filters-btn" class="btn btn-primary">{{ _('Згенерувати таблицю') }}</button>
+            </div>
         </div>
-
         <div class="results-container"><div id="trends-table-content"><div class="message-box"><i>{{ _('Налаштуйте фільтри та натисніть "Згенерувати таблицю".') }}</i></div></div></div>
     </div>
 </div>
@@ -78,6 +150,7 @@ $(document).ready(function() {
     const ui = {
         years: { start: $('#start-year-select'), end: $('#end-year-select') },
         taxa: { class: $('#class-select'), order: $('#order-select'), family: $('#family-select'), genus: $('#genus-select') },
+        institution: $('#institution-select'),
         geo: { biotopes: $('#biotopes-select'), locations: $('#locations-select') },
         sliders: { confidence: $('#confidence-slider'), minDetections: $('#min-detections-slider') },
         values: { confidence: $('#confidence-value'), minDetections: $('#min-detections-value') },
@@ -90,6 +163,11 @@ $(document).ready(function() {
 
     function initSelect2() {
         $('.form-control').select2({ width: '100%', allowClear: true });
+        ui.institution.select2({ 
+            width: '100%', 
+            placeholder: '{{ _("Всі доступні") }}',
+            allowClear: true 
+        });
         ui.geo.biotopes.select2({ width: '100%', placeholder: '{{ _("Всі біотопи") }}' });
         ui.geo.locations.select2({ width: '100%', placeholder: '{{ _("Всі локації") }}' });
     }
@@ -98,6 +176,10 @@ $(document).ready(function() {
         const params = new URLSearchParams();
         if (ui.years.start.val()) params.append('start_year', ui.years.start.val());
         if (ui.years.end.val()) params.append('end_year', ui.years.end.val());
+        const selectedInstIds = ui.institution.val(); // Тепер це масив
+        if (selectedInstIds && selectedInstIds.length > 0) {
+            params.append('institution_id', selectedInstIds.join(','));
+        }
         if (ui.geo.locations.val().length) params.append('locations', ui.geo.locations.val().join(','));
         if (ui.geo.biotopes.val().length) params.append('biotopes', ui.geo.biotopes.val().join(','));
         
@@ -130,6 +212,7 @@ $(document).ready(function() {
 
         const currentValues = {
             startYear: ui.years.start.val(), endYear: ui.years.end.val(),
+            institution: ui.institution.val(),
             locations: ui.geo.locations.val(), biotopes: ui.geo.biotopes.val(),
             class: ui.taxa.class.val(), order: ui.taxa.order.val(),
             family: ui.taxa.family.val(), genus: ui.taxa.genus.val()
@@ -138,6 +221,9 @@ $(document).ready(function() {
         fetch(`/{{ g.lang_code }}/api/pam/get-trends-filters?${getApiParams(true).toString()}`)
             .then(response => response.json())
             .then(data => {
+                if (data.institutions) {
+                    updateSelectOptions(ui.institution, data.institutions, '{{ _("Всі доступні") }}', currentValues.institution);
+                }
                 // Визначаємо мінімальний та максимальний роки
                 const minYear = data.years.length > 0 ? Math.min(...data.years) : data.years[0];
                 const maxYear = data.years.length > 0 ? Math.max(...data.years) : data.years[0];

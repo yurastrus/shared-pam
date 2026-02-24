@@ -8,14 +8,27 @@
         .species-analysis-page { max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; }
         .page-header h1 { font-size: 1.75rem; font-weight: 600; color: #1a202c; margin-bottom: 1.5rem; }
         .filters-container { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
-        .filters-grid { display: grid; grid-template-columns: 1fr 1fr auto auto auto; gap: 1rem; align-items: end; }
+        .filters-grid { 
+            display: grid; 
+            grid-template-columns: 4fr 1fr 1fr 4fr; 
+            gap: 1.5rem 1rem; 
+            align-items: end; 
+        }
         .filter-item { display: flex; flex-direction: column; }
         .filter-item label { font-weight: 500; color: #4a5568; margin-bottom: 0.5rem; font-size: 0.875rem; }
         .filter-item.species-filter { grid-column: 1; }
         .filter-item.year-filter { min-width: 140px; max-width: 160px; }
         .filter-item select.form-control { height: 38px; border: 1px solid #cbd5e0; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.875rem; }
         .filter-item select.form-control:focus { border-color: #4299e1; outline: none; box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1); }
-        .filter-actions { display: flex; gap: 0.75rem; align-items: flex-end; }
+        .filter-actions { 
+            grid-column: 1 / -1; /* Займає всі колонки від першої до останньої */
+            display: flex; 
+            justify-content: center; /* Центрування по горизонталі */
+            gap: 1rem; 
+            margin-top: 0.5rem;
+            width: 100%;
+        }
+        
         .btn { padding: 0.5rem 1.25rem; border-radius: 6px; font-size: 0.875rem; font-weight: 500; border: none; cursor: pointer; transition: all 0.2s; white-space: nowrap; height: 38px; display: inline-flex; align-items: center; justify-content: center; }
         .btn-primary { background: #0d6efd; color: white; }
         .btn-primary:hover { background: #0b5ed7; }
@@ -33,10 +46,16 @@
         .chart-section.full-width { grid-column: span 2; }
         .chart-container.bar-chart { height: 500px; }
         @media (max-width: 992px) {
-            .filters-grid { grid-template-columns: 1fr; gap: 1rem; }
+            @media (max-width: 992px) {
+            .filters-grid { 
+                grid-template-columns: 1fr; 
+            }
             .filter-item.year-filter { max-width: none; }
             .filter-actions { flex-direction: column; width: 100%; }
-            .filter-actions .btn { width: 100%; }
+            .filter-actions { 
+                flex-direction: column; /* На телефонах кнопки будуть одна під одною */
+                align-items: stretch;
+            }
             .dashboard-grid { grid-template-columns: 1fr; }
             .chart-section.full-width { grid-column: span 1; }
         }
@@ -126,7 +145,7 @@ $(document).ready(function() {
     });
 
     institutionSelect.select2({
-        placeholder: '{{ _("Всі (Глобально)") }}',
+        placeholder: '{{ _("Всі доступні") }}',
         allowClear: true,
         width: '100%'
     });

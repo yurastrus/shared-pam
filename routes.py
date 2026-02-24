@@ -2621,121 +2621,135 @@ def api_get_trends_filters(lang_code):
 
 @pam_bp.route('/<lang_code>/api/pam/yearly-trends-table')
 def api_yearly_trends_table(lang_code):
-    """
-    API для отримання даних для таблиці багаторічних трендів.
-    ОНОВЛЕНО: виправлено синтаксичну помилку при фільтрації по біотопах/локаціях.
-    """
     conn = None
     try:
-        # 1. Збираємо параметри (без змін)
+        # 1. Параметри
         start_year = request.args.get('start_year', type=int)
         end_year = request.args.get('end_year', type=int)
         confidence = request.args.get('confidence', 0.95, type=float)
         min_detections = request.args.get('min_detections', 5, type=int)
+        
+        # Обробка множинного вибору установ
+        inst_ids_param = request.args.get('institution_id', '')
+        inst_ids = [int(i) for i in inst_ids_param.split(',') if i.strip().isdigit()]
+        
         location_ids = [int(id) for id in request.args.get('locations', '').split(',') if id] or None
         biotope_ids = [int(id) for id in request.args.get('biotopes', '').split(',') if id] or None
-        taxo_filters = {
-            'class': request.args.get('class'), 'order': request.args.get('order'),
-            'family': request.args.get('family'), 'genus': request.args.get('genus'),
-        }
-
+        
         if not all([start_year, end_year]): return jsonify({'error': 'Years required.'}), 400
-        if start_year > end_year: end_year, start_year = start_year, end_year
-
-        conn = get_pam_db_connection()
         params = {'start_year': start_year, 'end_year': end_year, 'confidence': confidence}
 
-        # 2. Формуємо динамічні частини SQL (без змін)
-        joins_clause = " JOIN locations l ON r.location_id = l.location_id "
-        conditions = []
-        if location_ids:
-            conditions.append("l.location_id = ANY(:location_ids)")
-            params['location_ids'] = location_ids
-        if biotope_ids:
-            joins_clause += " JOIN location_biotopes lb ON l.location_id = lb.location_id "
-            conditions.append("lb.biotope_id = ANY(:biotope_ids)")
-            params['biotope_ids'] = biotope_ids
-        for key, value in taxo_filters.items():
-            if value:
-                db_column = 'order_rank' if key == 'order' else key
-                conditions.append(f"s.{db_column} = :{key}")
-                params[key] = value
+        conn = get_pam_db_connection()
 
-        # 3. Розрахунок "зусилля" (effort)
-        # Створюємо окремий список умов для цього запиту, бо в ньому немає таблиці species (s)
-        effort_conditions = ["EXTRACT(YEAR FROM r.datetime_start) BETWEEN :start_year AND :end_year"]
-        effort_params = {'start_year': start_year, 'end_year': end_year}
-        
-        # Додаємо гео-фільтри (локації, біотопи), ігноруючи таксономічні ('s.')
-        if location_ids:
-            effort_conditions.append("l.location_id = ANY(:location_ids)")
-            effort_params['location_ids'] = location_ids
-        if biotope_ids:
-            effort_conditions.append("lb.biotope_id = ANY(:biotope_ids)")
-            effort_params['biotope_ids'] = biotope_ids
-            
-        effort_joins = " JOIN locations l ON r.location_id = l.location_id "
+        # --- Динамічні фрагменти SQL для ІНСТИТУЦІЙ ---
+        inst_join = ""
+        inst_where = ""
+        if inst_ids:
+            inst_join = " JOIN location_institutions li ON r.location_id = li.location_id "
+            inst_where = " AND li.institution_id = ANY(:inst_ids) "
+            params['inst_ids'] = inst_ids
+
+        # --- 2. РОЗРАХУНОК ЗУСИЛЛЯ (Denomitor / Effort) ---
+        # Тут ми рахуємо, скільки всього годин записали ОБРАНІ установи
+        effort_joins = " JOIN locations l ON r.location_id = l.location_id " + inst_join
         if biotope_ids:
             effort_joins += " JOIN location_biotopes lb ON l.location_id = lb.location_id "
 
-        effort_where_clause = "WHERE " + " AND ".join(effort_conditions)
+        effort_conditions = "WHERE EXTRACT(YEAR FROM r.datetime_start) BETWEEN :start_year AND :end_year " + inst_where
+        if location_ids: effort_conditions += " AND l.location_id = ANY(:location_ids) "
+        if biotope_ids:   effort_conditions += " AND lb.biotope_id = ANY(:biotope_ids) "
 
         effort_query = text(f"""
-            SELECT EXTRACT(YEAR FROM r.datetime_start)::integer as year, COUNT(r.recording_id) * (5.0 / 60.0) as effort_hours
-            FROM recordings r {effort_joins}
-            {effort_where_clause}
+            SELECT 
+                EXTRACT(YEAR FROM r.datetime_start)::integer as year, 
+                COUNT(r.recording_id) * (5.0 / 60.0) as effort_hours
+            FROM recordings r 
+            {effort_joins}
+            {effort_conditions}
             GROUP BY year
         """)
         
-        effort_result = conn.execute(effort_query, effort_params).mappings().fetchall()
+        effort_result = conn.execute(effort_query, params).mappings().fetchall()
         effort_by_year = {row['year']: float(row['effort_hours']) for row in effort_result}
         total_effort = sum(effort_by_year.values())
 
-        # 4. Отримання детекцій
-        # Для цього запиту використовуємо повний список умов
-        main_where_clause = "WHERE d.confidence >= :confidence AND " + " AND ".join(["EXTRACT(YEAR FROM r.datetime_start) BETWEEN :start_year AND :end_year"] + conditions)
+        # --- 3. РОЗРАХУНОК ДЕТЕКЦІЙ (Numerator / Detections) ---
+        detections_joins = " JOIN locations l ON r.location_id = l.location_id " + inst_join
+        if biotope_ids:
+            detections_joins += " JOIN location_biotopes lb ON l.location_id = lb.location_id "
+
+        # Базові умови
+        det_conditions = [
+            "d.confidence >= :confidence",
+            "EXTRACT(YEAR FROM r.datetime_start) BETWEEN :start_year AND :end_year",
+            inst_where.replace("AND", "") # прибираємо перший AND для списку
+        ]
+        if location_ids: det_conditions.append("l.location_id = ANY(:location_ids)")
+        if biotope_ids:   det_conditions.append("lb.biotope_id = ANY(:biotope_ids)")
         
+        # Таксономічні фільтри
+        taxo_filters = {'class': request.args.get('class'), 'order': request.args.get('order'), 
+                        'family': request.args.get('family'), 'genus': request.args.get('genus')}
+        for key, value in taxo_filters.items():
+            if value:
+                db_col = 'order_rank' if key == 'order' else key
+                det_conditions.append(f"s.{db_col} = :{key}")
+                params[key] = value
+
+        where_clause = " WHERE " + " AND ".join([c for c in det_conditions if c.strip()])
+
         detections_query = text(f"""
             SELECT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en,
-                   EXTRACT(YEAR FROM r.datetime_start)::integer as year, COUNT(d.detection_id) as detection_count
-            FROM detections d JOIN species s ON d.species_id = s.species_id JOIN recordings r ON d.recording_id = r.recording_id {joins_clause}
-            {main_where_clause}
-            GROUP BY s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en, year ORDER BY s.scientific_name, year
+                   EXTRACT(YEAR FROM r.datetime_start)::integer as year, 
+                   COUNT(d.detection_id) as detection_count
+            FROM detections d 
+            JOIN species s ON d.species_id = s.species_id 
+            JOIN recordings r ON d.recording_id = r.recording_id 
+            {detections_joins}
+            {where_clause}
+            GROUP BY s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en, year 
+            ORDER BY s.scientific_name, year
         """)
+        
         detections_result = conn.execute(detections_query, params).mappings().fetchall()
         
+        # --- 4. ОБРОБКА ТА НОРМАЛІЗАЦІЯ ---
+        data_by_species = {}
+        total_counts = {}
 
-        # 5. Обробка та нормалізація (без змін)
-        data_by_species, total_detections_by_species = {}, {}
         for row in detections_result:
             if row['detection_count'] < min_detections: continue
-            species_id = row['species_id']
-            total_detections_by_species[species_id] = total_detections_by_species.get(species_id, 0) + row['detection_count']
-            if species_id not in data_by_species:
-                display_name = row['scientific_name']
-                if lang_code == 'uk' and row['common_name_uk']: display_name = f"{row['common_name_uk']} ({row['scientific_name']})"
-                elif lang_code == 'en' and row['common_name_en']: display_name = f"{row['common_name_en']} ({row['scientific_name']})"
-                data_by_species[species_id] = {'display_name': display_name, 'values': {}}
-            year = row['year']
-            effort = effort_by_year.get(year, 0)
-            scaling_factor = 24
-            normalized_value = (row['detection_count'] / effort * scaling_factor) if effort > 0 else 0
-            data_by_species[species_id]['values'][year] = round(normalized_value, 2)
             
-        # 6. Формування відповіді (без змін)
-        all_years_in_range = list(range(start_year, end_year + 1))
-        species_data_list = []
-        for species_id, data in data_by_species.items():
-            total_detections = total_detections_by_species.get(species_id, 0)
-            total_normalized = (total_detections / total_effort * 24) if total_effort > 0 else 0
-            data['total_normalized'] = round(total_normalized, 2)
-            species_data_list.append(data)
-        species_data_list.sort(key=lambda x: x['display_name'])
-        return jsonify({'years': all_years_in_range, 'species_data': species_data_list})
+            sid = row['species_id']
+            year = row['year']
+            
+            if sid not in data_by_species:
+                name = row['scientific_name']
+                if lang_code == 'uk' and row['common_name_uk']: name = f"{row['common_name_uk']} ({row['scientific_name']})"
+                data_by_species[sid] = {'display_name': name, 'values': {}}
+                total_counts[sid] = 0
+            
+            # Нормалізація: (кількість / зусилля установи) * 24 години
+            effort = effort_by_year.get(year, 0)
+            if effort > 0:
+                normalized = (row['detection_count'] / effort) * 24
+                data_by_species[sid]['values'][year] = round(normalized, 2)
+                total_counts[sid] += row['detection_count']
+
+        # Формування фінального списку
+        all_years = list(range(start_year, end_year + 1))
+        result_list = []
+        for sid, data in data_by_species.items():
+            # Загальний показник за весь період
+            data['total_normalized'] = round((total_counts[sid] / total_effort * 24), 2) if total_effort > 0 else 0
+            result_list.append(data)
+
+        result_list.sort(key=lambda x: x['display_name'])
+        return jsonify({'years': all_years, 'species_data': result_list})
 
     except Exception as e:
-        current_app.logger.error(f"Error getting yearly trends data: {e}", exc_info=True)
-        return jsonify({'error': 'Internal server error'}), 500
+        current_app.logger.error(f"Error in yearly trends table: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
     finally:
         if conn: conn.close()
 
