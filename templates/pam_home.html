@@ -105,7 +105,7 @@
         </li>
         {% endif %}
         
-        {% if current_user.is_authenticated and current_user.has_role('manager','pam_identifier','roztochya_user', 'fzs_user', 'volunteer_user') %}
+        {% if current_user.is_authenticated and current_user.has_role('manager','pam_verifier','roztochya_user', 'fzs_user', 'volunteer_user') %}
         <li class="article-item pam-block-item">
             <h3 class="article-item-title">
                 <a href="{{ url_for('pam.verification_interface', lang_code=g.lang_code) }}">
