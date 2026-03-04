@@ -186,7 +186,7 @@ def process_verification_upload(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/verification/segments')
 @login_required
-@role_required('manager', 'pam_verifier')
+@role_required('pam_verifier')
 def verification_segments(lang_code):
     """Сторінка перегляду завантажених сегментів з фільтрацією."""
     g.lang_code = lang_code
@@ -237,7 +237,7 @@ def verification_segments(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/verification/verify')
 @login_required
-@role_required('manager', 'pam_verifier')
+@role_required('pam_verifier')
 def verification_interface(lang_code):
     """Інтерфейс для верифікації аудіосегментів."""
     g.lang_code = lang_code
