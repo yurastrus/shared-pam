@@ -8,10 +8,23 @@
 <style>
     .page-layout {
         display: grid;
-        grid-template-columns: 300px 1fr 500px;
+        grid-template-columns: 300px 1fr 400px;
         gap: 20px;
-        height: calc(100vh - 150px);
+        height: calc(100vh - 200px);
     }
+    
+    /* Фільтр інституцій зверху */
+    .top-filter-bar {
+        background: #fff;
+        padding: 15px 20px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
     .locations-list-panel {
         border: 1px solid #ddd;
         border-radius: 4px;
@@ -68,8 +81,21 @@
 
 {% block content %}
 <div class="container-fluid mt-3">
-    <div class="page-header">
-        <h1>{{ _('Управління локаціями пасивного моніторингу (ПАМ)') }}</h1>
+    <div class="page-header mb-3">
+        <h2>{{ _('Управління локаціями пасивного моніторингу (ПАМ)') }}</h2>
+    </div>
+
+    <!-- Нова панель фільтрації -->
+    <div class="top-filter-bar">
+        <label for="global-inst-filter" style="font-weight: 500; margin: 0;">
+            <i class="fas fa-filter text-primary me-1"></i> {{ _('Показати локації установи:') }}
+        </label>
+        <select id="global-inst-filter" class="form-control" style="max-width: 300px;">
+            <option value="">{{ _('Всі доступні мені') }}</option>
+            {% for inst in filter_institutions %}  {# <--- ТУТ ЗМІНА #}
+                <option value="{{ inst.id }}">{{ inst.name_uk }}</option>
+            {% endfor %}
+        </select>
     </div>
 
     <div class="page-layout">
@@ -77,7 +103,7 @@
         <div class="locations-list-panel">
             <ul class="locations-list">
                 {% for loc in locations %}
-                    <li data-location-id="{{ loc.location_id }}">{{ loc.location_name }}</li>
+                    <li data-location-id="{{ loc.id }}">{{ loc.name }}</li>
                 {% endfor %}
             </ul>
         </div>
@@ -93,29 +119,45 @@
                 <p class="text-muted text-center">{{ _('Виберіть локацію зі списку або на карті, щоб почати редагування.') }}</p>
             </div>
             <div id="form-wrapper" style="display: none;">
-                <h3 id="form-title"></h3>
+                <h4 id="form-title" class="text-primary mb-4" style="font-size: 1.1rem; border-bottom: 1px solid #ddd; padding-bottom: 10px;"></h4>
+                
                 <form id="edit-form">
                     <input type="hidden" id="location-id">
+                    
                     <div class="mb-3">
                         <label for="location-name" class="form-label">{{ _('Назва локації (українською)') }}</label>
-                        <input type="text" class="form-control" id="location-name" required style="width:100%;">
+                        <input type="text" class="form-control" id="location-name" required>
                     </div>
                     
                     <div class="mb-3">
                         <label for="location-name-en" class="form-label">{{ _('Назва локації (англійською)') }}</label>
-                        <input type="text" class="form-control" id="location-name-en" required style="width:100%;">
+                        <input type="text" class="form-control" id="location-name-en">
                     </div>
                     
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="location-lat" class="form-label">{{ _('Широта (Lat)') }}</label>
-                            <input type="number" step="0.00001" class="form-control" id="location-lat" required readonly>
+                            <label class="form-label text-muted small">{{ _('Широта (Lat)') }}</label>
+                            <input type="number" step="0.00001" class="form-control bg-light" id="location-lat" readonly>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="location-lon" class="form-label">{{ _('Довгота (Lng)') }}</label>
-                            <input type="number" step="0.00001" class="form-control" id="location-lon" required readonly>
+                            <label class="form-label text-muted small">{{ _('Довгота (Lng)') }}</label>
+                            <input type="number" step="0.00001" class="form-control bg-light" id="location-lon" readonly>
                         </div>
                     </div>
+                    
+                    <!-- Нове поле: Установи -->
+                    <div class="mb-3">
+                        <label for="inst-select" class="form-label text-success" style="font-weight: 500;">
+                            <i class="fas fa-university me-1"></i>{{ _('Належність до установ') }}
+                        </label>
+                        <select id="inst-select" class="form-control" multiple>
+                            {% for inst in available_institutions %}
+                                <option value="{{ inst.id }}">{{ inst.name_uk }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted d-block mt-1">{{ _('Можна вибрати кілька.') }}</small>
+                    </div>
+
                     <div class="mb-3">
                         <label for="biotope-select" class="form-label">{{ _('Біотопи') }}</label>
                         <select id="biotope-select" class="form-control" multiple>
@@ -126,9 +168,10 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="button-group">
-                        <button type="submit" class="btn btn-primary">{{ _('Зберегти зміни') }}</button>
-                        <button type="button" id="cancel-btn" class="btn btn-secondary">{{ _('Скасувати') }}</button>
+                    
+                    <div class="button-group border-top">
+                        <button type="submit" class="btn btn-primary px-4">{{ _('Зберегти') }}</button>
+                        <button type="button" id="cancel-btn" class="btn btn-outline-secondary">{{ _('Скасувати') }}</button>
                     </div>
                 </form>
             </div>
@@ -143,40 +186,40 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Ініціалізація
-    $('#biotope-select').select2();
+    // Ініціалізація Select2
+    $('#biotope-select').select2({ placeholder: "{{ _('Виберіть біотопи...') }}" });
+    $('#inst-select').select2({ placeholder: "{{ _('Виберіть установи...') }}" });
+    
     const formWrapper = $('#form-wrapper');
     const placeholder = $('#placeholder');
     const locationsListItems = $('.locations-list li');
     let map, markers = {};
     let activeLocationId = null;
     
-    // Створюємо кастомні іконки
+    // Дані всіх локацій з бекенду
+    const locationsData = {{ locations_json_string|safe }};
+    
+    // Іконки
     const defaultIcon = L.icon({
         iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
         iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
+        iconSize: [25, 41], iconAnchor:[12, 41], popupAnchor:[1, -34]
     });
     
     const selectedIcon = L.icon({
         iconRetinaUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
+        iconSize: [25, 41], iconAnchor:[12, 41], popupAnchor:[1, -34]
     });
 
-    // Ініціалізація карти
+    // Ініціалізація карти (З ПОВЕРНЕННЯМ УСІХ ОРИГІНАЛЬНИХ ШАРІВ!)
     function initMap() {
         const GEOSERVER_BASE_URL = "{{ geoserver_url }}";
         const geocache = `${GEOSERVER_BASE_URL}/gwc/service/wms`;
         
+        // GeoServer WMS шари
         const kvartals_rsnr = L.tileLayer.wms(geocache, {
             layers: 'roztochya:kvartals_rsnr',
             format: 'image/png',
@@ -191,18 +234,22 @@ $(document).ready(function() {
             pane: 'vydilsPane'
         });
 
+        // Створення карти
         map = L.map('map').setView([49.8, 23.6], 9);
 
+        // Налаштування pane для WMS шарів, щоб вони були поверх супутника
         map.createPane('vydilsPane');
         map.getPane('vydilsPane').style.zIndex = 450;
         map.createPane('kvartalsPane');
         map.getPane('kvartalsPane').style.zIndex = 460;
         
+        // Базові шари
         const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors',
             maxZoom: 19
         });
         
+        // ESRI Супутник + Підписи (Дефолтний шар)
         const hybridLayer = L.layerGroup([
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 attribution: '© ESRI',
@@ -213,40 +260,70 @@ $(document).ready(function() {
             })
         ]);
 
-        hybridLayer.addTo(map);
+        hybridLayer.addTo(map); // Робимо гібрид (супутник) дефолтним
         
+        // Контрол шарів
         const baseLayers = { "Hybrid": hybridLayer, "OSM": osmLayer };
         const overlayLayers = {
             "{{ _('Квартальна сітка ПЗ Розточчя') }}": kvartals_rsnr,
             "{{ _('Видільна сітка ПЗ Розточчя') }}": vydils_rsnr
         };
-        
         L.control.layers(baseLayers, overlayLayers).addTo(map);
 
-        const locationsData = {{ locations_json_string|safe }};
-        
+        // Додавання маркерів на карту
         const markersGroup = L.featureGroup();
-
         locationsData.forEach(loc => {
             const marker = L.marker([loc.latitude, loc.longitude], {icon: defaultIcon});
             marker.locationId = loc.id;
+            marker.instIds = loc.inst_ids; // Зберігаємо прив'язку до установ
             marker.on('click', () => selectLocation(loc.id));
+            
             markers[loc.id] = marker;
             markersGroup.addLayer(marker);
         });
 
         markersGroup.addTo(map);
+        
+        // Центрування карти по всіх маркерах
         if (markersGroup.getBounds().isValid()) {
             map.fitBounds(markersGroup.getBounds().pad(0.1));
         }
     }
+    
+    // Запуск карти
     initMap();
 
-    // Вибір локації
+    // --- ЛОГІКА ФІЛЬТРАЦІЇ ПО УСТАНОВІ ---
+    $('#global-inst-filter').on('change', function() {
+        const filterId = $(this).val();
+        
+        locationsData.forEach(loc => {
+            // Перевіряємо чи локація має вибрану установу (якщо фільтр порожній - показуємо всі)
+            const isMatch = !filterId || loc.inst_ids.includes(Number(filterId));
+            
+            // Ховаємо/показуємо в списку
+            const listItem = $(`.locations-list li[data-location-id="${loc.id}"]`);
+            if (isMatch) listItem.show(); else listItem.hide();
+            
+            // Ховаємо/показуємо на карті
+            if (markers[loc.id]) {
+                if (isMatch) {
+                    if (!map.hasLayer(markers[loc.id])) map.addLayer(markers[loc.id]);
+                } else {
+                    if (map.hasLayer(markers[loc.id])) map.removeLayer(markers[loc.id]);
+                }
+            }
+        });
+        
+        deselectAll(); // Скидаємо поточний вибір форми при фільтрації
+    });
+
+    // Вибір локації (зі списку)
     locationsListItems.on('click', function() {
         selectLocation($(this).data('location-id'));
     });
 
+    // Вибір локації (основна функція)
     function selectLocation(locationId) {
         if (activeLocationId === locationId) return;
         
@@ -264,7 +341,7 @@ $(document).ready(function() {
             map.panTo(markers[locationId].getLatLng());
         }
 
-        // УВАГА: Цей API-ендпоінт ми створимо на наступному кроці.
+        // Завантаження даних локації
         fetch(`/{{ g.lang_code }}/pam/api/location/${locationId}`)
             .then(res => res.json())
             .then(data => {
@@ -272,11 +349,12 @@ $(document).ready(function() {
                 populateForm(data);
             })
             .catch(err => {
-                alert(`{{ _('Помилка завантаження даних:') }} ${err.message}`);
+                alert(`{{ _('Помилка завантаження:') }} ${err.message}`);
                 deselectAll();
             });
     }
 
+    // Заповнення форми
     function populateForm(data) {
         $('#location-id').val(data.id);
         $('#form-title').text(`{{ _('Редагування:') }} ${data.name}`);
@@ -284,7 +362,9 @@ $(document).ready(function() {
         $('#location-name-en').val(data.name_en);
         $('#location-lat').val(data.latitude);
         $('#location-lon').val(data.longitude);
+        
         $('#biotope-select').val(data.biotope_ids).trigger('change');
+        $('#inst-select').val(data.institution_ids).trigger('change'); // Заповнюємо установи
         
         placeholder.hide();
         formWrapper.show();
@@ -298,10 +378,10 @@ $(document).ready(function() {
         const dataToSave = {
             name: $('#location-name').val(),
             name_en: $('#location-name-en').val(),
-            biotope_ids: $('#biotope-select').val().map(Number)
+            biotope_ids: $('#biotope-select').val().map(Number),
+            institution_ids: $('#inst-select').val().map(Number) // Збираємо установи
         };
         
-        // УВАГА: Цей API-ендпоінт ми створимо на наступному кроці.
         fetch(`/{{ g.lang_code }}/pam/api/update-location/${locationId}`, {
             method: 'POST',
             headers: {
@@ -315,6 +395,13 @@ $(document).ready(function() {
             if (response.success) {
                 alert(response.message);
                 $(`.locations-list li[data-location-id=${locationId}]`).text(dataToSave.name);
+                
+                // Оновлюємо кеш інституцій в JS, щоб фільтр над картою не зламався
+                const locIndex = locationsData.findIndex(l => l.id == locationId);
+                if(locIndex > -1) {
+                    locationsData[locIndex].inst_ids = dataToSave.institution_ids;
+                }
+                
                 deselectAll();
             } else {
                 throw new Error(response.error);
@@ -325,16 +412,16 @@ $(document).ready(function() {
 
     $('#cancel-btn').on('click', deselectAll);
 
+    // Скидання форми і маркерів
     function deselectAll() {
-        if (activeLocationId && markers[activeLocationId]) {
-            markers[activeLocationId].setIcon(defaultIcon);
-        }
+        if (activeLocationId && markers[activeLocationId]) markers[activeLocationId].setIcon(defaultIcon);
         activeLocationId = null;
         locationsListItems.removeClass('active');
         formWrapper.hide();
         placeholder.show();
         $('#edit-form')[0].reset();
         $('#biotope-select').val(null).trigger('change');
+        $('#inst-select').val(null).trigger('change');
     }
 });
 </script>

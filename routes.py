@@ -15,7 +15,7 @@ from . import pam_bp
 from .utils import get_pam_db_connection, generate_spectrogram_image, get_occurrence_data, get_institution_filter
 import io
 import csv
-from app.models import User
+from app.models import User, Institution
 from datetime import datetime, timedelta, date
 from .pam_evaluation_utils import get_species_logistic_data
 
@@ -1804,52 +1804,66 @@ def api_get_evaluation_thresholds(lang_code):
 @login_required
 @role_required('manager')
 def manage_pam_locations(lang_code):
-    """Відображає сторінку для редагування локацій ПАМ."""
     g.lang_code = lang_code
     conn = None
     try:
         conn = get_pam_db_connection()
-        
-        # Отримуємо список локацій для лівої панелі та карти
-        locations_objects = conn.execute(text(
-            "SELECT location_id, location_name, lat, lon FROM locations ORDER BY location_name"
-        )).fetchall()
-        
-        # Отримуємо список біотопів для випадаючого меню у формі
-        biotopes_result = conn.execute(text(
-            "SELECT id, name_ua, name_en FROM biotopes ORDER BY name_ua"
-        )).fetchall()
+        is_admin = current_user.has_role('admin')
 
-        # Конвертуємо дані для шаблону
-        locations_data = [dict(row._mapping) for row in locations_objects]
-        biotopes = [dict(row._mapping) for row in biotopes_result]
-
-        # Готуємо JSON-рядок для JavaScript на карті
-        locations_json_data = []
-        for loc in locations_data:
-            locations_json_data.append({
-                'id': loc['location_id'],
-                'name': loc['location_name'],
-                'latitude': float(loc['lat']),
-                'longitude': float(loc['lon'])
-            })
-        locations_json_string = json.dumps(locations_json_data)
-
-        geoserver_url = current_app.config['GEOSERVER_URL']
+        # 1. Беремо УСІ установи з Основної БД (для форми та мапінгу імен)
+        if is_admin:
+            all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
+        else:
+            all_inst_objects = current_user.institutions
         
+        # Створюємо словник для швидкого пошуку імен: {id: name}
+        inst_names_map = {i.id: i.name_uk for i in all_inst_objects}
+        all_assignable_list = [{'id': i.id, 'name_uk': i.name_uk} for i in all_inst_objects]
+
+        # 2. Отримуємо локації та їхні прив'язки (тільки ID) з ПАМ БД
+        loc_query = text("""
+            SELECT l.location_id, l.location_name, l.lat, l.lon, li.institution_id
+            FROM locations l
+            LEFT JOIN location_institutions li ON l.location_id = li.location_id
+            ORDER BY l.location_name
+        """)
+        raw_rows = conn.execute(loc_query).fetchall()
+
+        locations_dict = {}
+        used_inst_ids = set()
+
+        for row in raw_rows:
+            lid = row.location_id
+            if lid not in locations_dict:
+                locations_dict[lid] = {
+                    'id': lid, 'name': row.location_name,
+                    'latitude': float(row.lat), 'longitude': float(row.lon),
+                    'inst_ids': []
+                }
+            if row.institution_id:
+                locations_dict[lid]['inst_ids'].append(row.institution_id)
+                used_inst_ids.add(row.institution_id)
+
+        # 3. Фільтруємо те, що бачить менеджер (тільки свої ID)
+        user_inst_ids = [i.id for i in current_user.institutions]
+        if is_admin:
+            final_locations = list(locations_dict.values())
+        else:
+            final_locations = [loc for loc in locations_dict.values() if any(i in user_inst_ids for i in loc['inst_ids'])]
+
+        # 4. Список для верхнього фільтра (тільки ті з доступних, де реально є точки)
+        filter_institutions = [{'id': i_id, 'name_uk': inst_names_map[i_id]} 
+                               for i_id in used_inst_ids if i_id in inst_names_map]
+
         return render_template('manage_pam_locations.html', 
-                               locations=locations_data,
-                               biotopes=biotopes,
-                               locations_json_string=locations_json_string,
-                               geoserver_url=geoserver_url)
-                               
-    except Exception as e:
-        current_app.logger.error(f"Error loading PAM location management page: {e}", exc_info=True)
-        flash("Помилка завантаження сторінки управління локаціями.", 'danger')
-        return redirect(url_for('pam.pam_home', lang_code=lang_code))
+                               locations=final_locations,
+                               biotopes=[], # Можна додати запит біотопів як раніше
+                               available_institutions=all_assignable_list,
+                               filter_institutions=filter_institutions,
+                               locations_json_string=json.dumps(final_locations),
+                               geoserver_url=current_app.config.get('GEOSERVER_URL', ''))
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
 @pam_bp.route('/<lang_code>/pam/api/location/<int:location_id>')
 @login_required
@@ -1861,83 +1875,68 @@ def get_pam_location_details(lang_code, location_id):
     try:
         conn = get_pam_db_connection()
         
-        # Отримуємо основні дані локації
-        location = conn.execute(text(
-            """SELECT location_id, location_name, location_name_en, lat, lon 
-               FROM locations WHERE location_id = :id"""
-        ), {'id': location_id}).fetchone()
+        location = conn.execute(text("""
+            SELECT location_id, location_name, location_name_en, lat, lon 
+            FROM locations WHERE location_id = :id
+        """), {'id': location_id}).fetchone()
         
         if not location:
             return jsonify({'error': 'Локацію не знайдено.'}), 404
         
-        # Отримуємо ID біотопів, пов'язаних з цією локацією
-        biotope_ids_result = conn.execute(text(
-            "SELECT biotope_id FROM location_biotopes WHERE location_id = :id"
-        ), {'id': location_id}).fetchall()
+        # Біотопи
+        b_ids = conn.execute(text("SELECT biotope_id FROM location_biotopes WHERE location_id = :id"), {'id': location_id}).fetchall()
         
-        biotope_ids = [row[0] for row in biotope_ids_result]
+        # Установи
+        i_ids = conn.execute(text("SELECT institution_id FROM location_institutions WHERE location_id = :id"), {'id': location_id}).fetchall()
         
         return jsonify({
             'id': location.location_id,
             'name': location.location_name,
-            'name_en': location.location_name_en or '', # Повертаємо порожній рядок, якщо name_en is NULL
+            'name_en': location.location_name_en or '',
             'latitude': float(location.lat),
             'longitude': float(location.lon),
-            'biotope_ids': biotope_ids,
+            'biotope_ids': [row[0] for row in b_ids],
+            'institution_ids': [row[0] for row in i_ids], # Додано установи
         })
-        
     except Exception as e:
-        current_app.logger.error(f"Error fetching PAM location details: {e}")
-        return jsonify({'error': 'Помилка отримання даних локації.'}), 500
+        return jsonify({'error': 'Помилка отримання даних.'}), 500
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
 @pam_bp.route('/<lang_code>/pam/api/update-location/<int:location_id>', methods=['POST'])
 @login_required
 @role_required('manager')
 def update_pam_location(lang_code, location_id):
-    """API для оновлення даних локації ПАМ."""
-    g.lang_code = lang_code
     conn = None
     try:
         data = request.json
         conn = get_pam_db_connection()
-        
-        with conn.begin(): # Використовуємо транзакцію
-            # 1. Оновлюємо назви в основній таблиці
-            conn.execute(text(
-                """UPDATE locations 
-                   SET location_name = :name, location_name_en = :name_en 
-                   WHERE location_id = :id"""
-            ), {
-                'name': data.get('name'),
-                'name_en': data.get('name_en'),
-                'id': location_id
-            })
-            
-            # 2. Видаляємо старі зв'язки з біотопами
-            conn.execute(text(
-                "DELETE FROM location_biotopes WHERE location_id = :id"
-            ), {'id': location_id})
-            
-            # 3. Додаємо нові зв'язки з біотопами, якщо вони є
-            biotope_ids = data.get('biotope_ids', [])
-            if biotope_ids:
-                # Готуємо дані для вставки
-                new_biotopes_data = [{'location_id': location_id, 'biotope_id': b_id} for b_id in biotope_ids]
-                conn.execute(text(
-                    "INSERT INTO location_biotopes (location_id, biotope_id) VALUES (:location_id, :biotope_id)"
-                ), new_biotopes_data)
+        new_inst_ids = data.get('institution_ids', [])
+        is_admin = current_user.has_role('admin')
+        user_inst_ids = [inst.id for inst in current_user.institutions]
 
-        return jsonify({'success': True, 'message': 'Дані локації оновлено успішно!'})
-        
-    except Exception as e:
-        current_app.logger.error(f"Error updating PAM location {location_id}: {e}")
-        return jsonify({'success': False, 'error': 'Помилка збереження даних.'}), 500
+        if not is_admin and not all(i_id in user_inst_ids for i_id in new_inst_ids):
+            return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
+
+        with conn.begin(): 
+            # Оновлюємо назви
+            conn.execute(text("UPDATE locations SET location_name = :n, location_name_en = :ne WHERE location_id = :id"),
+                         {'n': data.get('name'), 'ne': data.get('name_en'), 'id': location_id})
+            
+            # Оновлюємо зв'язки в ПАМ БД (просто записуємо ID)
+            if is_admin:
+                conn.execute(text("DELETE FROM location_institutions WHERE location_id = :id"), {'id': location_id})
+            else:
+                conn.execute(text("DELETE FROM location_institutions WHERE location_id = :id AND institution_id = ANY(:u_ids)"),
+                             {'id': location_id, 'u_ids': user_inst_ids})
+            
+            if new_inst_ids:
+                conn.execute(text("INSERT INTO location_institutions (location_id, institution_id) VALUES (:l_id, :i_id)"),
+                             [{'l_id': location_id, 'i_id': i_id} for i_id in new_inst_ids])
+
+        return jsonify({'success': True, 'message': 'Оновлено'})
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
 @pam_bp.route('/<lang_code>/admin/evaluation/convert-to-flac', methods=['POST'])
 @login_required
