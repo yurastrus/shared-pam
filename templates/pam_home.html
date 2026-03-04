@@ -90,7 +90,7 @@
     <h3>{{ _('Верифікація класифікацій BirdNET') }}</h3>
     
     <ul class="pam-block-list">
-        {% if current_user.is_authenticated and current_user.has_role('admin') %}
+        {% if current_user.is_authenticated and current_user.has_role('manager') %}
         <li class="article-item pam-block-item">
             <h3 class="article-item-title">
                 <a href="{{ url_for('pam.verification_upload', lang_code=g.lang_code) }}">
@@ -105,7 +105,7 @@
         </li>
         {% endif %}
         
-        {% if current_user.is_authenticated and current_user.has_role('roztochya_user', 'fzs_user', 'volunteer_user') %}
+        {% if current_user.is_authenticated and current_user.has_role('manager','pam_identifier','roztochya_user', 'fzs_user', 'volunteer_user') %}
         <li class="article-item pam-block-item">
             <h3 class="article-item-title">
                 <a href="{{ url_for('pam.verification_interface', lang_code=g.lang_code) }}">
@@ -148,7 +148,7 @@
     
   
     
-    {% if current_user.is_authenticated and current_user.has_role('admin', 'roztochya_user') %}
+    {% if current_user.is_authenticated and current_user.has_role('manager', 'roztochya_user') %}
     <hr>
     <h3>{{ _('Управління') }}</h3>
     
@@ -177,7 +177,7 @@
                 {{ _('Журнал обслуговування акустичних ресиверів, з інтерактивною картою і прогнозуванням роботи приладів.') }}
             </p>
         </li>
-        {% if current_user.has_role('admin') %}
+        {% if current_user.has_role('manager') %}
         <li class="article-item pam-block-item">
             <h3 class="article-item-title">
                 <a href="{{ url_for('pam.manage_pam_locations', lang_code=g.lang_code) }}">

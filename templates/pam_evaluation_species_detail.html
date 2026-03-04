@@ -37,7 +37,7 @@
             <p class="text-muted mb-3">{{ _('Аналіз логістичної регресії BirdNET') }}</p>
             
             <div class="d-inline-block">
-                {% if current_user.is_authenticated and current_user.has_role('admin', 'roztochya_user') %}
+                {% if current_user.is_authenticated and current_user.has_role('manager', 'pam_identifier', 'roztochya_user') %}
                 <a href="{{ url_for('pam.download_species_evaluation_excel', lang_code=g.lang_code, species_id=species_id) }}" class="btn btn-success">
                     <i class="fas fa-file-excel"></i> {{ _('Експорт (.xlsx)') }}
                 </a>

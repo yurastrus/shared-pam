@@ -278,7 +278,7 @@
         </div>
 
         <!-- Панель адміністратора -->
-        {% if current_user.is_authenticated and current_user.has_role('admin') %}
+        {% if current_user.is_authenticated and current_user.has_role('manager') %}
         <div class="admin-panel">
             <h4>{{ _('Адміністраторські функції') }}</h4>
             <div class="admin-buttons">

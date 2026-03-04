@@ -57,7 +57,7 @@ def pam_overview(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/verification/upload')
 @login_required 
-@role_required('admin')
+@role_required('manager')
 def verification_upload(lang_code):
     """Сторінка завантаження ZIP архівів з аудіосегментами."""
     g.lang_code = lang_code
@@ -103,7 +103,7 @@ def verification_upload(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/verification/upload/process', methods=['POST'])
 @login_required
-@role_required('admin')
+@role_required('manager')
 def process_verification_upload(lang_code):
     """API для обробки завантаження ZIP архівів з сегментами."""
     g.lang_code = lang_code
@@ -186,6 +186,7 @@ def process_verification_upload(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/verification/segments')
 @login_required
+@role_required('manager', 'pam_verifier')
 def verification_segments(lang_code):
     """Сторінка перегляду завантажених сегментів з фільтрацією."""
     g.lang_code = lang_code
@@ -236,7 +237,7 @@ def verification_segments(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/verification/verify')
 @login_required
-@role_required('roztochya_user', 'fzs_user', 'volunteer_user')
+@role_required('manager', 'pam_verifier')
 def verification_interface(lang_code):
     """Інтерфейс для верифікації аудіосегментів."""
     g.lang_code = lang_code
@@ -1002,7 +1003,7 @@ def api_verification_segments(lang_code):
 
 @pam_bp.route('/<lang_code>/api/verification/next-segment')
 @login_required
-@role_required('roztochya_user', 'fzs_user', 'volunteer_user')
+@role_required('pam_verifier')
 def api_next_verification_segment(lang_code):
     """API для отримання наступного сегменту для верифікації."""
     conn = None
@@ -1097,7 +1098,7 @@ def api_next_verification_segment(lang_code):
             
 @pam_bp.route('/<lang_code>/api/verification/submit', methods=['POST'])
 @login_required  
-@role_required('roztochya_user', 'fzs_user', 'volunteer_user')
+@role_required('pam_verifier')
 def api_submit_verification(lang_code):
     """API для збереження результатів верифікації."""
     conn = None
@@ -1295,7 +1296,7 @@ def api_verification_stats(lang_code):
 
 @pam_bp.route('/<lang_code>/audio/segments/<int:segment_id>')
 @login_required
-@role_required('roztochya_user', 'fzs_user', 'volunteer_user')
+@role_required('pam_verifier')
 def serve_verification_audio(lang_code, segment_id):
     """Сервіс для віддачі аудіофайлів верифікації."""
     conn = None
@@ -1472,7 +1473,7 @@ def api_detailed_evaluation_results(lang_code):
 
 @pam_bp.route('/<lang_code>/admin/evaluation/recalculate', methods=['POST'])
 @login_required
-@role_required('admin')
+@role_required('manager')
 def admin_recalculate_metrics(lang_code):
     """Адміністраторський роут для перерахунку всіх метрик."""
     from .pam_evaluation_utils import recalculate_all_metrics
@@ -1524,7 +1525,7 @@ def admin_recalculate_metrics(lang_code):
 
 @pam_bp.route('/<lang_code>/admin/verification/cleanup', methods=['POST'])
 @login_required
-@role_required('admin')
+@role_required('manager')
 def admin_cleanup_verifications(lang_code):
     """Адміністраторський роут для видалення файлів завершених верифікацій."""
     from .pam_evaluation_utils import cleanup_completed_verifications
@@ -1556,7 +1557,7 @@ def admin_cleanup_verifications(lang_code):
 
 @pam_bp.route('/<lang_code>/api/verification/consensus-status')
 @login_required
-@role_required('admin')
+@role_required('manager')
 def api_consensus_status(lang_code):
     """API для отримання статистики консенсусу верифікацій."""
     from .utils import get_pam_db_connection
@@ -1628,7 +1629,7 @@ def api_consensus_status(lang_code):
 
 @pam_bp.route('/<lang_code>/audio/spectrograms/<int:segment_id>')
 @login_required
-@role_required('roztochya_user', 'fzs_user', 'volunteer_user')
+@role_required('pam_verifier')
 def serve_spectrogram_image(lang_code, segment_id):
     """Сервіс для віддачі зображень спектрограм."""
     conn = None
@@ -1801,7 +1802,7 @@ def api_get_evaluation_thresholds(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/manage-locations')
 @login_required
-@role_required('admin')
+@role_required('manager')
 def manage_pam_locations(lang_code):
     """Відображає сторінку для редагування локацій ПАМ."""
     g.lang_code = lang_code
@@ -1852,7 +1853,7 @@ def manage_pam_locations(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/api/location/<int:location_id>')
 @login_required
-@role_required('admin')
+@role_required('manager')
 def get_pam_location_details(lang_code, location_id):
     """API для отримання деталей конкретної локації ПАМ."""
     g.lang_code = lang_code
@@ -1894,7 +1895,7 @@ def get_pam_location_details(lang_code, location_id):
 
 @pam_bp.route('/<lang_code>/pam/api/update-location/<int:location_id>', methods=['POST'])
 @login_required
-@role_required('admin')
+@role_required('manager')
 def update_pam_location(lang_code, location_id):
     """API для оновлення даних локації ПАМ."""
     g.lang_code = lang_code
@@ -2299,7 +2300,7 @@ def api_pam_species_dynamics(lang_code):
             
 @pam_bp.route('/<lang_code>/pam/data-export')
 @login_required
-@role_required('admin')
+@role_required('manager')
 def pam_data_export(lang_code):
     """
     Сторінка для підготовки та експорту даних.
@@ -2389,7 +2390,7 @@ def fetch_distinct_species(conn, lang_code, filters):
 
 @pam_bp.route('/<lang_code>/api/pam/data-preview')
 @login_required
-@role_required('admin')
+@role_required('manager')
 def api_data_preview(lang_code):
     """API для попереднього перегляду даних."""
     try:
@@ -2755,7 +2756,7 @@ def api_yearly_trends_table(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/service-log')
 @login_required
-@role_required('roztochya_user', 'fzs_user', 'volunteer_user', 'admin')
+@role_required('pam_verifier')
 def pam_service_log(lang_code):
     """Відображає сторінку для ведення журналу обслуговування PAM."""
     g.lang_code = lang_code
@@ -2947,7 +2948,7 @@ def api_get_pam_service_history(lang_code, location_id):
 
 @pam_bp.route('/<lang_code>/api/pam/service-log/create', methods=['POST'])
 @login_required
-@role_required('roztochya_user', 'fzs_user', 'volunteer_user', 'admin')
+@role_required('manager')
 def api_create_pam_service_visit(lang_code):
     """API для створення нового запису в журналі обслуговування ПАМ."""
     g.lang_code = lang_code
@@ -3159,7 +3160,7 @@ def api_get_weather_overlay(lang_code):
     
 @pam_bp.route('/<lang_code>/api/pam/export-detailed-data')
 @login_required
-@role_required('admin', 'roztochya_user', 'volunteer_user')
+@role_required('pam_verifier')
 def export_detailed_data(lang_code):
     """
     Експорт даних дашборду в один Excel-файл з 4 листами.
@@ -3336,7 +3337,7 @@ def species_evaluation_detail(lang_code, species_id):
 
 @pam_bp.route('/<lang_code>/pam/evaluation/export-species/<int:species_id>')
 @login_required
-@role_required('admin', 'roztochya_user', 'volunteer_user')
+@role_required('pam_verifier')
 def download_species_evaluation_excel(lang_code, species_id):
     """Експорт даних регресії в Excel."""
     try:

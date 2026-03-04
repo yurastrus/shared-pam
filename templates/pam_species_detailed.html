@@ -274,7 +274,7 @@
                     <a href="{{ url_for('pam.pam_overview', lang_code=g.lang_code) }}" class="btn">
                         {{ _('До загальної таблиці') }}
                     </a>
-                    {% if current_user.is_authenticated and current_user.has_role('admin', 'roztochya_user', 'volunteer_user') %}
+                    {% if current_user.is_authenticated and current_user.has_role('manager', 'pam_identifier', 'roztochya_user', 'volunteer_user') %}
                     <button type="button" id="export-data-btn" class="btn btn-secondary" disabled title="{{ _('Застосуйте фільтри для активації') }}" style="margin-left: auto; background-color: #28a745; border-color: #28a745;">
                         <i class="fa fa-download"></i> {{ _('Експорт в Excel') }}
                      </button>
