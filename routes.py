@@ -1802,7 +1802,7 @@ def api_get_evaluation_thresholds(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/manage-locations')
 @login_required
-@role_required('manager')
+@role_required('admin', 'manager')
 def manage_pam_locations(lang_code):
     g.lang_code = lang_code
     conn = None
@@ -1810,19 +1810,23 @@ def manage_pam_locations(lang_code):
         conn = get_pam_db_connection()
         is_admin = current_user.has_role('admin')
 
-        # 1. Беремо УСІ установи з Основної БД (для форми та мапінгу імен)
+        # 1. Беремо УСІ установи з Основної БД 
         if is_admin:
             all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
         else:
             all_inst_objects = current_user.institutions
         
-        # Створюємо словник для швидкого пошуку імен: {id: name}
-        inst_names_map = {i.id: i.name_uk for i in all_inst_objects}
-        all_assignable_list = [{'id': i.id, 'name_uk': i.name_uk} for i in all_inst_objects]
+        # ДВОМОВНІСТЬ УСТАНОВ: Формуємо словник залежно від поточної мови
+        if lang_code == 'uk':
+            inst_names_map = {i.id: i.name_uk for i in all_inst_objects}
+        else:
+            inst_names_map = {i.id: (i.name_en or i.name_uk) for i in all_inst_objects}
+            
+        all_assignable_list =[{'id': i.id, 'name': inst_names_map[i.id]} for i in all_inst_objects]
 
-        # 2. Отримуємо локації та їхні прив'язки (тільки ID) з ПАМ БД
+        # 2. Отримуємо локації (з обома назвами) з ПАМ БД
         loc_query = text("""
-            SELECT l.location_id, l.location_name, l.lat, l.lon, li.institution_id
+            SELECT l.location_id, l.location_name, l.location_name_en, l.lat, l.lon, li.institution_id
             FROM locations l
             LEFT JOIN location_institutions li ON l.location_id = li.location_id
             ORDER BY l.location_name
@@ -1835,29 +1839,41 @@ def manage_pam_locations(lang_code):
         for row in raw_rows:
             lid = row.location_id
             if lid not in locations_dict:
+                # ДВОМОВНІСТЬ ЛОКАЦІЙ
+                loc_name = row.location_name
+                if lang_code == 'en' and row.location_name_en:
+                    loc_name = row.location_name_en
+                    
                 locations_dict[lid] = {
-                    'id': lid, 'name': row.location_name,
-                    'latitude': float(row.lat), 'longitude': float(row.lon),
-                    'inst_ids': []
+                    'location_id': lid,  # Повернув стару назву ключа
+                    'name': loc_name,
+                    'latitude': float(row.lat),
+                    'longitude': float(row.lon),
+                    'inst_ids': []       # Масив ID установ
                 }
+
             if row.institution_id:
                 locations_dict[lid]['inst_ids'].append(row.institution_id)
                 used_inst_ids.add(row.institution_id)
 
-        # 3. Фільтруємо те, що бачить менеджер (тільки свої ID)
-        user_inst_ids = [i.id for i in current_user.institutions]
+        # 3. Фільтруємо те, що бачить менеджер
+        user_inst_ids =[i.id for i in current_user.institutions]
         if is_admin:
             final_locations = list(locations_dict.values())
         else:
-            final_locations = [loc for loc in locations_dict.values() if any(i in user_inst_ids for i in loc['inst_ids'])]
+            final_locations =[loc for loc in locations_dict.values() if any(i in user_inst_ids for i in loc['inst_ids'])]
 
-        # 4. Список для верхнього фільтра (тільки ті з доступних, де реально є точки)
-        filter_institutions = [{'id': i_id, 'name_uk': inst_names_map[i_id]} 
+        # 4. Список для верхнього фільтра
+        filter_institutions = [{'id': i_id, 'name': inst_names_map[i_id]} 
                                for i_id in used_inst_ids if i_id in inst_names_map]
+
+        # 5. ВІДНОВЛЕННЯ БІОТОПІВ
+        biotopes_result = conn.execute(text("SELECT id, name_ua, name_en FROM biotopes ORDER BY name_ua")).fetchall()
+        biotopes =[dict(row._mapping) for row in biotopes_result]
 
         return render_template('manage_pam_locations.html', 
                                locations=final_locations,
-                               biotopes=[], # Можна додати запит біотопів як раніше
+                               biotopes=biotopes,  # <--- Тепер вони тут!
                                available_institutions=all_assignable_list,
                                filter_institutions=filter_institutions,
                                locations_json_string=json.dumps(final_locations),
@@ -1896,7 +1912,7 @@ def get_pam_location_details(lang_code, location_id):
             'latitude': float(location.lat),
             'longitude': float(location.lon),
             'biotope_ids': [row[0] for row in b_ids],
-            'institution_ids': [row[0] for row in i_ids], # Додано установи
+            'institution_ids': [row[0] for row in i_ids],
         })
     except Exception as e:
         return jsonify({'error': 'Помилка отримання даних.'}), 500

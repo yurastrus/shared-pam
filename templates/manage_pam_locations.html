@@ -92,8 +92,8 @@
         </label>
         <select id="global-inst-filter" class="form-control" style="max-width: 300px;">
             <option value="">{{ _('Всі доступні мені') }}</option>
-            {% for inst in filter_institutions %}  {# <--- ТУТ ЗМІНА #}
-                <option value="{{ inst.id }}">{{ inst.name_uk }}</option>
+            {% for inst in filter_institutions %}
+                <option value="{{ inst.id }}">{{ inst.name }}</option>
             {% endfor %}
         </select>
     </div>
@@ -103,7 +103,7 @@
         <div class="locations-list-panel">
             <ul class="locations-list">
                 {% for loc in locations %}
-                    <li data-location-id="{{ loc.id }}">{{ loc.name }}</li>
+                    <li data-location-id="{{ loc.location_id }}">{{ loc.name }}</li>
                 {% endfor %}
             </ul>
         </div>
@@ -152,7 +152,7 @@
                         </label>
                         <select id="inst-select" class="form-control" multiple>
                             {% for inst in available_institutions %}
-                                <option value="{{ inst.id }}">{{ inst.name_uk }}</option>
+                                <option value="{{ inst.id }}">{{ inst.name }}</option>
                             {% endfor %}
                         </select>
                         <small class="text-muted d-block mt-1">{{ _('Можна вибрати кілька.') }}</small>
@@ -186,25 +186,28 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Ініціалізація Select2
+    // 1. Ініціалізація Select2
     $('#biotope-select').select2({ placeholder: "{{ _('Виберіть біотопи...') }}" });
     $('#inst-select').select2({ placeholder: "{{ _('Виберіть установи...') }}" });
     
     const formWrapper = $('#form-wrapper');
     const placeholder = $('#placeholder');
     const locationsListItems = $('.locations-list li');
-    let map, markers = {};
-    let activeLocationId = null;
     
     // Дані всіх локацій з бекенду
     const locationsData = {{ locations_json_string|safe }};
+    
+    let map;
+    let markers = {}; 
+    let activeLocationId = null;
+    let markersGroup; // ВИПРАВЛЕННЯ 1: Робимо групу глобальною, щоб фільтр її бачив
     
     // Іконки
     const defaultIcon = L.icon({
         iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
         iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41], iconAnchor:[12, 41], popupAnchor:[1, -34]
+        iconSize:[25, 41], iconAnchor:[12, 41], popupAnchor:[1, -34]
     });
     
     const selectedIcon = L.icon({
@@ -214,7 +217,6 @@ $(document).ready(function() {
         iconSize: [25, 41], iconAnchor:[12, 41], popupAnchor:[1, -34]
     });
 
-    // Ініціалізація карти (З ПОВЕРНЕННЯМ УСІХ ОРИГІНАЛЬНИХ ШАРІВ!)
     function initMap() {
         const GEOSERVER_BASE_URL = "{{ geoserver_url }}";
         const geocache = `${GEOSERVER_BASE_URL}/gwc/service/wms`;
@@ -234,35 +236,22 @@ $(document).ready(function() {
             pane: 'vydilsPane'
         });
 
-        // Створення карти
         map = L.map('map').setView([49.8, 23.6], 9);
 
-        // Налаштування pane для WMS шарів, щоб вони були поверх супутника
         map.createPane('vydilsPane');
         map.getPane('vydilsPane').style.zIndex = 450;
         map.createPane('kvartalsPane');
         map.getPane('kvartalsPane').style.zIndex = 460;
         
-        // Базові шари
-        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19
-        });
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
         
-        // ESRI Супутник + Підписи (Дефолтний шар)
         const hybridLayer = L.layerGroup([
-            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: '© ESRI',
-                maxZoom: 19
-            }),
-            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-                maxZoom: 19
-            })
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
         ]);
 
-        hybridLayer.addTo(map); // Робимо гібрид (супутник) дефолтним
+        hybridLayer.addTo(map); 
         
-        // Контрол шарів
         const baseLayers = { "Hybrid": hybridLayer, "OSM": osmLayer };
         const overlayLayers = {
             "{{ _('Квартальна сітка ПЗ Розточчя') }}": kvartals_rsnr,
@@ -270,60 +259,65 @@ $(document).ready(function() {
         };
         L.control.layers(baseLayers, overlayLayers).addTo(map);
 
-        // Додавання маркерів на карту
-        const markersGroup = L.featureGroup();
+        // ВИПРАВЛЕННЯ 2: Використовуємо глобальну змінну, а не створюємо нову через const
+        markersGroup = L.featureGroup();
+
         locationsData.forEach(loc => {
             const marker = L.marker([loc.latitude, loc.longitude], {icon: defaultIcon});
-            marker.locationId = loc.id;
-            marker.instIds = loc.inst_ids; // Зберігаємо прив'язку до установ
-            marker.on('click', () => selectLocation(loc.id));
+            marker.locationId = loc.location_id;
+            marker.instIds = loc.inst_ids ||[]; 
+            marker.on('click', () => selectLocation(loc.location_id));
             
-            markers[loc.id] = marker;
+            markers[loc.location_id] = marker;
             markersGroup.addLayer(marker);
         });
 
         markersGroup.addTo(map);
-        
-        // Центрування карти по всіх маркерах
         if (markersGroup.getBounds().isValid()) {
             map.fitBounds(markersGroup.getBounds().pad(0.1));
         }
     }
     
-    // Запуск карти
     initMap();
 
-    // --- ЛОГІКА ФІЛЬТРАЦІЇ ПО УСТАНОВІ ---
+    // --- ЛОГІКА ФІЛЬТРАЦІЇ ---
     $('#global-inst-filter').on('change', function() {
-        const filterId = $(this).val();
-        
+        const selectedId = $(this).val(); 
+
         locationsData.forEach(loc => {
-            // Перевіряємо чи локація має вибрану установу (якщо фільтр порожній - показуємо всі)
-            const isMatch = !filterId || loc.inst_ids.includes(Number(filterId));
+            const instIds = loc.inst_ids ? loc.inst_ids.map(Number) :[];
+            const isMatch = !selectedId || instIds.includes(Number(selectedId));
             
-            // Ховаємо/показуємо в списку
-            const listItem = $(`.locations-list li[data-location-id="${loc.id}"]`);
-            if (isMatch) listItem.show(); else listItem.hide();
+            // 1. Список зліва
+            const listItem = $(`.locations-list li[data-location-id="${loc.location_id}"]`);
+            if (isMatch) {
+                listItem.show();
+            } else {
+                listItem.hide();
+            }
             
-            // Ховаємо/показуємо на карті
-            if (markers[loc.id]) {
+            // 2. Карта (ВИПРАВЛЕННЯ 3: Додаємо/видаляємо з markersGroup, а не з map)
+            if (markers[loc.location_id]) {
                 if (isMatch) {
-                    if (!map.hasLayer(markers[loc.id])) map.addLayer(markers[loc.id]);
+                    if (!markersGroup.hasLayer(markers[loc.location_id])) {
+                        markersGroup.addLayer(markers[loc.location_id]);
+                    }
                 } else {
-                    if (map.hasLayer(markers[loc.id])) map.removeLayer(markers[loc.id]);
+                    if (markersGroup.hasLayer(markers[loc.location_id])) {
+                        markersGroup.removeLayer(markers[loc.location_id]);
+                    }
                 }
             }
         });
         
-        deselectAll(); // Скидаємо поточний вибір форми при фільтрації
+        deselectAll(); 
     });
 
-    // Вибір локації (зі списку)
+    // Решта функцій залишається без змін
     locationsListItems.on('click', function() {
         selectLocation($(this).data('location-id'));
     });
 
-    // Вибір локації (основна функція)
     function selectLocation(locationId) {
         if (activeLocationId === locationId) return;
         
@@ -332,7 +326,6 @@ $(document).ready(function() {
         }
         
         activeLocationId = locationId;
-
         locationsListItems.removeClass('active');
         $(`.locations-list li[data-location-id=${locationId}]`).addClass('active');
 
@@ -341,7 +334,6 @@ $(document).ready(function() {
             map.panTo(markers[locationId].getLatLng());
         }
 
-        // Завантаження даних локації
         fetch(`/{{ g.lang_code }}/pam/api/location/${locationId}`)
             .then(res => res.json())
             .then(data => {
@@ -354,7 +346,6 @@ $(document).ready(function() {
             });
     }
 
-    // Заповнення форми
     function populateForm(data) {
         $('#location-id').val(data.id);
         $('#form-title').text(`{{ _('Редагування:') }} ${data.name}`);
@@ -364,13 +355,12 @@ $(document).ready(function() {
         $('#location-lon').val(data.longitude);
         
         $('#biotope-select').val(data.biotope_ids).trigger('change');
-        $('#inst-select').val(data.institution_ids).trigger('change'); // Заповнюємо установи
+        $('#inst-select').val(data.institution_ids).trigger('change');
         
         placeholder.hide();
         formWrapper.show();
     }
 
-    // Збереження форми
     $('#edit-form').on('submit', function(e) {
         e.preventDefault();
         const locationId = $('#location-id').val();
@@ -379,7 +369,7 @@ $(document).ready(function() {
             name: $('#location-name').val(),
             name_en: $('#location-name-en').val(),
             biotope_ids: $('#biotope-select').val().map(Number),
-            institution_ids: $('#inst-select').val().map(Number) // Збираємо установи
+            institution_ids: $('#inst-select').val().map(Number)
         };
         
         fetch(`/{{ g.lang_code }}/pam/api/update-location/${locationId}`, {
@@ -396,7 +386,6 @@ $(document).ready(function() {
                 alert(response.message);
                 $(`.locations-list li[data-location-id=${locationId}]`).text(dataToSave.name);
                 
-                // Оновлюємо кеш інституцій в JS, щоб фільтр над картою не зламався
                 const locIndex = locationsData.findIndex(l => l.id == locationId);
                 if(locIndex > -1) {
                     locationsData[locIndex].inst_ids = dataToSave.institution_ids;
@@ -412,9 +401,10 @@ $(document).ready(function() {
 
     $('#cancel-btn').on('click', deselectAll);
 
-    // Скидання форми і маркерів
     function deselectAll() {
-        if (activeLocationId && markers[activeLocationId]) markers[activeLocationId].setIcon(defaultIcon);
+        if (activeLocationId && markers[activeLocationId]) {
+            markers[activeLocationId].setIcon(defaultIcon);
+        }
         activeLocationId = null;
         locationsListItems.removeClass('active');
         formWrapper.hide();
@@ -424,5 +414,5 @@ $(document).ready(function() {
         $('#inst-select').val(null).trigger('change');
     }
 });
-</script>
+</script>  
 {% endblock %}
