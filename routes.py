@@ -32,7 +32,7 @@ def pam_home(lang_code):
 @pam_bp.route('/<lang_code>/pam/pam_detailed')
 def pam_detailed(lang_code):
     """
-    Сторінка дашборду для проекту "Моніторинг Розточчя".
+    Сторінка дашборду акустичного моніторингу.
     """
     from .utils import get_available_species
     
@@ -3026,7 +3026,7 @@ def api_get_weather_overlay(lang_code):
     Координати розраховуються динамічно:
     1. Центр фактичних детекцій (якщо є результати фільтрації).
     2. Центр вибраних локацій (якщо детекцій немає).
-    3. Дефолтний центр (Розточчя).
+    3. Дефолтний центр (за замовчуванням).
     """
     from .utils import get_weather_data, get_pam_db_connection
     

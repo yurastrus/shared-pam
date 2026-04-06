@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ _('Моніторинг Розточчя') }} - {{ _('Акустичний моніторинг') }}{% endblock %}
+{% block title %}{{ _('Акустичний моніторинг') }}{% endblock %}
 
 {% block head_extra %}
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
@@ -218,7 +218,7 @@
 {% block content %}
 <div class="container">
     <div class="dashboard-wrapper">
-        <h1 class="page-header" style="margin-bottom: 20px;">{{ _('Аналіз даних акустичного моніторингу фауни Розточчя') }}</h1>
+        <h1 class="page-header" style="margin-bottom: 20px;">{{ _('Аналіз даних акустичного моніторингу фауни') }}</h1>
 
         {% if available_species %}
             <form id="pam-filters-form" class="filters-panel">
