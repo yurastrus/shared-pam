@@ -7,7 +7,8 @@
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
     body { background-color: #f4f4f4; }
-    .page-layout { display: grid; grid-template-columns: 40% 60%; gap: 20px; height: calc(100vh - 150px); }
+    .top-filter-bar { background: #fff; padding: 12px 20px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+    .page-layout { display: grid; grid-template-columns: 40% 60%; gap: 20px; height: calc(100vh - 200px); }
     .map-panel { display: flex; flex-direction: column; background: #fff; border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     #map { height: 100%; border-radius: 4px; border: 1px solid #ddd; }
     .details-panel { display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
@@ -30,6 +31,20 @@
         <h1>{{ _('Журнал обслуговування PAM') }}</h1>
         <a href="{{ url_for('pam.pam_home', lang_code=g.lang_code) }}" class="btn btn-outline-secondary">{{ _('На головну PAM') }}</a>
     </div>
+
+    {% if user_institutions|length > 1 %}
+    <div class="top-filter-bar">
+        <label for="inst-filter" style="font-weight: 500; margin: 0; white-space: nowrap;">
+            <i class="fas fa-filter text-primary me-1"></i> {{ _('Показати локації установи:') }}
+        </label>
+        <select id="inst-filter" class="form-control" style="max-width: 320px;">
+            <option value="">{{ _('Всі доступні мені') }}</option>
+            {% for inst in user_institutions %}
+                <option value="{{ inst.id }}">{{ inst.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
 
     <div class="page-layout">
         <div class="map-panel"><div id="map"></div></div>
@@ -158,8 +173,24 @@ $(document).ready(function() {
     }
     initMap();
 
+    $('#inst-filter').on('change', function() {
+        if (activeLocationId) {
+            const prevMarker = markers[activeLocationId];
+            if (prevMarker) prevMarker.setIcon(icons[prevMarker.originalStatus] || icons.unknown);
+            activeLocationId = null;
+            $('#location-id').val('');
+            formPlaceholder.show();
+            form.hide();
+            historyContent.empty();
+            historyPlaceholder.show();
+        }
+        loadLocations();
+    });
+
     function loadLocations() {
-        fetch(`/{{ g.lang_code }}/api/pam/locations-with-status`)
+        const selectedInstId = $('#inst-filter').val();
+        const url = `/{{ g.lang_code }}/api/pam/locations-with-status${selectedInstId ? '?institution_id=' + selectedInstId : ''}`;
+        fetch(url)
             .then(res => res.json())
             .then(data => {
                 if (data.error) {

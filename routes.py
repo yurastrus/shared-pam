@@ -1845,29 +1845,38 @@ def manage_pam_locations(lang_code):
                     loc_name = row.location_name_en
                     
                 locations_dict[lid] = {
-                    'location_id': lid,  # Повернув стару назву ключа
+                    'location_id': lid,
                     'name': loc_name,
                     'latitude': float(row.lat),
                     'longitude': float(row.lon),
-                    'inst_ids': []       # Масив ID установ
+                    'inst_ids': [],
+                    'has_name_en': bool(row.location_name_en and row.location_name_en.strip())
                 }
 
             if row.institution_id:
                 locations_dict[lid]['inst_ids'].append(row.institution_id)
                 used_inst_ids.add(row.institution_id)
 
-        # 3. Фільтруємо те, що бачить менеджер
+        # 3. Підтягуємо зв'язки локацій з біотопами
+        biotope_links = conn.execute(text("SELECT location_id, biotope_id FROM location_biotopes")).fetchall()
+        loc_biotope_map = {}
+        for bl in biotope_links:
+            loc_biotope_map.setdefault(bl.location_id, []).append(bl.biotope_id)
+        for lid, loc in locations_dict.items():
+            loc['biotope_ids'] = loc_biotope_map.get(lid, [])
+
+        # 4. Фільтруємо те, що бачить менеджер
         user_inst_ids =[i.id for i in current_user.institutions]
         if is_admin:
             final_locations = list(locations_dict.values())
         else:
             final_locations =[loc for loc in locations_dict.values() if any(i in user_inst_ids for i in loc['inst_ids'])]
 
-        # 4. Список для верхнього фільтра
-        filter_institutions = [{'id': i_id, 'name': inst_names_map[i_id]} 
+        # 5. Список для верхнього фільтра
+        filter_institutions = [{'id': i_id, 'name': inst_names_map[i_id]}
                                for i_id in used_inst_ids if i_id in inst_names_map]
 
-        # 5. ВІДНОВЛЕННЯ БІОТОПІВ
+        # 6. Список біотопів для форми
         biotopes_result = conn.execute(text("SELECT id, name_ua, name_en FROM biotopes ORDER BY name_ua")).fetchall()
         biotopes =[dict(row._mapping) for row in biotopes_result]
 
@@ -1892,7 +1901,7 @@ def get_pam_location_details(lang_code, location_id):
         conn = get_pam_db_connection()
         
         location = conn.execute(text("""
-            SELECT location_id, location_name, location_name_en, lat, lon 
+            SELECT location_id, location_name, location_name_en, lat, lon, state_province
             FROM locations WHERE location_id = :id
         """), {'id': location_id}).fetchone()
         
@@ -1909,6 +1918,7 @@ def get_pam_location_details(lang_code, location_id):
             'id': location.location_id,
             'name': location.location_name,
             'name_en': location.location_name_en or '',
+            'state_province': location.state_province or '',
             'latitude': float(location.lat),
             'longitude': float(location.lon),
             'biotope_ids': [row[0] for row in b_ids],
@@ -1918,6 +1928,85 @@ def get_pam_location_details(lang_code, location_id):
         return jsonify({'error': 'Помилка отримання даних.'}), 500
     finally:
         if conn: conn.close()
+
+@pam_bp.route('/<lang_code>/pam/api/location/create', methods=['POST'])
+@login_required
+@role_required('admin', 'manager')
+def api_create_pam_location(lang_code):
+    """API для ручного створення нової локації ПАМ."""
+    g.lang_code = lang_code
+    conn = None
+    try:
+        data = request.json
+        name = (data.get('name') or '').strip()
+        name_en = (data.get('name_en') or '').strip() or None
+        lat = data.get('lat')
+        lon = data.get('lon')
+        institution_ids = data.get('institution_ids', [])
+        biotope_ids = data.get('biotope_ids', [])
+
+        if not name or lat is None or lon is None:
+            return jsonify({'success': False, 'error': 'Назва та координати обов\'язкові.'}), 400
+
+        try:
+            lat = float(lat)
+            lon = float(lon)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'Некоректні координати.'}), 400
+
+        is_admin = current_user.has_role('admin')
+        user_inst_ids = [inst.id for inst in current_user.institutions]
+
+        if not is_admin and institution_ids and not all(i_id in user_inst_ids for i_id in institution_ids):
+            return jsonify({'success': False, 'error': 'Доступ заборонено: можна призначати лише свої установи.'}), 403
+
+        state_province = (data.get('state_province') or '').strip() or None
+
+        conn = get_pam_db_connection()
+        with conn.begin():
+            result = conn.execute(text("""
+                INSERT INTO locations
+                    (location_name, location_name_en, lat, lon, geom, visibility_level, state_province, created_at)
+                VALUES
+                    (:name, :name_en, :lat, :lon,
+                     ST_SetSRID(ST_MakePoint(:lon, :lat), 4326),
+                     0, :state_province, NOW())
+                RETURNING location_id
+            """), {
+                'name': name, 'name_en': name_en,
+                'lat': lat, 'lon': lon,
+                'state_province': state_province
+            })
+            new_location_id = result.fetchone()[0]
+
+            if institution_ids:
+                conn.execute(
+                    text("INSERT INTO location_institutions (location_id, institution_id) VALUES (:l_id, :i_id)"),
+                    [{'l_id': new_location_id, 'i_id': i_id} for i_id in institution_ids]
+                )
+
+            if biotope_ids:
+                conn.execute(
+                    text("INSERT INTO location_biotopes (location_id, biotope_id) VALUES (:l_id, :b_id)"),
+                    [{'l_id': new_location_id, 'b_id': b_id} for b_id in biotope_ids]
+                )
+
+        current_app.logger.info(
+            f"User {current_user.username} created new PAM location '{name}' (id={new_location_id})"
+        )
+        return jsonify({'success': True, 'location_id': new_location_id, 'message': 'Локацію успішно створено!'})
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        current_app.logger.error(f"Error creating PAM location: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Помилка сервера при створенні локації.'}), 500
+    finally:
+        if conn:
+            conn.close()
+
 
 @pam_bp.route('/<lang_code>/pam/api/update-location/<int:location_id>', methods=['POST'])
 @login_required
@@ -2785,10 +2874,21 @@ def pam_service_log(lang_code):
         
         geoserver_url = current_app.config.get('GEOSERVER_URL', '')
 
+        is_admin = current_user.has_role('admin')
+        if is_admin:
+            inst_objects = Institution.query.order_by(Institution.name_uk).all()
+        else:
+            inst_objects = current_user.institutions
+        user_institutions = [
+            {'id': i.id, 'name': i.name_uk if lang_code == 'uk' else (i.name_en or i.name_uk)}
+            for i in inst_objects
+        ]
+
         return render_template('pam_service_log.html',
                                battery_types=battery_types,
                                sd_card_statuses=sd_card_statuses,
-                               visit_purposes=visit_purposes, # <-- Передаємо в шаблон
+                               visit_purposes=visit_purposes,
+                               user_institutions=user_institutions,
                                geoserver_url=geoserver_url)
                                
     except Exception as e:
@@ -2804,25 +2904,56 @@ def pam_service_log(lang_code):
 def api_get_pam_locations_with_status(lang_code):
     """
     API, що повертає список локацій ПАМ з їхнім прогнозованим статусом.
-    ФІНАЛЬНА ВЕРСІЯ 4: Виправлено помилку типів Decimal/float.
+    Підтримує фільтрацію за установами: ?institution_id=X
     """
     g.lang_code = lang_code
+
+    is_admin = current_user.has_role('admin')
+    user_inst_ids = [inst.id for inst in current_user.institutions]
+    selected_inst_id = request.args.get('institution_id', '')
+
+    # Будуємо SQL-умову фільтрації за установами
+    if is_admin:
+        inst_condition = "1=1"
+        inst_params = {}
+    elif user_inst_ids:
+        inst_condition = """EXISTS (
+            SELECT 1 FROM location_institutions li_perm
+            WHERE li_perm.location_id = l.location_id
+            AND li_perm.institution_id = ANY(:user_inst_ids)
+        )"""
+        inst_params = {"user_inst_ids": user_inst_ids}
+    else:
+        return jsonify([])
+
     conn = None
     try:
         conn = get_pam_db_connection()
-        
+
         INACTIVE_MARKER_DAYS = 200
         DEVICE_REMOVED_PURPOSE_ID = 3
         TIME_WARNING_DAYS = 14
         TIME_CRITICAL_DAYS = 3
         DATA_RATE_MB_PER_HOUR = 290
         status_severity = {'ok': 0, 'warning': 1, 'critical': 2}
-        
+
+        # Додаткова фільтрація за вибраною установою з dropdown
+        if selected_inst_id and selected_inst_id.isdigit():
+            inst_condition += """ AND EXISTS (
+                SELECT 1 FROM location_institutions li_sel
+                WHERE li_sel.location_id = l.location_id
+                AND li_sel.institution_id = :selected_inst_id
+            )"""
+            inst_params['selected_inst_id'] = int(selected_inst_id)
+
         last_data_query = text("SELECT location_id, MAX(datetime_start) as last_data_date FROM recordings GROUP BY location_id")
         last_data_results = conn.execute(last_data_query).fetchall()
         last_data_map = {row.location_id: row.last_data_date for row in last_data_results}
 
-        locations = conn.execute(text("SELECT location_id, location_name, lat, lon FROM locations")).fetchall()
+        locations = conn.execute(
+            text(f"SELECT l.location_id, l.location_name, l.lat, l.lon FROM locations l WHERE {inst_condition}"),
+            inst_params
+        ).fetchall()
         response_data = []
         
         for loc in locations:
@@ -2920,6 +3051,17 @@ def api_get_pam_service_history(lang_code, location_id):
     conn = None
     try:
         conn = get_pam_db_connection()
+        # Перевірка доступу: лише адмін або користувач, чия установа пов'язана з локацією
+        if not current_user.has_role('admin'):
+            user_inst_ids = [inst.id for inst in current_user.institutions]
+            if not user_inst_ids:
+                return jsonify({'error': 'Доступ заборонено'}), 403
+            has_access = conn.execute(text("""
+                SELECT 1 FROM location_institutions
+                WHERE location_id = :loc_id AND institution_id = ANY(:inst_ids)
+            """), {'loc_id': location_id, 'inst_ids': user_inst_ids}).fetchone()
+            if not has_access:
+                return jsonify({'error': 'Доступ заборонено'}), 403
         # --- ОНОВЛЕНО: Додано JOIN з visit_purposes ---
         history_query = text(f"""
             SELECT 
@@ -2970,19 +3112,19 @@ def api_create_pam_service_visit(lang_code):
     conn = None
     try:
         data = request.json
-        
+
         location_id = data.get('location_id')
         sd_card_status_id = data.get('sd_card_status_id')
         visit_datetime_str = data.get('visit_datetime')
         recording_hours_per_day = data.get('recording_hours_per_day')
-        visit_purpose_id = data.get('visit_purpose_id') # <-- ДОДАНО
+        visit_purpose_id = data.get('visit_purpose_id')
 
         if not all([location_id, sd_card_status_id, visit_datetime_str, recording_hours_per_day, visit_purpose_id]):
             return jsonify({'success': False, 'error': 'Не всі обов\'язкові поля заповнені.'}), 400
 
         is_operational_str = data.get('is_camera_operational')
         is_camera_operational = True if is_operational_str == 'true' else False if is_operational_str == 'false' else None
-        
+
         params = {
             "location_id": int(location_id), "user_id": current_user.id,
             "visit_datetime": datetime.fromisoformat(visit_datetime_str),
@@ -2990,11 +3132,22 @@ def api_create_pam_service_visit(lang_code):
             "battery_type_id": int(data['battery_type_id']) if data.get('battery_type_id') else None,
             "sd_card_status_id": int(sd_card_status_id),
             "recording_hours_per_day": int(recording_hours_per_day),
-            "visit_purpose_id": int(visit_purpose_id), # <-- ДОДАНО
+            "visit_purpose_id": int(visit_purpose_id),
             "comments": data.get('comments', '').strip() or None
         }
 
         conn = get_pam_db_connection()
+        # Перевірка доступу: лише адмін або користувач, чия установа пов'язана з локацією
+        if not current_user.has_role('admin'):
+            user_inst_ids = [inst.id for inst in current_user.institutions]
+            if not user_inst_ids:
+                return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
+            has_access = conn.execute(text("""
+                SELECT 1 FROM location_institutions
+                WHERE location_id = :loc_id AND institution_id = ANY(:inst_ids)
+            """), {'loc_id': int(location_id), 'inst_ids': user_inst_ids}).fetchone()
+            if not has_access:
+                return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
         insert_query = text("""
             INSERT INTO service_visits (location_id, user_id, visit_datetime, is_operational, 
                                         battery_type_id, sd_card_status_id, recording_hours_per_day, 
