@@ -163,18 +163,6 @@
                 {{ _('Експорт даних ПАМ моніторнгу у CSV таблиці.') }}
             </p>
         </li>
-        <li class="article-item pam-block-item">
-            <h3 class="article-item-title">
-                <a href="{{ url_for('pam.pam_service_log', lang_code=g.lang_code) }}">
-                    {{ _('Журнал обслуговування') }}
-                </a>
-            </h3>
-            
-            <p class="article-meta">
-                <span class="meta-icon">📁</span>
-                {{ _('Журнал обслуговування акустичних ресиверів, з інтерактивною картою і прогнозуванням роботи приладів.') }}
-            </p>
-        </li>
         {% if current_user.has_role('manager') %}
         <li class="article-item pam-block-item">
             <h3 class="article-item-title">

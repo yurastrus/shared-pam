@@ -1802,7 +1802,7 @@ def api_get_evaluation_thresholds(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/manage-locations')
 @login_required
-@role_required('admin', 'manager')
+@role_required('pam_verifier')
 def manage_pam_locations(lang_code):
     g.lang_code = lang_code
     conn = None
@@ -1878,14 +1878,25 @@ def manage_pam_locations(lang_code):
 
         # 6. Список біотопів для форми
         biotopes_result = conn.execute(text("SELECT id, name_ua, name_en FROM biotopes ORDER BY name_ua")).fetchall()
-        biotopes =[dict(row._mapping) for row in biotopes_result]
+        biotopes = [dict(row._mapping) for row in biotopes_result]
 
-        return render_template('manage_pam_locations.html', 
+        # 7. Довідники для журналу обслуговування
+        battery_types = conn.execute(text("SELECT id, name_ua, name_en FROM battery_types ORDER BY name_ua")).fetchall()
+        sd_card_statuses = conn.execute(text("SELECT id, name_ua, name_en FROM sd_card_status ORDER BY id")).fetchall()
+        visit_purposes = conn.execute(text("SELECT id, name_ua, name_en FROM visit_purposes ORDER BY id")).fetchall()
+
+        can_edit = current_user.has_role('manager')
+
+        return render_template('manage_pam_locations.html',
                                locations=final_locations,
-                               biotopes=biotopes,  # <--- Тепер вони тут!
+                               biotopes=biotopes,
                                available_institutions=all_assignable_list,
                                filter_institutions=filter_institutions,
                                locations_json_string=json.dumps(final_locations),
+                               battery_types=battery_types,
+                               sd_card_statuses=sd_card_statuses,
+                               visit_purposes=visit_purposes,
+                               can_edit=can_edit,
                                geoserver_url=current_app.config.get('GEOSERVER_URL', ''))
     finally:
         if conn: conn.close()
@@ -2858,47 +2869,6 @@ def api_yearly_trends_table(lang_code):
     finally:
         if conn: conn.close()
 
-@pam_bp.route('/<lang_code>/pam/service-log')
-@login_required
-@role_required('pam_verifier')
-def pam_service_log(lang_code):
-    """Відображає сторінку для ведення журналу обслуговування PAM."""
-    g.lang_code = lang_code
-    conn = None
-    try:
-        conn = get_pam_db_connection()
-        battery_types = conn.execute(text("SELECT id, name_ua, name_en FROM battery_types ORDER BY name_ua")).fetchall()
-        sd_card_statuses = conn.execute(text("SELECT id, name_ua, name_en FROM sd_card_status ORDER BY id")).fetchall()
-        # --- ДОДАНО: Отримуємо новий довідник ---
-        visit_purposes = conn.execute(text("SELECT id, name_ua, name_en FROM visit_purposes ORDER BY id")).fetchall()
-        
-        geoserver_url = current_app.config.get('GEOSERVER_URL', '')
-
-        is_admin = current_user.has_role('admin')
-        if is_admin:
-            inst_objects = Institution.query.order_by(Institution.name_uk).all()
-        else:
-            inst_objects = current_user.institutions
-        user_institutions = [
-            {'id': i.id, 'name': i.name_uk if lang_code == 'uk' else (i.name_en or i.name_uk)}
-            for i in inst_objects
-        ]
-
-        return render_template('pam_service_log.html',
-                               battery_types=battery_types,
-                               sd_card_statuses=sd_card_statuses,
-                               visit_purposes=visit_purposes,
-                               user_institutions=user_institutions,
-                               geoserver_url=geoserver_url)
-                               
-    except Exception as e:
-        current_app.logger.error(f"Error loading PAM service log page: {e}", exc_info=True)
-        flash("Помилка завантаження сторінки журналу обслуговування.", 'danger')
-        return redirect(url_for('pam.pam_home', lang_code=lang_code))
-    finally:
-        if conn:
-            conn.close()
-
 @pam_bp.route('/<lang_code>/api/pam/locations-with-status')
 @login_required
 def api_get_pam_locations_with_status(lang_code):
@@ -3064,8 +3034,10 @@ def api_get_pam_service_history(lang_code, location_id):
                 return jsonify({'error': 'Доступ заборонено'}), 403
         # --- ОНОВЛЕНО: Додано JOIN з visit_purposes ---
         history_query = text(f"""
-            SELECT 
+            SELECT
                 sv.id, sv.visit_datetime, sv.is_operational, sv.comments, sv.user_id,
+                sv.visit_purpose_id, sv.battery_type_id, sv.sd_card_status_id,
+                sv.recording_hours_per_day,
                 CASE WHEN '{lang_code}' = 'uk' THEN vp.name_ua ELSE vp.name_en END as purpose,
                 CASE WHEN '{lang_code}' = 'uk' THEN bt.name_ua ELSE bt.name_en END as battery_info,
                 CASE WHEN '{lang_code}' = 'uk' THEN scs.name_ua ELSE scs.name_en END as sd_card_info
@@ -3088,12 +3060,20 @@ def api_get_pam_service_history(lang_code, location_id):
         history_data = []
         for v in visits:
             history_data.append({
-                'id': v.id, 'visit_datetime': v.visit_datetime.strftime('%d.%m.%Y %H:%M'),
+                'id': v.id,
+                'visit_datetime': v.visit_datetime.strftime('%d.%m.%Y %H:%M'),
+                'visit_datetime_raw': v.visit_datetime.strftime('%Y-%m-%dT%H:%M'),
                 'user': user_map.get(v.user_id, f"User ID: {v.user_id}"),
-                'purpose': v.purpose, # <-- ДОДАНО нове поле
+                'is_own': v.user_id == current_user.id,
+                'purpose': v.purpose,
+                'visit_purpose_id': v.visit_purpose_id,
+                'battery_type_id': v.battery_type_id,
+                'sd_card_status_id': v.sd_card_status_id,
+                'recording_hours_per_day': v.recording_hours_per_day,
                 'is_operational': v.is_operational,
                 'battery_info': v.battery_info or 'Не замінювались',
-                'sd_card_info': v.sd_card_info, 'comments': v.comments
+                'sd_card_info': v.sd_card_info,
+                'comments': v.comments
             })
         
         return jsonify(history_data)
@@ -3169,6 +3149,83 @@ def api_create_pam_service_visit(lang_code):
         if conn: conn.rollback()
         current_app.logger.error(f"Error creating PAM service visit: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Помилка сервера при збереженні запису.'}), 500
+    finally:
+        if conn: conn.close()
+
+@pam_bp.route('/<lang_code>/api/pam/service-visit/<int:visit_id>/update', methods=['POST'])
+@login_required
+@role_required('manager')
+def api_update_pam_service_visit(lang_code, visit_id):
+    """API для редагування існуючого запису в журналі обслуговування ПАМ."""
+    g.lang_code = lang_code
+    conn = None
+    try:
+        data = request.json
+        visit_datetime_str = data.get('visit_datetime')
+        sd_card_status_id  = data.get('sd_card_status_id')
+        recording_hours    = data.get('recording_hours_per_day')
+        visit_purpose_id   = data.get('visit_purpose_id')
+
+        if not all([visit_datetime_str, sd_card_status_id, recording_hours, visit_purpose_id]):
+            return jsonify({'success': False, 'error': 'Не всі обов\'язкові поля заповнені.'}), 400
+
+        is_operational_str  = data.get('is_camera_operational')
+        is_camera_operational = True if is_operational_str == 'true' else False if is_operational_str == 'false' else None
+
+        conn = get_pam_db_connection()
+
+        # Перевірка: запис існує і користувач має доступ до локації
+        visit_row = conn.execute(
+            text("SELECT location_id FROM service_visits WHERE id = :id"),
+            {'id': visit_id}
+        ).fetchone()
+        if not visit_row:
+            return jsonify({'success': False, 'error': 'Запис не знайдено.'}), 404
+
+        if not current_user.has_role('admin'):
+            user_inst_ids = [inst.id for inst in current_user.institutions]
+            if not user_inst_ids:
+                return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
+            has_access = conn.execute(text("""
+                SELECT 1 FROM location_institutions
+                WHERE location_id = :loc_id AND institution_id = ANY(:inst_ids)
+            """), {'loc_id': visit_row.location_id, 'inst_ids': user_inst_ids}).fetchone()
+            if not has_access:
+                return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
+
+        params = {
+            'id': visit_id,
+            'visit_datetime':        datetime.fromisoformat(visit_datetime_str),
+            'visit_purpose_id':      int(visit_purpose_id),
+            'battery_type_id':       int(data['battery_type_id']) if data.get('battery_type_id') else None,
+            'sd_card_status_id':     int(sd_card_status_id),
+            'recording_hours_per_day': int(recording_hours),
+            'is_operational':        is_camera_operational,
+            'comments':              data.get('comments', '').strip() or None,
+        }
+        conn.execute(text("""
+            UPDATE service_visits
+            SET visit_datetime          = :visit_datetime,
+                visit_purpose_id        = :visit_purpose_id,
+                battery_type_id         = :battery_type_id,
+                sd_card_status_id       = :sd_card_status_id,
+                recording_hours_per_day = :recording_hours_per_day,
+                is_operational          = :is_operational,
+                comments                = :comments
+            WHERE id = :id
+        """), params)
+        conn.commit()
+
+        current_app.logger.info(f"User {current_user.username} updated PAM service visit {visit_id}")
+        return jsonify({'success': True, 'message': 'Запис оновлено.'})
+    except (ValueError, TypeError) as e:
+        if conn: conn.rollback()
+        current_app.logger.warning(f"Invalid data for PAM service visit update: {e}")
+        return jsonify({'success': False, 'error': 'Некоректні дані.'}), 400
+    except Exception as e:
+        if conn: conn.rollback()
+        current_app.logger.error(f"Error updating PAM service visit {visit_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Помилка сервера.'}), 500
     finally:
         if conn: conn.close()
 
