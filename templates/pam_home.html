@@ -166,11 +166,23 @@
         {% if current_user.has_role('manager') %}
         <li class="article-item pam-block-item">
             <h3 class="article-item-title">
+                <a href="{{ url_for('pam.pam_import', lang_code=g.lang_code) }}">
+                    {{ _('Імпорт даних') }}
+                </a>
+            </h3>
+
+            <p class="article-meta">
+                <span class="meta-icon">⬆️</span>
+                {{ _('Завантаження CSV-файлів від BirdNET та інших класифікаторів.') }}
+            </p>
+        </li>
+        <li class="article-item pam-block-item">
+            <h3 class="article-item-title">
                 <a href="{{ url_for('pam.manage_pam_locations', lang_code=g.lang_code) }}">
                     {{ _('Управління локаціями ПАМ') }}
                 </a>
             </h3>
-            
+
             <p class="article-meta">
                 <span class="meta-icon">⚙️</span>
                 {{ _('Редагування назв та біотопів для точок акустичного моніторингу.') }}

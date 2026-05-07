@@ -10,9 +10,10 @@ import json
 import threading
 import pandas as pd
 from .pam_upload_utils import process_zip_archive, get_upload_statistics
+from .pam_import_utils import IMPORTERS, PAMImportProcessor
 from app.utils.decorators import role_required
 from . import pam_bp
-from .utils import get_pam_db_connection, generate_spectrogram_image, get_occurrence_data, get_institution_filter
+from .utils import get_pam_db_connection, get_pam_engine, generate_spectrogram_image, get_occurrence_data, get_institution_filter
 import io
 import csv
 from app.models import User, Institution
@@ -3606,6 +3607,148 @@ def download_species_evaluation_excel(lang_code, species_id):
     except Exception as e:
         current_app.logger.error(f"Export error: {e}")
         return "Export failed", 500
+
+
+# ---------------------------------------------------------------------------
+# PAM IMPORT
+# ---------------------------------------------------------------------------
+
+@pam_bp.route('/<lang_code>/pam/import')
+@login_required
+@role_required('manager')
+def pam_import(lang_code):
+    """Import page: select location, classifier, upload BirdNET CSV files."""
+    g.lang_code = lang_code
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        is_admin = current_user.has_role('admin')
+
+        if is_admin:
+            all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
+        else:
+            all_inst_objects = current_user.institutions
+
+        if lang_code == 'uk':
+            inst_names_map = {i.id: i.name_uk for i in all_inst_objects}
+        else:
+            inst_names_map = {i.id: (i.name_en or i.name_uk) for i in all_inst_objects}
+
+        institutions = [{'id': i.id, 'name': inst_names_map[i.id]} for i in all_inst_objects]
+
+        raw_rows = conn.execute(text("""
+            SELECT l.location_id, l.location_name, l.location_name_en, l.lat, l.lon, li.institution_id
+            FROM locations l
+            LEFT JOIN location_institutions li ON l.location_id = li.location_id
+            ORDER BY l.location_name
+        """)).fetchall()
+
+        locations_dict = {}
+        for row in raw_rows:
+            lid = row.location_id
+            if lid not in locations_dict:
+                loc_name = row.location_name
+                if lang_code == 'en' and row.location_name_en:
+                    loc_name = row.location_name_en
+                locations_dict[lid] = {
+                    'location_id': lid,
+                    'name': loc_name,
+                    'latitude': float(row.lat),
+                    'longitude': float(row.lon),
+                    'inst_ids': [],
+                }
+            if row.institution_id:
+                locations_dict[lid]['inst_ids'].append(row.institution_id)
+
+        user_inst_ids = [i.id for i in current_user.institutions]
+        if is_admin:
+            final_locations = list(locations_dict.values())
+        else:
+            final_locations = [
+                loc for loc in locations_dict.values()
+                if any(i in user_inst_ids for i in loc['inst_ids'])
+            ]
+
+        importers_list = [{'key': imp.key, 'name': imp.name} for imp in IMPORTERS.values()]
+
+        biotopes_result = conn.execute(text(
+            "SELECT id, name_ua, name_en FROM biotopes ORDER BY name_ua"
+        )).fetchall()
+        biotopes = [dict(row._mapping) for row in biotopes_result]
+
+        return render_template(
+            'pam_import.html',
+            institutions=institutions,
+            locations_json_string=json.dumps(final_locations),
+            importers=importers_list,
+            biotopes=biotopes,
+            geoserver_url=current_app.config.get('GEOSERVER_URL', ''),
+        )
+    except Exception as e:
+        current_app.logger.error(f"PAM import page error: {e}", exc_info=True)
+        flash('Помилка завантаження сторінки імпорту.', 'danger')
+        return redirect(url_for('pam.pam_home', lang_code=lang_code))
+    finally:
+        if conn:
+            conn.close()
+
+
+@pam_bp.route('/<lang_code>/api/pam/import', methods=['POST'])
+@login_required
+@role_required('manager')
+def api_pam_import(lang_code):
+    """
+    Process a batch of uploaded BirdNET CSV files for a given location.
+
+    Form fields:
+        location_id  – integer
+        classifier   – importer key (default: 'birdnet')
+        files        – one or more CSV file uploads
+    """
+    g.lang_code = lang_code
+    try:
+        location_id = request.form.get('location_id', type=int)
+        if not location_id:
+            return jsonify({'success': False, 'error': 'location_id is required'}), 400
+
+        classifier = request.form.get('classifier', 'birdnet')
+        importer = IMPORTERS.get(classifier)
+        if not importer:
+            return jsonify({'success': False, 'error': f'Unknown classifier: {classifier}'}), 400
+
+        files = request.files.getlist('files')
+        if not files:
+            return jsonify({'success': False, 'error': 'No files uploaded'}), 400
+
+        # Verify user has access to this location
+        is_admin = current_user.has_role('admin')
+        if not is_admin:
+            conn = get_pam_db_connection()
+            try:
+                user_inst_ids = [i.id for i in current_user.institutions]
+                row = conn.execute(text("""
+                    SELECT 1 FROM location_institutions
+                    WHERE location_id = :loc AND institution_id = ANY(:insts)
+                    LIMIT 1
+                """), {'loc': location_id, 'insts': user_inst_ids}).fetchone()
+                if not row:
+                    return jsonify({'success': False, 'error': 'Access denied to this location'}), 403
+            finally:
+                conn.close()
+
+        engine = get_pam_engine()
+        processor = PAMImportProcessor(engine, location_id, importer)
+        stats = processor.process_batch(files)
+
+        current_app.logger.info(
+            f"PAM import: user={current_user.id}, location={location_id}, "
+            f"classifier={classifier}, stats={stats}"
+        )
+        return jsonify({'success': True, 'stats': stats})
+
+    except Exception as e:
+        current_app.logger.error(f"PAM import API error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 
