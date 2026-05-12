@@ -306,9 +306,15 @@
                             {% if species_list %}
                                 <optgroup label="{{ _('Окремі види') }}">
                                 {% for sp in species_list %}
-                                <option value="{{ sp.species_id }}">
-                                    {% set local_name = sp.common_name_uk if g.lang_code == 'uk' else sp.common_name_en %}
+                                {% set local_name = sp.common_name_uk if g.lang_code == 'uk' else sp.common_name_en %}
+                                {% set seg_n     = sp.verified_segments or 0 %}
+                                {% set ver_n     = sp.total_verifications or 0 %}
+                                {% set eligible  = seg_n >= 5 %}
+                                <option value="{{ sp.species_id }}"
+                                        title="{% if eligible %}{{ _('Достатньо даних для перерахунку') }}{% else %}{{ _('Недостатньо даних: потрібно ≥5 сегментів з верифікаціями') }}{% endif %}">
+                                    {{ '✓' if eligible else '⚠' }}
                                     {{ sp.scientific_name }}{{ " (" ~ local_name ~ ")" if local_name else "" }}
+                                    — {{ seg_n }} {{ _('сегм.') }}, {{ ver_n }} {{ _('вериф.') }}
                                 </option>
                                 {% endfor %}
                                 </optgroup>

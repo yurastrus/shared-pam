@@ -33,17 +33,27 @@ def convert_numpy_types(obj):
 
 def get_species_for_dropdown():
     """
-    Отримує список видів, які мають хоча б одну верифікацію, 
+    Отримує список видів, які мають хоча б одну верифікацію,
     для відображення у випадаючому списку адмінки.
+
+    Додатково повертає для кожного виду:
+      • verified_segments — кількість сегментів виду, які мають ≥1 верифікацію
+      • total_verifications — загальна кількість верифікацій по сегментах виду
+    Це дозволяє користувачу одразу бачити, чи варто запускати перерахунок
+    (поріг — мінімум 5 сегментів з верифікаціями).
     """
     conn = None
     try:
         conn = get_pam_db_connection()
         query = """
-            SELECT DISTINCT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
+            SELECT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en,
+                   COUNT(DISTINCT seg.id) AS verified_segments,
+                   COUNT(sv.id)           AS total_verifications
             FROM species s
-            JOIN segments seg ON s.species_id = seg.species_id
-            JOIN segment_verifications sv ON seg.id = sv.segment_id
+            JOIN segments seg               ON s.species_id = seg.species_id
+            JOIN segment_verifications sv   ON seg.id = sv.segment_id
+            WHERE sv.verification_result IS NOT NULL
+            GROUP BY s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
             ORDER BY s.scientific_name
         """
         return conn.execute(text(query)).fetchall()
@@ -52,6 +62,79 @@ def get_species_for_dropdown():
         return []
     finally:
         if conn: conn.close()
+
+
+def _get_species_diagnostic(conn, species_id, min_verifications):
+    """
+    Повертає діагностичну інформацію про чому конкретний вид міг бути
+    пропущений під час перерахунку. Використовується для побудови
+    зрозумілих повідомлень для користувача.
+
+    Повертає dict:
+      species_name           — наукова назва
+      total_segments         — усі сегменти виду (з верифікаціями чи без)
+      verified_segments      — сегменти, що мають хоч одну верифікацію
+      segments_meeting_min   — сегменти з ≥ min_verifications верифікаціями
+      total_verifications    — загальна кількість верифікацій
+      min_verifications      — поточний поріг
+      required_segments      — мінімальна кількість сегментів (5)
+    """
+    row = conn.execute(text("""
+        SELECT
+            s.scientific_name,
+            (SELECT COUNT(*) FROM segments WHERE species_id = :sid)                                          AS total_segments,
+            (SELECT COUNT(DISTINCT seg.id)
+               FROM segments seg
+               JOIN segment_verifications sv ON sv.segment_id = seg.id
+              WHERE seg.species_id = :sid AND sv.verification_result IS NOT NULL)                           AS verified_segments,
+            (SELECT COUNT(sv.id)
+               FROM segments seg
+               JOIN segment_verifications sv ON sv.segment_id = seg.id
+              WHERE seg.species_id = :sid AND sv.verification_result IS NOT NULL)                           AS total_verifications,
+            (SELECT COUNT(*) FROM (
+                SELECT seg.id
+                  FROM segments seg
+                  JOIN segment_verifications sv ON sv.segment_id = seg.id
+                 WHERE seg.species_id = :sid AND sv.verification_result IS NOT NULL
+                 GROUP BY seg.id
+                HAVING COUNT(sv.verification_result) >= :minv
+            ) AS x)                                                                                          AS segments_meeting_min
+        FROM species s
+        WHERE s.species_id = :sid
+    """), {'sid': species_id, 'minv': min_verifications}).fetchone()
+
+    if not row:
+        return None
+    return {
+        'species_name':         row.scientific_name,
+        'total_segments':       int(row.total_segments or 0),
+        'verified_segments':    int(row.verified_segments or 0),
+        'segments_meeting_min': int(row.segments_meeting_min or 0),
+        'total_verifications':  int(row.total_verifications or 0),
+        'min_verifications':    int(min_verifications),
+        'required_segments':    5,
+    }
+
+
+def _build_insufficient_data_message(diag):
+    """Будує читабельне повідомлення на основі діагностики виду."""
+    name = diag['species_name']
+    if diag['total_segments'] == 0:
+        return f"{name}: у виду немає жодного сегмента."
+    if diag['verified_segments'] == 0:
+        return (f"{name}: є {diag['total_segments']} сегмент(ів), "
+                f"але жоден ще не верифіковано.")
+    if diag['segments_meeting_min'] < diag['required_segments']:
+        return (f"{name}: {diag['segments_meeting_min']} сегмент(ів) з "
+                f"≥{diag['min_verifications']} верифікаціями "
+                f"(всього {diag['verified_segments']} верифікованих сегментів, "
+                f"{diag['total_verifications']} верифікацій). "
+                f"Потрібно мінімум {diag['required_segments']} — "
+                f"додайте верифікацій або зменште поріг.")
+    # Безпечний fallback
+    return (f"{name}: недостатньо даних "
+            f"(сегменти ≥{diag['min_verifications']} вериф.: "
+            f"{diag['segments_meeting_min']}, потрібно ≥{diag['required_segments']}).")
 
 def calculate_species_metrics(species_id, min_verifications=2, consensus_threshold=2.0/3.0):
     """
@@ -245,10 +328,25 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
         """
         
         species_list = conn.execute(text(base_query), params).fetchall()
-        
+
         if not species_list:
-            msg = 'Не знайдено видів для перерахунку' if not target_species_id else 'Цей вид не має достатньо даних (мінімум 5 сегментів)'
-            return {'success': False, 'message': msg}
+            # Diagnose WHY there are no eligible species.
+            if target_species_id is not None:
+                diag = _get_species_diagnostic(conn, target_species_id, min_verifications)
+                error_msg = _build_insufficient_data_message(diag) if diag else \
+                    'Вид не знайдено у базі даних.'
+                return {
+                    'success': False,
+                    'reason': 'insufficient_data',
+                    'error': error_msg,
+                    'diagnostic': diag,
+                }
+            return {
+                'success': False,
+                'reason': 'no_eligible_species',
+                'error': ('У базі немає жодного виду з мінімум 5 сегментами, '
+                          'які мають хоча б одну верифікацію.'),
+            }
         
         # 2. Позначаємо попередні розрахунки як неактуальні
         # ВАЖЛИВО: Якщо рахуємо один вид, скидаємо is_current тільки для нього!
@@ -259,7 +357,8 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
             conn.execute(text("UPDATE evaluation SET is_current = FALSE"))
         
         calculated_species = []
-        failed_species = []
+        failed_species = []          # legacy: list of names
+        failed_species_detail = []   # NEW: list of dicts with per-species reason
         logistic_stats = {'calculated': 0, 'insufficient_data': 0, 'error': 0}
         
         for species_id, scientific_name in species_list:
@@ -327,7 +426,16 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
                 logistic_stats[status] = logistic_stats.get(status, 0) + 1
             else:
                 failed_species.append(scientific_name)
-        
+                # Diagnose why this species fell short (after passing base filter)
+                diag = _get_species_diagnostic(conn, species_id, min_verifications)
+                if diag:
+                    failed_species_detail.append({
+                        'species_id': species_id,
+                        'name': scientific_name,
+                        'message': _build_insufficient_data_message(diag),
+                        'diagnostic': diag,
+                    })
+
         conn.commit()
         
         # ... (Формування результату) ...
@@ -337,9 +445,10 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
             'failed_count': len(failed_species),
             'calculated_species': calculated_species,
             'failed_species': failed_species,
+            'failed_species_detail': failed_species_detail,
             'total_species_checked': len(species_list),
             'logistic_regression_stats': logistic_stats,
-            'mode': 'single' if target_species_id else 'all'  # Додаємо маркер режиму
+            'mode': 'single' if target_species_id else 'all'
         }
         
         current_app.logger.info(f"Metrics recalculation completed by user {user_id}: {result}")
@@ -348,7 +457,7 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
     except Exception as e:
         if conn: conn.rollback()
         current_app.logger.error(f"Error recalculating metrics: {e}")
-        return {'success': False, 'error': str(e)}
+        return {'success': False, 'reason': 'exception', 'error': str(e)}
     finally:
         if conn: conn.close()
 

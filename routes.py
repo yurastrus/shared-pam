@@ -1513,29 +1513,47 @@ def admin_recalculate_metrics(lang_code):
         current_app.logger.info(f"Metrics recalculation started by admin {current_user.username}")
         
         result = recalculate_all_metrics(current_user.id, min_verifications, target_species_id=target_species_id)
-        
+
         if result['success']:
-            if result.get('mode') == 'single':
-                flash(f'Перерахунок завершено для 1 виду.', 'success')
+            calc_count = result['calculated_count']
+            fail_count = result['failed_count']
+            mode = result.get('mode')
+
+            # 1. Підсумок верхнього рівня
+            if calc_count == 0:
+                # Нічого не пораховано — це не помилка, але й не success
+                if mode == 'single':
+                    flash('Для цього виду метрики не пораховано (недостатньо даних).', 'warning')
+                else:
+                    flash('Жоден вид не пройшов перерахунок — недостатньо даних.', 'warning')
+            elif mode == 'single':
+                flash('Перерахунок завершено для 1 виду.', 'success')
             else:
                 flash(
-                    f'Метрики успішно перераховані! '
-                    f'Оброблено видів: {result["calculated_count"]}, '
-                    f'пропущено: {result["failed_count"]}',
-                    'success'
+                    f'Метрики перераховано: {calc_count} вид(ів), '
+                    f'пропущено: {fail_count}.',
+                    'success' if fail_count == 0 else 'info'
                 )
-            
-            if result['failed_species']:
-                failed_list = ', '.join(result['failed_species'][:5])
-                if len(result['failed_species']) > 5:
-                    failed_list += f' та ще {len(result["failed_species"]) - 5}'
-                flash(f'Пропущені види (недостатньо даних): {failed_list}', 'info')
+
+            # 2. Деталі по пропущених — конкретні причини
+            for detail in result.get('failed_species_detail', [])[:5]:
+                flash(detail['message'], 'info')
+            extra = len(result.get('failed_species_detail', [])) - 5
+            if extra > 0:
+                flash(f'... та ще {extra} вид(ів) з недостатніми даними.', 'info')
+
         else:
-            flash(f'Помилка перерахунку метрик: {result.get("error", "Невідома помилка")}', 'danger')
-        
+            # Структуровані помилки — різний рівень залежно від причини
+            reason = result.get('reason')
+            msg = result.get('error', 'Невідома помилка')
+            if reason in ('insufficient_data', 'no_eligible_species'):
+                flash(msg, 'warning')
+            else:
+                flash(f'Помилка перерахунку метрик: {msg}', 'danger')
+
     except Exception as e:
         current_app.logger.error(f"Error in admin recalculate metrics: {e}")
-        flash('Неспідівана помилка під час перерахунку метрик.', 'danger')
+        flash('Неочікувана помилка під час перерахунку метрик.', 'danger')
     
     return redirect(url_for('pam.evaluation_results', lang_code=lang_code))
 
