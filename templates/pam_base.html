@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('pam.serve_pam_static', filename='css/pam_style.css', lang_code=g.lang_code) }}?v=1">
+{% block pam_head_extra %}{% endblock %}
+{% endblock %}
+
+{# Загальний layout для PAM-сторінок: кнопка повернення до хабу + контент. #}
+{# Дочірні шаблони використовують {% block pam_content %} замість {% block content %}. #}
+{% block content %}
+    {% if request.endpoint != 'pam.pam_home' %}
+    <a href="{{ url_for('pam.pam_home', lang_code=g.lang_code) }}" class="pam-back-link">
+        ← {{ _('До розділів') }}
+    </a>
+    {% endif %}
+    {% block pam_content %}{% endblock %}
+{% endblock %}

@@ -1,0 +1,187 @@
+/* =============================================================
+   pam_style.css — стилі модуля PAM (Passive Acoustic Monitoring)
+
+   Стартова версія. Сюди поступово переноситимуться PAM-специфічні
+   стилі з глобального style.css.
+
+   Зараз містить:
+     1. Design tokens (CSS-змінні) — копія з camera_traps.css
+     2. Back-to-hub link (як у CT)
+     3. Module hub (картковий лендінг)
+   ============================================================= */
+
+/* ──────────────────────────────────────────────────────────
+   1. Design tokens
+   ────────────────────────────────────────────────────────── */
+:root {
+    /* Surfaces */
+    --bg-primary:          #ffffff;
+    --bg-secondary:        #f8f9fa;
+    --bg-light:            #f8f9fa;
+    --card-bg:             #ffffff;
+
+    /* Text */
+    --text-primary:        #212529;
+    --text-secondary:      #6c757d;
+
+    /* Borders */
+    --border-color:        #dee2e6;
+
+    /* Brand & semantic colors */
+    --color-primary:         #0d6efd;
+    --color-primary-hover:   #0b5ed7;
+    --color-secondary:       #6c757d;
+    --color-danger:          #dc3545;
+    --color-success:         #198754;
+    --color-warning:         #ffc107;
+
+    /* Elevation & shape */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.10);
+    --shadow-lg: 0 2px 8px rgba(0, 0, 0, 0.10);
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+}
+
+body.dark-theme {
+    --bg-primary:          #1a1a1a;
+    --bg-secondary:        #2d2d2d;
+    --bg-light:            #2a2a2a;
+    --card-bg:             #2d2d2d;
+    --text-primary:        #e9ecef;
+    --text-secondary:      #adb5bd;
+    --border-color:        #444444;
+}
+
+/* style.css forces flex + center on main .container — reset it */
+main .container:not(.maplistcontainer) {
+    display: block;
+    text-align: left;
+    align-items: initial;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+/* ──────────────────────────────────────────────────────────
+   2. Back-to-hub link
+   Pill у top-left, абсолютно позиціонований, не займає місця
+   в layout. Рендериться через pam_base.html на сторінках
+   крім самого хабу.
+   ────────────────────────────────────────────────────────── */
+main { position: relative; }
+.pam-back-link {
+    position: absolute;
+    top: 0.5rem;
+    left: 1rem;
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.65rem;
+    font-size: 0.78rem;
+    line-height: 1;
+    color: var(--text-secondary);
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    text-decoration: none;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.pam-back-link:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+    background: var(--card-bg);
+    text-decoration: none;
+}
+
+/* ──────────────────────────────────────────────────────────
+   3. Module hub (overview / landing page)
+   Класи модуль-агностичні — ідентичні до camera_traps.css,
+   щоб у майбутньому винести в спільний файл.
+       .module-hub          page wrapper
+       .hub-header          big centered title + subtitle
+       .hub-section         group of cards with heading
+       .hub-section-title   group heading (uppercase, divider)
+       .hub-grid            auto-fit grid of cards
+       .hub-card            icon + title + description, full-card link
+   ────────────────────────────────────────────────────────── */
+.module-hub {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+.hub-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+.hub-header h1 {
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 0.5rem;
+}
+.hub-header p {
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin: 0 auto;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+.hub-section {
+    margin-bottom: 2rem;
+}
+.hub-section-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+    margin: 0 0 1rem;
+}
+.hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+}
+.hub-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 1.25rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    text-decoration: none;
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.hub-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-primary);
+    color: var(--text-primary);
+    text-decoration: none;
+}
+.hub-card__icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}
+.hub-card__title {
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+.hub-card__desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+.hub-card--danger:hover { border-color: var(--color-danger); }
+
+@media (max-width: 600px) {
+    .hub-grid { grid-template-columns: 1fr; }
+}

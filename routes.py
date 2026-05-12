@@ -21,14 +21,29 @@ from datetime import datetime, timedelta, date
 from .pam_evaluation_utils import get_species_logistic_data
 
 
+# --- СТАТИЧНІ ФАЙЛИ МОДУЛЯ PAM ---
+@pam_bp.route('/<lang_code>/pam-static/<path:filename>')
+def serve_pam_static(lang_code, filename):
+    static_dir = os.path.join(os.path.dirname(__file__), 'static')
+    return send_from_directory(static_dir, filename)
+
+
 @pam_bp.route('/<lang_code>/pam')
 def pam_home(lang_code):
     """
     Цільова сторінка (ХАБ) для розділу PAM.
-    Вона містить вступний текст та посилання на конкретні проекти/дашборди.
+    Картковий лендінг з 3 секціями: Аналітика / Верифікація / Управління.
     """
     g.lang_code = lang_code
-    return render_template('pam_home.html')
+    auth = current_user.is_authenticated
+    return render_template(
+        'pam_home.html',
+        can_verifier=auth and current_user.has_role(
+            'manager', 'pam_verifier', 'roztochya_user', 'fzs_user', 'volunteer_user'
+        ),
+        is_manager=auth and current_user.has_role('manager'),
+        can_export=auth and current_user.has_role('manager', 'roztochya_user'),
+    )
 
 @pam_bp.route('/<lang_code>/pam/pam_detailed')
 def pam_detailed(lang_code):
