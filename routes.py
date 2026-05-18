@@ -2457,8 +2457,21 @@ def pam_data_export(lang_code):
     """
     g.lang_code = lang_code
     try:
-        # Тепер нам не потрібно завантажувати тут список видів
-        return render_template('pam_data_export.html')
+        # Список установ доступних користувачу для фільтру.
+        # Admin бачить всі, інші — лише прив'язані.
+        is_admin = current_user.has_role('admin')
+        if is_admin:
+            all_inst = Institution.query.order_by(Institution.name_uk).all()
+        else:
+            all_inst = current_user.institutions
+        institutions = [
+            {
+                'id': i.id,
+                'name': i.name_uk if lang_code == 'uk' else (i.name_en or i.name_uk),
+            }
+            for i in all_inst
+        ]
+        return render_template('pam_data_export.html', institutions=institutions)
     except Exception as e:
         current_app.logger.error(f"Error loading Data export page: {e}", exc_info=True)
         flash('Помилка завантаження сторінки експорту.', 'danger')
@@ -2552,7 +2565,9 @@ def api_data_preview(lang_code):
             'start_date': request.args.get('start_date'),
             'end_date': request.args.get('end_date'),
             'confidence': float(request.args.get('confidence', 0.75)),
-            
+            # Multi-select фільтр по установах: '1,2,3' → [1, 2, 3]
+            'institution_ids': [int(i) for i in request.args.get('institution_ids', '').split(',') if i.strip().isdigit()],
+
             # --- НОВІ ПАРАМЕТРИ ---
             'export_mode': request.args.get('export_mode', 'standard'),
             'aggregation': request.args.get('aggregation', 'none'),
@@ -2583,7 +2598,9 @@ def api_data_download(lang_code):
             'start_date': request.args.get('start_date'),
             'end_date': request.args.get('end_date'),
             'confidence': float(request.args.get('confidence', 0.75)),
-            
+            # Multi-select фільтр по установах
+            'institution_ids': [int(i) for i in request.args.get('institution_ids', '').split(',') if i.strip().isdigit()],
+
             # --- НОВІ ПАРАМЕТРИ ---
             'export_mode': request.args.get('export_mode', 'standard'),
             'aggregation': request.args.get('aggregation', 'none'),

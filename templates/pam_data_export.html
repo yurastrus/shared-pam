@@ -49,6 +49,14 @@
                 <label for="species-select">{{ _('Види (оберіть один або декілька):') }}</label>
                 <select id="species-select" class="form-control" multiple></select>
             </div>
+            <div class="filter-group full-width">
+                <label for="institution-select">{{ _('Установи (оберіть одну або декілька, порожньо — всі доступні):') }}</label>
+                <select id="institution-select" class="form-control" multiple>
+                    {% for inst in institutions %}
+                    <option value="{{ inst.id }}">{{ inst.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="filter-group"><label for="start-date-select">{{ _('Дата початку:') }}</label><input type="date" id="start-date-select" class="form-control"></div>
             <div class="filter-group"><label for="end-date-select">{{ _('Дата завершення:') }}</label><input type="date" id="end-date-select" class="form-control"></div>
             <div class="filter-group">
@@ -116,6 +124,13 @@
                 width: '100%'
             });
         }
+
+        // Select2 для фільтра установ (multi-select)
+        $('#institution-select').select2({
+            placeholder: '{{ _("Усі доступні установи") }}',
+            allowClear: true,
+            width: '100%'
+        });
 
         // --- 2. Допоміжні функції для фільтрів ---
         function updateSelectOptions(element, options, placeholder, isMultiSelect = false) {
@@ -223,6 +238,9 @@
             $('#institution-code').val('');
             $('#detector-name').val('');
 
+            // Скидаємо фільтр установ
+            $('#institution-select').val(null).trigger('change');
+
             // --- НОВЕ: Скидаємо режим експорту та агрегацію ---
             $('#export-mode').val('standard');
             $('#aggregation-level').val('none').trigger('change'); // trigger запустить приховування поля часу
@@ -252,6 +270,12 @@
             const selectedSpecies = filters.species.val();
             if (selectedSpecies && selectedSpecies.length > 0) {
                 params.append('species_ids', selectedSpecies.join(','));
+            }
+
+            // Multi-select установ → 'institution_ids=1,2,3'
+            const selectedInsts = $('#institution-select').val();
+            if (selectedInsts && selectedInsts.length > 0) {
+                params.append('institution_ids', selectedInsts.join(','));
             }
 
             // Дати та впевненість

@@ -1229,7 +1229,11 @@ def get_occurrence_data(filters, limit=None):
 
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin)
+        # Multi-select institution filter from UI (list of ints or None/empty)
+        selected_inst_ids = filters.get('institution_ids') or None
+        inst_condition, inst_params = get_institution_filter(
+            user_inst_ids, is_admin, selected_inst_id=selected_inst_ids
+        )
         params.update(inst_params)
 
         # --- ТАКСОНОМІЧНІ ФІЛЬТРИ ---
