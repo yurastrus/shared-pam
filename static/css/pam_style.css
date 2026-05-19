@@ -1,17 +1,36 @@
 /* =============================================================
    pam_style.css — стилі модуля PAM (Passive Acoustic Monitoring)
 
-   Стартова версія. Сюди поступово переноситимуться PAM-специфічні
-   стилі з глобального style.css.
+   Структура повторює camera_traps.css для уніфікації модулів.
+   Усі CSS-токени — у :root (Секція 1). Темна тема — body.dark-theme.
+   Усі стилі — модуль-агностичні (не префіксовані pam-*), щоб у
+   майбутньому винести спільні в загальний файл.
 
-   Зараз містить:
-     1. Design tokens (CSS-змінні) — копія з camera_traps.css
-     2. Back-to-hub link (як у CT)
-     3. Module hub (картковий лендінг)
+   Структура:
+       1.  CSS variables & dark theme
+       2.  Main layout overrides
+       3.  Page wrappers & layouts
+       4.  Page headers
+       5.  Filter panels
+       6.  Filter items & groups
+       7.  Buttons & links (.pam-back-link)
+       8.  Cards & panels (.module-hub, .hub-card, .step-card)
+       9.  Charts (Plotly overrides)
+       10. Data tables
+       11. Map (Leaflet overrides)
+       12. Select2 overrides
+       13. Verification UI
+       14. Evaluation results UI
+       15. Spinners & loaders
+       16. Messages & alerts
+       17. Utility classes
+       18. Media queries
+
+   Заповнюється поступово при міграції inline-стилів з шаблонів.
    ============================================================= */
 
 /* ──────────────────────────────────────────────────────────
-   1. Design tokens
+   1. CSS variables & dark theme
    ────────────────────────────────────────────────────────── */
 :root {
     /* Surfaces */
@@ -26,14 +45,24 @@
 
     /* Borders */
     --border-color:        #dee2e6;
+    --input-border:        #ced4da;
+    --input-bg:            #ffffff;
 
     /* Brand & semantic colors */
     --color-primary:         #0d6efd;
     --color-primary-hover:   #0b5ed7;
     --color-secondary:       #6c757d;
+    --color-secondary-hover: #5a6268;
     --color-danger:          #dc3545;
+    --color-danger-hover:    #c82333;
     --color-success:         #198754;
     --color-warning:         #ffc107;
+
+    /* Links / alerts */
+    --link-color:          #0d6efd;
+    --alert-bg:            #d1ecf1;
+    --alert-border:        #bee5eb;
+    --alert-text:          #0c5460;
 
     /* Elevation & shape */
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -52,9 +81,19 @@ body.dark-theme {
     --text-primary:        #e9ecef;
     --text-secondary:      #adb5bd;
     --border-color:        #444444;
+    --input-border:        #555555;
+    --input-bg:            #2a2a2a;
 }
 
-/* style.css forces flex + center on main .container — reset it */
+
+/* ──────────────────────────────────────────────────────────
+   2. Main layout overrides
+
+   Глобальний style.css робить `main .container` flex-колонкою
+   з центрованим текстом — це псує grid-розкладки PAM-сторінок.
+   Скидаємо цю поведінку для всіх PAM-шаблонів, крім .maplistcontainer.
+   ────────────────────────────────────────────────────────── */
+main { position: relative; }                  /* anchor for .pam-back-link */
 main .container:not(.maplistcontainer) {
     display: block;
     text-align: left;
@@ -63,13 +102,563 @@ main .container:not(.maplistcontainer) {
     color: var(--text-primary);
 }
 
+
 /* ──────────────────────────────────────────────────────────
-   2. Back-to-hub link
-   Pill у top-left, абсолютно позиціонований, не займає місця
-   в layout. Рендериться через pam_base.html на сторінках
-   крім самого хабу.
+   3. Page wrappers & layouts
    ────────────────────────────────────────────────────────── */
-main { position: relative; }
+
+/* pam_data_export: вузький центрований wrapper для форми */
+.data-wrapper {
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+    text-align: left;
+}
+
+/* Двопанельна сітка: ліва (мапа) + права (деталі).
+   Використовується у pam_service_log і manage_pam_locations
+   (manage_pam_locations пізніше переписує grid на 3 колонки
+   через інлайн-стиль або префікс). */
+.page-layout {
+    display: grid;
+    grid-template-columns: 40% 60%;
+    gap: 20px;
+    height: calc(100vh - 200px);
+}
+.details-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+}
+
+.results-area {
+    display: none;
+    margin-top: 30px;
+}
+
+/* pam_species_dashboard: широкий wrapper для багаторічних трендів */
+.species-analysis-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+/* pam_yearly_table: розтягуваний wrapper */
+.trends-wrapper {
+    width: 100%;
+    text-align: left;
+}
+
+/* pam_yearly_trends: ідентичний species-analysis-page wrapper */
+.trends-analysis-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+/* manage_pam_locations: маркер-клас для page-level scoping. На цій
+   сторінці .page-layout, .top-filter-bar, .map-panel, .history-item
+   мають інші параметри, ніж generic-варіанти вище. */
+.locations-manager-page .page-layout {
+    grid-template-columns: 280px 1fr 420px;
+    height: calc(100vh - 185px);
+}
+
+/* pam_species_detailed: повна-ширина wrapper з flex-layout (sidebar + main) */
+.dashboard-wrapper {
+    width: 100%;
+    text-align: left;
+}
+.dashboard-layout {
+    display: flex;
+    gap: 25px;
+    align-items: flex-start;
+}
+.dashboard-sidebar { flex: 1 1 35%; }
+.dashboard-main    { flex: 1 1 65%; }
+
+/* pam_evaluation_results: wrapper з центруванням і max-width */
+.evaluation-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* pam_verification_segments: вузький wrapper з max-width */
+.segments-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* pam_verification_interface: широкий wrapper (треба місце для
+   спектрограми + статистики + плеєра) */
+.verification-container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+.verification-layout {
+    display: grid;
+    grid-template-columns: 480px 520px;
+    gap: 20px;
+    align-items: start;
+}
+.verification-container .left-panel {
+    position: sticky;
+    top: 10px;
+    display: flex;
+    flex-direction: column;
+}
+.verification-container .right-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: static;        /* перебиває generic .right-panel { position: relative } з manage_pam_locations */
+}
+
+/* pam_overview: загальний wrapper + 2-колонкова сітка sidebar/main */
+.overview-wrapper {
+    width: 100%;
+    text-align: left;
+}
+.overview-layout {
+    display: flex;
+    gap: 25px;
+    margin-top: 20px;
+}
+.overview-sidebar {
+    flex: 0 0 350px;
+    min-width: 350px;
+}
+.overview-main {
+    flex: 1;
+    min-width: 0;
+}
+
+/* pam_import: 2-колонкова сітка — ліворуч кроки форми, праворуч мапа.
+   Сам .import-layout грає роль page wrapper (інші правила scoped під нього). */
+.import-layout {
+    display: grid;
+    grid-template-columns: 440px 1fr;
+    gap: 16px;
+    height: calc(100vh - 178px);
+    min-height: 520px;
+}
+.import-layout .left-panel {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 2px;
+}
+.import-layout .right-panel { position: relative; }
+
+/* pam_verification_upload: маркер-клас для page-level scoping.
+   Layout — 2 колонки (зліва форма step-cards, справа інструкції/види),
+   аналогічно до pam_import / camera_traps upload.
+
+   Контент центрується з max-width, щоб на широких моніторах сторінка
+   не розтягувалась за межі читабельної ширини. */
+.verification-upload-page {
+    max-width: 1280px;
+    margin: 0 auto;
+}
+.verif-upload-layout {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 16px;
+    align-items: start;
+}
+.verif-upload-layout .left-panel,
+.verif-upload-layout .right-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Заголовок сторінки */
+.verification-upload-page .upload-page-title {
+    font-size: 1.2rem;
+    margin: 0 0 14px;
+}
+
+/* Stats у горизонтальний ряд: 4 однакові картки auto-fit */
+.verification-upload-page .upload-stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+/* Legacy alias — лишаємо як no-op для backward compat */
+.upload-section { width: 100%; }
+
+
+/* ──────────────────────────────────────────────────────────
+   4. Page headers
+   ────────────────────────────────────────────────────────── */
+
+/* Заголовок-центр у pam_data_export. Scoped під .data-wrapper,
+   щоб не конфліктувати з глобальним .page-header у base.html. */
+.data-wrapper .page-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+/* pam_yearly_table — той самий патерн, але інший wrapper */
+.trends-wrapper .page-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+/* pam_species_detailed — теж по центру */
+.dashboard-wrapper .page-header {
+    text-align: center;
+}
+
+/* pam_overview — також */
+.overview-wrapper .page-header {
+    text-align: center;
+}
+
+/* pam_verification_segments: центрований вертикальний заголовок */
+.segments-container .page-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* pam_species_dashboard + pam_yearly_trends: заголовок H1.
+   trends центрується додатково (через окреме правило нижче). */
+.species-analysis-page .page-header h1,
+.trends-analysis-page .page-header h1 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1.5rem;
+}
+.trends-analysis-page .page-header h1 {
+    text-align: center;
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   5. Filter panels
+   ────────────────────────────────────────────────────────── */
+
+/* Двоколонна grid-панель фільтрів (pam_data_export) */
+.filters-panel {
+    padding: 20px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 25px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+/* Горизонтальна смуга фільтрів зверху сторінки
+   (pam_service_log, manage_pam_locations). */
+.top-filter-bar {
+    background: var(--card-bg);
+    padding: 12px 20px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+/* pam_yearly_table — 4-колонкова сітка фільтрів. Більш специфічний
+   селектор, ніж .filters-panel вище, тому перекриває grid-template. */
+.trends-wrapper .filters-panel {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px 20px;
+    padding: 25px;
+    border-radius: 12px;
+    align-items: end;
+}
+.trends-wrapper .filters-panel label {
+    margin-bottom: 8px;
+    font-weight: bold;
+    font-size: 14px;
+    color: #495057;
+}
+.trends-wrapper .filters-panel .select2-container .select2-selection--single,
+.trends-wrapper .filters-panel .select2-container .select2-selection--multiple {
+    min-height: 38px;
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+}
+
+/* pam_species_dashboard + pam_yearly_trends: окрема "card"-обгортка
+   для grid фільтрів. */
+.species-analysis-page .filters-container,
+.trends-analysis-page .filters-container {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--shadow-sm);
+}
+.species-analysis-page .filters-grid {
+    display: grid;
+    grid-template-columns: 4fr 1fr 1fr 4fr;
+    gap: 1.5rem 1rem;
+    align-items: end;
+}
+/* trends-analysis-page має іншу сітку: 1 широкий species-фільтр + 3 малі */
+.trends-analysis-page .filters-grid {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 1rem;
+    align-items: end;
+}
+
+/* manage_pam_locations: компактніша верхня панель — мала рамка та
+   мінімальний margin внизу (бо нижче ще йде page-layout). */
+.locations-manager-page .top-filter-bar {
+    padding: 10px 16px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+}
+
+/* pam_species_detailed: контент-розміри елементів управління */
+.dashboard-wrapper .filters-panel label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    font-size: 14px;
+}
+.dashboard-wrapper .filters-panel .filter-group.full-width {
+    flex-direction: row;
+}
+.dashboard-wrapper .filters-panel .form-control,
+.dashboard-wrapper .filters-panel .form-control-range,
+.dashboard-wrapper .filters-panel .select2-container {
+    width: 100%;
+}
+.dashboard-wrapper .filters-panel .select2-container .select2-selection--single {
+    height: 38px;
+    border: 1px solid var(--input-border);
+}
+.dashboard-wrapper .filters-panel .select2-container .select2-selection--multiple {
+    min-height: 38px;
+    border: 1px solid var(--input-border);
+    padding: 2px;
+}
+.dashboard-wrapper .filters-panel .action-group {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+}
+
+/* pam_verification_segments: filters-panel без grid (просто картка) */
+.segments-container .filters-panel {
+    display: block;
+    grid-template-columns: none;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+.segments-container .filters-row {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    margin-bottom: 0;
+}
+
+/* pam_verification_interface: filters-panel — компактна біла картка */
+.verification-container .filters-panel {
+    display: block;
+    grid-template-columns: none;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+.verification-container .filters-panel > h4 {
+    margin-top: 0;
+    margin-bottom: 5px;
+    text-align: center;
+    font-size: 1em;
+    font-weight: 600;
+}
+.verification-container .filters-row-flex {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.verification-container .species-select-group {
+    width: 100%;
+    justify-content: center;
+}
+.verification-container .species-select-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #495057;
+    font-size: 1em;
+    text-align: left;
+}
+.verification-container .button-group {
+    display: flex;
+    gap: 10px;
+    justify-content: left;
+}
+
+/* pam_overview: 4-колонкова grid фільтрів */
+.overview-wrapper .filters-panel {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px 20px;
+}
+.overview-wrapper .filters-panel .filter-group.span-2 {
+    grid-column: span 2;
+}
+.overview-wrapper .filters-panel label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    font-size: 14px;
+}
+.overview-wrapper .filters-panel .form-control,
+.overview-wrapper .filters-panel .form-control-range,
+.overview-wrapper .filters-panel .select2-container {
+    width: 100%;
+}
+.overview-wrapper .filters-panel .select2-container .select2-selection--single {
+    height: 38px;
+    border: 1px solid var(--input-border);
+}
+.overview-wrapper .filters-panel .select2-container .select2-selection--multiple {
+    min-height: 38px;
+    border: 1px solid var(--input-border);
+    padding: 2px;
+}
+.overview-wrapper .filters-panel .action-group {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   6. Filter items & groups
+   ────────────────────────────────────────────────────────── */
+
+/* Один фільтр: label + input у стовпчик.
+   Використовується кількома сторінками; найбільш специфічні
+   варіанти (.filters-panel .filter-group) перекривають цей. */
+.filter-group {
+    display: flex;
+    flex-direction: column;
+}
+.filter-group.full-width {
+    grid-column: 1 / -1;
+}
+.filter-group label {
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+/* pam_species_dashboard + pam_yearly_trends: окремий тип фільтру в
+   grid-фільтрах. */
+.filter-item {
+    display: flex;
+    flex-direction: column;
+}
+.filter-item label {
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+.filter-item.species-filter { grid-column: 1; }
+.filter-item.year-filter {
+    min-width: 140px;
+    max-width: 160px;
+}
+/* trends-analysis-page має mins без max */
+.trends-analysis-page .filter-item.year-filter { max-width: none; }
+
+/* pam_verification_segments: filter-group з flex:1 і мін.шириною */
+.segments-container .filter-group {
+    flex: 1;
+    min-width: 200px;
+}
+.segments-container .filter-group label {
+    font-size: 0.9em;
+    margin-bottom: 8px;
+    color: #333;
+    font-weight: 600;
+    text-align: left;
+    display: block;
+}
+.segments-container .filter-group .form-control {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+.segments-container .filter-buttons {
+    flex-basis: 100%;
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+.filter-item select.form-control {
+    height: 38px;
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+}
+.filter-item select.form-control:focus {
+    border-color: #4299e1;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+
+/* Ряд з кнопками-діями під фільтрами */
+.filter-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    width: 100%;
+}
+
+/* pam_yearly_table: центрована кнопка дії */
+.trends-wrapper .action-group {
+    display: flex;
+    justify-content: center;
+    margin-top: 15px;
+}
+.trends-wrapper .year-group { grid-column: span 1; }
+
+
+/* ──────────────────────────────────────────────────────────
+   7. Buttons & links
+
+   .pam-back-link — pill у top-left, рендериться pam_base.html
+   на всіх PAM-сторінках крім самого хабу. Абсолютне
+   позиціонування — не займає місця в layout.
+   ────────────────────────────────────────────────────────── */
 .pam-back-link {
     position: absolute;
     top: 0.5rem;
@@ -95,16 +684,305 @@ main { position: relative; }
     text-decoration: none;
 }
 
+/* pam_data_export: локальне переозначення .btn — синій акцент.
+   Scoped під .data-wrapper, щоб не зачіпати інші PAM-сторінки. */
+.data-wrapper .btn {
+    background-color: var(--color-primary);
+    color: #fff !important;
+    border: none;
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin: 0 5px;
+}
+.data-wrapper .btn:hover { background-color: var(--color-primary-hover); }
+.data-wrapper .btn.btn-secondary { background-color: var(--color-secondary); }
+.data-wrapper .btn.btn-secondary:hover { background-color: var(--color-secondary-hover); }
+
+/* pam_species_dashboard + pam_yearly_trends: спільний вигляд .btn.
+   Scoped під wrapper, щоб не зачіпати інші PAM-сторінки. */
+.species-analysis-page .btn,
+.trends-analysis-page .btn {
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.species-analysis-page .btn-primary,
+.trends-analysis-page .btn-primary {
+    background: var(--color-primary);
+    color: #fff;
+}
+.species-analysis-page .btn-primary:hover,
+.trends-analysis-page .btn-primary:hover { background: var(--color-primary-hover); }
+.species-analysis-page .btn-secondary {
+    background: var(--color-secondary);
+    color: #fff;
+    text-decoration: none;
+}
+.species-analysis-page .btn-secondary:hover {
+    background: var(--color-secondary-hover);
+    color: #fff;
+    text-decoration: none;
+}
+
+/* manage_pam_locations: pill-toggle (вид/тільки активні) у top-bar */
+.map-mode-toggle {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.mode-pill-toggle {
+    display: flex;
+    background-color: #f0f2f5;
+    border: 1px solid #d0d4da;
+    border-radius: 6px;
+    padding: 2px;
+    gap: 2px;
+    flex-shrink: 0;
+}
+.mode-pill-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #666;
+    transition: all 0.18s ease;
+    user-select: none;
+    white-space: nowrap;
+}
+.mode-pill-option.active {
+    background-color: var(--color-primary);
+    color: #fff;
+    box-shadow: 0 1px 4px rgba(13, 110, 253, 0.35);
+}
+.mode-pill-option:hover:not(.active) {
+    background-color: #e2e6ea;
+    color: #333;
+}
+
+/* pam_import: дві лейбли-кнопки (вибір файлів / вибір папки) поруч */
+.file-btn-row {
+    display: flex;
+    gap: 8px;
+}
+.file-btn-row label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 10px;
+    border: 1px solid var(--color-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #495057;
+    background: var(--card-bg);
+    transition: background 0.15s;
+}
+.file-btn-row label:hover { background: #f1f3f5; }
+
+/* pam_verification_upload: hidden file input + styled label-button */
+.verification-upload-page .file-input {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+}
+.verification-upload-page .file-input input[type=file] {
+    position: absolute;
+    left: -9999px;
+}
+.verification-upload-page .file-input label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background-color: var(--color-primary);
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-size: 0.88rem;
+    font-weight: 500;
+    margin: 0;
+}
+.verification-upload-page .file-input label:hover {
+    background-color: var(--color-primary-hover);
+}
+
+/* Головна кнопка завантаження — повна ширина в step-card */
+.verification-upload-page #upload-btn {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 4px;
+    background-color: var(--color-success);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s, opacity 0.2s;
+}
+.verification-upload-page #upload-btn:hover:not(:disabled) {
+    background-color: #157347;
+}
+.verification-upload-page #upload-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* pam_import: посилання-кнопка "Очистити" в підсумку файлів */
+.clear-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--color-danger);
+    cursor: pointer;
+    font-size: 0.82rem;
+    padding: 0;
+}
+.clear-btn:hover { text-decoration: underline; }
+
+/* pam_yearly_table: акцентна "Розрахувати" кнопка */
+.trends-wrapper .btn-primary {
+    padding: 10px 30px;
+    font-weight: bold;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* pam_species_detailed: своя версія .btn у фільтрах */
+.dashboard-wrapper .filters-panel .btn {
+    display: inline-block;
+    padding: 10px 24px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    vertical-align: middle;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #fff !important;
+    text-align: center;
+    text-decoration: none;
+    background-color: var(--color-primary);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+    flex: 0 1 auto;
+}
+.dashboard-wrapper .filters-panel .btn:hover {
+    background-color: var(--color-primary-hover);
+    color: #fff !important;
+    text-decoration: none;
+}
+.dashboard-wrapper .filters-panel .btn.btn-secondary {
+    background-color: var(--color-secondary);
+}
+.dashboard-wrapper .filters-panel .btn.btn-secondary:hover {
+    background-color: var(--color-secondary-hover);
+}
+.dashboard-wrapper .filters-panel .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+/* pam_verification_segments: своя версія .btn (синій primary) */
+.segments-container .btn {
+    display: inline-block;
+    padding: 10px 24px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #fff;
+    background-color: var(--color-primary);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.2s;
+    font-weight: 500;
+}
+.segments-container .btn:hover {
+    background-color: var(--color-primary-hover);
+    color: #fff;
+    text-decoration: none;
+}
+.segments-container .btn-secondary { background-color: var(--color-secondary); }
+.segments-container .btn-secondary:hover { background-color: var(--color-secondary-hover); }
+
+/* pam_verification_interface: цвітові кнопки (так/ні/пропустити) */
+.verification-container .verification-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin: 15px 0;
+}
+.verification-container .verification-buttons .btn {
+    min-width: 100px;
+    font-size: 14px;
+    padding: 10px 16px;
+}
+.verification-container .btn-success {
+    background-color: var(--color-success);
+    border-color: var(--color-success);
+}
+.verification-container .btn-danger {
+    background-color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+.verification-container .btn-secondary {
+    background-color: var(--color-secondary);
+    border-color: var(--color-secondary);
+}
+
+/* pam_overview: своя версія .btn — UNSCOPED у вихіднику, тепер scoped */
+.overview-wrapper .btn {
+    display: inline-block;
+    padding: 10px 24px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    vertical-align: middle;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #fff !important;
+    text-align: center;
+    text-decoration: none;
+    background-color: var(--color-primary);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+    flex: 0 1 auto;
+}
+.overview-wrapper .btn:hover {
+    background-color: var(--color-primary-hover);
+    color: #fff !important;
+    text-decoration: none;
+}
+
+
 /* ──────────────────────────────────────────────────────────
-   3. Module hub (overview / landing page)
-   Класи модуль-агностичні — ідентичні до camera_traps.css,
-   щоб у майбутньому винести в спільний файл.
-       .module-hub          page wrapper
-       .hub-header          big centered title + subtitle
-       .hub-section         group of cards with heading
-       .hub-section-title   group heading (uppercase, divider)
-       .hub-grid            auto-fit grid of cards
-       .hub-card            icon + title + description, full-card link
+   8. Cards & panels
+
+   .module-hub          page wrapper
+   .hub-header          big centered title + subtitle
+   .hub-section         group of cards with heading
+   .hub-section-title   group heading (uppercase, divider)
+   .hub-grid            auto-fit grid of cards
+   .hub-card            icon + title + description, full-card link
    ────────────────────────────────────────────────────────── */
 .module-hub {
     max-width: 1200px;
@@ -167,21 +1045,1749 @@ main { position: relative; }
     color: var(--text-primary);
     text-decoration: none;
 }
-.hub-card__icon {
-    font-size: 1.75rem;
-    line-height: 1;
-}
-.hub-card__title {
-    font-size: 1.05rem;
-    font-weight: 600;
-}
-.hub-card__desc {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
+.hub-card__icon  { font-size: 1.75rem; line-height: 1; }
+.hub-card__title { font-size: 1.05rem; font-weight: 600; }
+.hub-card__desc  { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4; }
 .hub-card--danger:hover { border-color: var(--color-danger); }
 
+/* pam_service_log: ліва панель з мапою */
+.map-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: var(--shadow-md);
+}
+/* manage_pam_locations використовує .map-panel БЕЗ оформлення —
+   там додає це через інлайн override (буде винесено в Кроці 3). */
+
+/* pam_service_log: контейнери форми та історії візитів */
+.form-container,
+.history-container {
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: var(--shadow-md);
+}
+
+/* pam_evaluation_species_detail: загальний картковий контейнер
+   зі статистикою / графіком */
+.detail-container {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    margin-bottom: 30px;
+}
+
+/* pam_species_dashboard: контейнер для графіка в dashboard-grid */
+.chart-section {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
+.chart-section.full-width { grid-column: span 2; }
+.chart-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+}
+.chart-container {
+    position: relative;
+    height: 400px;
+    width: 100%;
+}
+.chart-container.bar-chart { height: 500px; }
+/* pam_yearly_trends — графік трохи вищий */
+.trends-analysis-page .chart-container { height: 450px; }
+
+/* Dashboard-сітка — 2 колонки графіків */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+/* pam_yearly_table: контейнер таблиці результатів */
+.results-container {
+    margin-top: 25px;
+    padding: 20px;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+/* manage_pam_locations: 3-колонкова сітка
+   (ліворуч список → центр карта → праворуч деталі/форма) */
+
+/* Контейнер списку локацій (ліва панель) */
+.locations-list-panel {
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    overflow-y: auto;
+    background: var(--card-bg);
+}
+.locations-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.locations-list li {
+    padding: 9px 14px;
+    border-bottom: 1px solid #eee;
+    border-left: 4px solid transparent;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.15s;
+}
+.locations-list li:hover,
+.locations-list li.active {
+    background-color: #e3f2fd;
+}
+/* Колірне підсвічування проблемних локацій (бракує установи/біотопу) */
+.locations-list li.loc-no-inst    { border-left-color: var(--color-danger); background-color: #fff8f8; }
+.locations-list li.loc-no-biotope { border-left-color: var(--color-warning); background-color: #fffdf0; }
+.locations-list li.loc-no-name-en { border-left-color: #e783b0; background-color: #fff5f9; }
+.locations-list li.loc-no-inst:hover,
+.locations-list li.loc-no-inst.active,
+.locations-list li.loc-no-biotope:hover,
+.locations-list li.loc-no-biotope.active,
+.locations-list li.loc-no-name-en:hover,
+.locations-list li.loc-no-name-en.active {
+    background-color: #e3f2fd;
+}
+
+/* Карта (центр) — на цій сторінці без рамки/тіні, повна висота */
+.locations-manager-page .map-panel {
+    background: none;
+    padding: 0;
+    box-shadow: none;
+}
+
+/* Права панель (деталі / форма редагування) */
+.right-panel {
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: #f9f9f9;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+#placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 20px;
+}
+#panel-content {
+    display: none;
+    height: 100%;
+    overflow-y: auto;
+    padding: 14px;
+}
+
+/* pam_import: картка одного кроку (форма пакетного завантаження) */
+.step-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px 14px;
+}
+.step-title {
+    font-weight: 700;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #495057;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* pam_species_detailed: підсумкові картки в sidebar */
+.summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+.summary-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+    text-align: center;
+}
+.summary-card h5 {
+    margin: 0 0 10px 0;
+    color: #666;
+    font-size: 0.9em;
+    text-transform: uppercase;
+}
+.summary-card .stat-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+/* pam_species_detailed: section title з нижньою рамкою */
+.dashboard-section-title {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 22px;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 8px;
+}
+
+/* pam_overview: розділ-картка в sidebar/main */
+.overview-section {
+    background-color: var(--card-bg);
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+.overview-wrapper .section-title {
+    color: var(--color-primary);
+    font-size: 1.4em;
+    font-weight: bold;
+    margin-bottom: 15px;
+    border-bottom: 2px solid var(--color-primary);
+    padding-bottom: 5px;
+}
+.overview-wrapper .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+/* pam_overview: легша версія summary-card (без shadow) */
+.overview-wrapper .summary-card {
+    background-color: var(--bg-secondary);
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 15px;
+    text-align: center;
+    box-shadow: none;
+}
+.overview-wrapper .summary-card h5 {
+    margin: 0 0 10px 0;
+    color: #666;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.overview-wrapper .stat-value {
+    font-size: 2em;
+    font-weight: bold;
+    color: var(--color-primary);
+    margin: 0;
+}
+
+/* pam_verification_segments: контейнер таблиці сегментів */
+.segments-table-section {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+}
+/* segments override summary-grid — auto-fit з меншою min-шириною */
+.segments-container .summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    margin-top: 10px;
+    margin-bottom: 0;
+}
+.segments-container .summary-info {
+    background-color: #e7f3ff;
+    border: 1px solid #b3d9ff;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+.segments-container .summary-item {
+    text-align: center;
+}
+.segments-container .summary-value {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: var(--color-primary);
+}
+.segments-container .summary-label {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+}
+
+/* pam_verification_interface: окремі картки інтерфейсу */
+.verification-container .audio-player-section {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 5px;
+    text-align: center;
+}
+.verification-container .segment-info {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    max-width: 100%;
+    overflow: hidden;
+}
+.verification-container .segment-info h4 {
+    margin-top: 0;
+    color: #333;
+    font-size: 1em;
+    font-weight: 600;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--color-primary);
+    text-align: center;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    line-height: 1.3;
+    display: block;
+    box-sizing: border-box;
+}
+.verification-container .info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.verification-container .info-item {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background-color: var(--bg-secondary);
+    border-radius: 4px;
+}
+.verification-container .info-label {
+    font-weight: 600;
+    color: #666;
+    font-size: 0.85em;
+}
+.verification-container .info-value {
+    color: #333;
+    font-size: 0.85em;
+    font-weight: 400;
+}
+
+/* pam_verification_interface: панель статистики */
+.verification-container .stats-panel {
+    margin-top: 0;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+.verification-container .stats-panel > h4 {
+    margin-top: 0;
+    margin-bottom: 5px;
+    text-align: center;
+    font-size: 1em;
+    font-weight: 600;
+}
+/* 4-колонкова сітка статистики (перекриває generic 1fr 1fr з overview) */
+.verification-container .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+}
+.verification-container .stats-card {
+    text-align: center;
+    padding: 8px 4px;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    background-color: var(--bg-secondary);
+    height: auto;          /* override generic .stats-card { height: 100% } */
+    display: block;
+    box-shadow: none;
+}
+.verification-container .stats-card h6 {
+    margin: 0 0 4px 0;
+    color: #666;
+    font-size: 0.75em;
+    font-weight: 500;
+}
+.verification-container .stats-value {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: var(--color-primary);
+}
+
+/* pam_overview: контейнер таблиці рейтингу */
+.ranking-table-container {
+    background-color: var(--bg-secondary);
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+
+/* pam_verification_upload: картка з лічильником у топ-ряду — компактна */
+.verification-upload-page .stats-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px 14px;
+    text-align: center;
+    box-sizing: border-box;
+    box-shadow: var(--shadow-sm);
+}
+.verification-upload-page .stats-card h5 {
+    margin: 0 0 6px 0;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+.verification-upload-page .stats-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    line-height: 1.1;
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   9. Charts (Plotly overrides)
+   ────────────────────────────────────────────────────────── */
+
+/* pam_species_detailed: chart-container override — інший дизайн
+   ніж pam_species_dashboard (з bg і нижчим height). */
+.dashboard-wrapper .chart-container {
+    background-color: var(--bg-secondary);
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 25px;
+    height: 300px;
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   10. Data tables
+   ────────────────────────────────────────────────────────── */
+
+/* pam_data_export: попередній перегляд експорту */
+.preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+.preview-table th,
+.preview-table td {
+    border: 1px solid var(--border-color);
+    padding: 6px;
+    text-align: left;
+}
+.preview-table th { background-color: var(--bg-secondary); }
+
+/* pam_evaluation_species_detail: таблиця коефіцієнтів регресії */
+.coeffs-table th {
+    width: 50%;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+.coeffs-table td {
+    font-family: monospace;
+    font-weight: bold;
+    color: var(--color-primary);
+}
+
+/* pam_yearly_table: таблиця річної активності */
+.trends-table {
+    border-collapse: collapse;
+    margin-top: 15px;
+    font-size: 0.9em;
+    width: auto;
+    min-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.trends-table th,
+.trends-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+.trends-table thead th {
+    background-color: var(--color-primary);
+    color: #fff;
+    position: sticky;
+    top: -1px;
+}
+.trends-table tbody tr:hover { background-color: var(--bg-secondary); }
+.trends-table td { text-align: right; }
+.trends-table th:nth-child(2),
+.trends-table td:nth-child(2) {
+    text-align: left;
+    font-weight: bold;
+}
+.trends-table th:first-child,
+.trends-table td:first-child {
+    text-align: center;
+    font-weight: normal;
+}
+.trends-table th:last-child,
+.trends-table td:last-child {
+    font-weight: bold;
+    background-color: var(--bg-secondary);
+}
+
+/* pam_import: підсумкова таблиця результатів імпорту (двоколонкова) */
+.import-layout .results-table td:first-child {
+    color: var(--text-secondary);
+    font-size: 0.83rem;
+}
+.import-layout .results-table td:last-child {
+    font-weight: 600;
+    text-align: right;
+}
+
+/* pam_overview: таблиця рейтингу видів з синіми заголовками */
+.ranking-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+.ranking-table th,
+.ranking-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+.ranking-table th {
+    background-color: var(--color-primary);
+    color: #fff;
+    font-weight: bold;
+}
+.ranking-table tr:hover {
+    background-color: #f1f1f1;
+    cursor: pointer;
+}
+.ranking-table td:first-child {
+    text-align: center;
+    font-weight: bold;
+}
+.ranking-table td:last-child {
+    text-align: right;
+    font-weight: bold;
+    color: var(--color-primary);
+}
+
+/* pam_verification_segments: таблиця сегментів з sticky thead */
+.segments-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+.segments-table th,
+.segments-table td {
+    padding: 12px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.9em;
+}
+.segments-table th {
+    background-color: var(--bg-secondary);
+    font-weight: 600;
+    color: #333;
+    position: sticky;
+    top: 0;
+}
+.segments-table tr:hover {
+    background-color: var(--bg-secondary);
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   11. Map (Leaflet overrides)
+   ────────────────────────────────────────────────────────── */
+
+/* Загальний контейнер Leaflet-мапи */
+#map {
+    height: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+/* pam_import: width:100% (мапа в правій колонці grid), радіус трохи більший */
+.import-layout #map {
+    width: 100%;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+/* pam_species_detailed: фіксована висота (мапа всередині sidebar) */
+.dashboard-wrapper #map {
+    height: 450px;
+    border-radius: 8px;
+}
+
+/* pam_overview: окремий id мапи з фіксованою висотою */
+#locationsMap {
+    height: 300px;
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+
+/* Сірі/неактивні маркери — pam_service_log */
+.leaflet-marker-icon.marker-inactive {
+    opacity: 0.5 !important;
+    filter: grayscale(100%);
+}
+/* manage_pam_locations — трохи інтенсивніший вигляд (видно більше)  */
+.locations-manager-page .leaflet-marker-icon.marker-inactive {
+    opacity: 0.45 !important;
+    filter: grayscale(80%);
+}
+
+/* Вибраний маркер — інверсія + drop-shadow */
+.marker-selected-icon {
+    filter: brightness(0) invert(1) drop-shadow(0 0 3px rgba(0, 0, 0, 0.6));
+}
+
+/* Info-overlay (Leaflet control) — манежний стиль (manage_pam_locations).
+   Float-based layout, м'який bg. Scoped, бо pam_import має свою flex-версію. */
+.locations-manager-page .info {
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    font-size: 0.78rem;
+}
+.locations-manager-page .info.legend {
+    line-height: 20px;
+    color: #555;
+}
+.locations-manager-page .info.legend h4 {
+    margin: 0 0 4px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #444;
+}
+.locations-manager-page .info.legend .legend-item {
+    display: block;
+    clear: both;
+}
+.locations-manager-page .info.legend i {
+    width: 15px;
+    height: 15px;
+    float: left;
+    margin-right: 6px;
+    opacity: 0.75;
+    display: inline-block;
+}
+
+/* Info-overlay для pam_import — інший вигляд: жорсткіший білий, flex-row. */
+.import-layout .info.legend {
+    background: #fff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    font-size: 0.76rem;
+}
+.import-layout .info.legend h4 {
+    margin: 0 0 4px;
+    font-size: 0.8rem;
+}
+.import-layout .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 2px 0;
+}
+.import-layout .legend-item i {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   12. Select2 overrides
+   ────────────────────────────────────────────────────────── */
+
+/* Select2 за замовчуванням не розтягується по контейнеру —
+   виправляємо для всіх PAM-сторінок. */
+.select2-container { width: 100% !important; }
+
+/* pam_verification_segments: 38px-висота single-selection під дизайн форми */
+.segments-container .select2-container .select2-selection--single {
+    height: 38px !important;
+    display: flex !important;
+    align-items: center !important;
+    border: 1px solid #ccc !important;
+    border-radius: 4px !important;
+}
+.segments-container .select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 38px !important;
+    padding-left: 12px !important;
+    padding-right: 20px !important;
+    color: #333;
+}
+.segments-container .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 36px !important;
+    right: 8px !important;
+}
+.segments-container .select2-container--default .select2-selection--single .select2-selection__placeholder {
+    color: #999;
+}
+
+/* pam_verification_interface: bootstrap-form-like styling Select2 */
+.verification-container .select2-container--default .select2-selection--single {
+    height: calc(1.5em + 0.75rem + 2px);
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #495057;
+    background-color: var(--card-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 0.25rem;
+    display: flex;
+    align-items: center;
+}
+.verification-container .select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 1.5;
+    padding-left: 0;
+    padding-right: 20px;
+    display: flex;
+    align-items: center;
+}
+.verification-container .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 100%;
+    top: 0;
+    transform: none;
+    display: flex;
+    align-items: center;
+}
+.verification-container .select2-search__field {
+    border: 1px solid var(--input-border) !important;
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   13. Verification UI
+   ────────────────────────────────────────────────────────── */
+
+/* pam_verification_upload: dropzone — компактний drop-target всередині step-card */
+.upload-area {
+    border: 2px dashed var(--color-primary);
+    border-radius: 6px;
+    padding: 18px 16px;
+    text-align: center;
+    margin: 4px 0 0;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+    background-color: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 130px;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+.upload-area:hover {
+    border-color: var(--color-primary-hover);
+    background-color: #e7f3ff;
+}
+.upload-area.dragover {
+    border-color: var(--color-success);
+    background-color: #d4edda;
+}
+.upload-area p {
+    width: 100%;
+    text-align: center;
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+.upload-area #file-name {
+    margin-top: 4px;
+    font-size: 0.82rem;
+    color: var(--color-success);
+    font-weight: 500;
+}
+
+/* Інструкції — компактний bullet list всередині step-card */
+.verification-upload-page .upload-instructions {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    color: var(--text-primary);
+}
+.verification-upload-page .upload-instructions li {
+    margin-bottom: 4px;
+}
+.verification-upload-page .upload-instructions code {
+    background: var(--bg-secondary);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.92em;
+}
+
+/* pam_verification_upload: прогрес ZIP-розпакування. Scoped, бо
+   .progress/.progress-bar — це Bootstrap-класи (використовуються
+   на інших PAM-сторінках із завантаженим Bootstrap CDN). */
+.verification-upload-page .progress {
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 10px 0 0;
+    display: none;
+}
+.verification-upload-page .progress-bar {
+    height: 100%;
+    background: var(--color-primary);
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}
+
+/* pam_verification_upload: блок з підсумком завантаження */
+.upload-results {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 4px;
+    display: none;
+    box-sizing: border-box;
+    font-size: 0.88rem;
+}
+.upload-results.success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+.upload-results.error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+.upload-results h4 {
+    font-size: 1rem;
+    margin: 0 0 8px;
+    font-weight: 700;
+}
+.upload-results .results-summary {
+    margin-bottom: 8px;
+}
+.upload-results .results-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 6px 12px;
+    margin-top: 6px;
+    font-size: 0.83rem;
+}
+.upload-results .results-stats > div { line-height: 1.3; }
+
+/* pam_verification_upload: список оброблених видів / помилок.
+   Двоколонковий grid — кожен рядок зі своєю парою (назва + лічильник),
+   щоб не залишалось горизонтальної порожнечі між name та count. */
+.species-list {
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0;
+    background: var(--card-bg);
+    box-sizing: border-box;
+    font-size: 0.85rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: min-content;
+}
+.species-list .species-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-color);
+    min-width: 0;          /* щоб довгі назви видів коректно обрізались */
+}
+/* Вертикальний роздільник між двома стовпцями */
+.species-list .species-row:nth-child(odd):not(:last-child) {
+    border-right: 1px solid var(--border-color);
+}
+/* Прибираємо нижній border у двох останніх рядках */
+.species-list .species-row:last-child,
+.species-list .species-row:nth-last-child(2):nth-child(odd) {
+    border-bottom: none;
+}
+.species-list .species-row .species-name {
+    font-style: italic;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.species-list .species-row .species-count {
+    display: inline-block;
+    min-width: 36px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: #d1e7dd;
+    color: #0a3622;
+    text-align: center;
+    flex-shrink: 0;
+}
+.species-list .d-flex span { display: inline-block; }
+
+/* Список з помилками (всередині upload-results) — більший max-height
+   та червоний фон для контрасту. */
+.upload-results .species-list {
+    max-height: 250px;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    padding: 0;
+}
+.upload-results .species-list table {
+    margin-bottom: 0;
+    width: 100%;
+    border-collapse: collapse;
+}
+.upload-results .species-list table thead th {
+    position: sticky;
+    top: 0;
+    background-color: #f8d7da;
+    z-index: 5;
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.upload-results .species-list table tbody td {
+    padding: 8px;
+    vertical-align: top;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    text-align: left;
+}
+
+/* pam_verification_upload: блок з обробленими видами в результатах */
+.processed-species {
+    text-align: center;
+    word-break: break-word;
+}
+
+/* pam_verification_segments: бейджі статусу верифікації */
+.status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+.status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+.status-completed {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+.status-archived {
+    background-color: #e2e3e5;
+    color: #383d41;
+    border: 1px solid #d6d8db;
+}
+
+/* Кольорові значення confidence (зелений/жовтий/червоний) */
+.confidence-value  { font-weight: 600; }
+.confidence-high   { color: var(--color-success); }
+.confidence-medium { color: var(--color-warning); }
+.confidence-low    { color: var(--color-danger); }
+.verification-info { font-size: 0.85em; color: #666; }
+
+/* pam_verification_interface: повідомлення після верифікації */
+.verification-message {
+    margin-top: 5px;
+    padding: 5px 5px;
+    border-radius: 3px;
+    text-align: center;
+    font-weight: 500;
+    min-height: 13px;
+    display: none;
+}
+.verification-message.success {
+    background-color: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+.verification-message.error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+.no-segment-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+/* pam_verification_interface: HTML5 audio player size */
+.verification-container audio {
+    width: 100%;
+    max-width: 500px;
+    margin: 10px 0;
+    height: 36px;
+}
+
+/* pam_verification_interface: спектрограма з playback line + regions */
+.spectrogram-wrapper {
+    position: relative;
+    display: inline-block;
+    line-height: 0;
+}
+#spectrogram-image {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+#playback-line {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 2px;
+    height: 100%;
+    background-color: rgba(255, 0, 0, 0.8);
+    pointer-events: none;
+    display: none;
+}
+.region-line {
+    position: absolute;
+    top: 0;
+    bottom: 25px;
+    width: 2px;
+    background-color: var(--color-warning);
+    border-right: 1px dashed rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+    display: none;
+    z-index: 5;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   14. Evaluation results UI
+   ────────────────────────────────────────────────────────── */
+
+/* Формула логістичної регресії — pam_evaluation_species_detail */
+.formula-box {
+    background: var(--bg-secondary);
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    font-family: monospace;
+    font-size: 0.85em;
+    margin-top: 15px;
+    border: 1px solid var(--border-color);
+    word-break: break-all;
+}
+
+/* pam_evaluation_results: підсумкова сітка (auto-fit замість 1fr 1fr) */
+.evaluation-container .summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    margin-bottom: 30px;
+}
+/* pam_evaluation_results: інший дизайн картки — з shadow + більше padding */
+.evaluation-container .summary-card {
+    background-color: var(--card-bg);
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.evaluation-container .summary-card h5 {
+    letter-spacing: 0.5px;
+}
+.evaluation-container .summary-value {
+    font-size: 2em;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: 5px;
+}
+.evaluation-container .summary-subtitle {
+    font-size: 0.8em;
+    color: #999;
+}
+
+/* Адмін-панель з кнопками "Перерахувати" */
+.evaluation-container .admin-panel {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+.evaluation-container .admin-panel h4 {
+    color: #856404;
+    margin-top: 0;
+}
+.evaluation-container .admin-buttons {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.evaluation-container .btn-warning {
+    background-color: var(--color-warning);
+    border-color: var(--color-warning);
+    color: #212529;
+}
+.evaluation-container .btn-danger {
+    background-color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+/* Топ-види блок */
+.evaluation-container .top-species-table {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+/* Великий блок з детальними результатами */
+.evaluation-container .detailed-results-section {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+/* Таблиця результатів — сортовані заголовки */
+.evaluation-container .results-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+.evaluation-container .results-table th,
+.evaluation-container .results-table td {
+    padding: 12px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+.evaluation-container .results-table th {
+    background-color: var(--bg-secondary);
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+.evaluation-container .results-table th:hover {
+    background-color: #e9ecef;
+}
+.evaluation-container .results-table th.sortable::after {
+    content: ' ↕';
+    color: #666;
+    font-size: 0.8em;
+}
+.evaluation-container .results-table th.sort-asc::after {
+    content: ' ↑';
+    color: var(--color-primary);
+}
+.evaluation-container .results-table th.sort-desc::after {
+    content: ' ↓';
+    color: var(--color-primary);
+}
+.evaluation-container .results-table td {
+    font-size: 0.9em;
+}
+
+/* Colored metric values (Excellent/Good/Fair/Poor) */
+.metric-value     { font-weight: 600; }
+.metric-excellent { color: var(--color-success); }
+.metric-good      { color: #17a2b8; }
+.metric-fair      { color: var(--color-warning); }
+.metric-poor      { color: var(--color-danger); }
+
+/* Пагінація — використовується тільки в evaluation-container */
+.evaluation-container .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+.evaluation-container .pagination button {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    border-radius: 4px;
+    cursor: pointer;
+}
+.evaluation-container .pagination button:hover:not(:disabled) {
+    background-color: #e9ecef;
+}
+.evaluation-container .pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.evaluation-container .pagination .current-page {
+    background-color: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+/* Простий лоадер */
+.evaluation-container .loading-spinner {
+    text-align: center;
+    padding: 40px;
+}
+
+/* Ряд фільтрів (за видом, мін. вериф.) */
+.evaluation-container .filters-row {
+    display: flex;
+    gap: 15px;
+    align-items: end;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+/* Локальна versão лейблу — менший, сірий (відрізняється від загального .filter-group label) */
+.evaluation-container .filter-group label {
+    font-size: 0.9em;
+    margin-bottom: 5px;
+    color: #666;
+    font-weight: normal;
+}
+
+.evaluation-container .no-data-message {
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    padding: 40px;
+}
+
+.evaluation-container .ci-range {
+    display: block;
+    font-size: 0.75em;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   15. Spinners & loaders
+   ────────────────────────────────────────────────────────── */
+
+.spinner-wrapper {
+    text-align: center;
+    padding: 40px;
+}
+/* pam_species_detailed: flex-центрування на повну висоту контейнера */
+.dashboard-wrapper .spinner-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 0;
+    text-align: initial;
+}
+/* pam_overview: flex-центрування з фіксованою висотою 200px */
+.overview-wrapper .spinner-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    padding: 0;
+    text-align: initial;
+}
+
+/* pam_verification_segments: спінер з padding (як generic) */
+.segments-container .loading-spinner {
+    text-align: center;
+    padding: 40px;
+}
+/* pam_verification_interface: компактний спінер */
+.verification-container .loading-spinner {
+    text-align: center;
+    padding: 20px;
+}
+/* Bootstrap-like .spinner-border — segments/verification interface
+   використовують ОДНАКОВО, тому scoped під обидва. */
+.segments-container .spinner-border,
+.verification-container .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    color: var(--color-primary);
+    /* перевизначає species-analysis-page-варіант (2rem) */
+}
+
+/* pam_species_dashboard: spinning loader (Bootstrap-like).
+   Scoped під wrapper, щоб не конфліктувати з потенційним глобальним
+   .spinner-border. */
+.species-analysis-page .spinner-border {
+    width: 2rem;
+    height: 2rem;
+    border: 0.25rem solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border 0.75s linear infinite;
+    margin: 0 auto 1rem;
+}
+@keyframes spinner-border {
+    to { transform: rotate(360deg); }
+}
+
+/* pam_import: інший keyframe-нейм для CSS-only spinner (inline div) */
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   16. Messages & alerts
+   ────────────────────────────────────────────────────────── */
+
+/* pam_species_dashboard: центрований info-блок з варіантами */
+.message-container {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    text-align: center;
+    color: var(--text-secondary);
+    max-width: 768px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.message-container.info {
+    background: #e7f3ff;
+    border-color: #b3d9ff;
+    color: #004085;
+}
+.message-container.error {
+    background: #ffe7e7;
+    border-color: #ffb3b3;
+    color: #721c24;
+}
+
+/* pam_species_detailed: альтернативне інформ-повідомлення */
+.dashboard-message {
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+}
+.dashboard-message.info {
+    background-color: #e7f3fe;
+    border: 1px solid #d0e7ff;
+}
+.dashboard-message.error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+}
+
+/* pam_overview: інформаційне повідомлення в overview-секції */
+.overview-message {
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+}
+.overview-message.info {
+    background-color: #e7f3fe;
+    border: 1px solid #d0e7ff;
+}
+.overview-message.error {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   17. Utility classes
+   ────────────────────────────────────────────────────────── */
+
+/* pam_service_log: рядок в історії візитів */
+.history-item {
+    border-bottom: 1px solid #eee;
+    padding: 10px 0;
+}
+.history-item:last-child { border-bottom: none; }
+.history-meta {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+/* Grid-span утиліти — використовуються в pam_yearly_table fільтрах */
+.span-2 { grid-column: span 2; }
+
+/* manage_pam_locations: компактніша версія .history-item
+   (всередині права-панель, тому щільніша). */
+.locations-manager-page .history-item {
+    padding: 9px 0;
+    font-size: 0.88rem;
+}
+.locations-manager-page .history-meta {
+    font-size: 0.82em;
+}
+
+/* Маленька кольорова мітка-крапка для UI-легенди */
+.marker-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.78rem;
+    margin-top: 6px;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* manage_pam_locations: підказка про координати приховується через CSS */
+#coord-hint { display: none; }
+
+/* pam_import: рядок з лічильниками файлів + кнопка очистити */
+.file-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+.file-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+.file-badge-ok  { background: #d1e7dd; color: #0a3622; }
+.file-badge-emp { background: #e2e3e5; color: #41464b; }
+
+/* pam_import: блок зі списком вибраних файлів */
+.file-list-area {
+    max-height: 160px;
+    overflow-y: auto;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.78rem;
+    font-family: monospace;
+    margin-top: 6px;
+}
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+    border-bottom: 1px solid #eee;
+}
+.file-item:last-child { border-bottom: none; }
+
+/* pam_import: блок створення нової локації (інлайн всередині .step-card) */
+#create-loc-panel {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e0e0e0;
+}
+#create-loc-panel .panel-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin-bottom: 8px;
+}
+.create-coord-hint {
+    font-size: 0.76rem;
+    color: #0d8b8b;
+    margin-bottom: 6px;
+}
+
+/* pam_import: статусні кольори в результатах */
+.stat-ok   { color: var(--color-success); }
+.stat-warn { color: #fd7e14; }
+
+/* pam_species_detailed: панель погодних контролів */
+.weather-controls-panel {
+    margin-bottom: 15px;
+    padding: 12px 15px;
+    background: #eef2f5;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 14px;
+}
+.weather-controls-panel strong {
+    color: #495057;
+    margin-right: 5px;
+}
+.custom-checkbox {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+.custom-checkbox input {
+    margin-right: 6px;
+    cursor: pointer;
+}
+.custom-checkbox label {
+    margin-bottom: 0;
+    font-weight: normal;
+    cursor: pointer;
+}
+
+/* pam_overview: посилання на сторінку виду */
+.species-link {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+.species-link:hover {
+    text-decoration: underline;
+}
+
+/* pam_verification_segments: pagination + no-data — ті ж patterns як в
+   evaluation, scoped під .segments-container */
+.segments-container .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+.segments-container .pagination button {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.segments-container .pagination button:hover:not(:disabled) {
+    background-color: #e9ecef;
+}
+.segments-container .pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.segments-container .pagination .current-page {
+    background-color: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+.segments-container .no-data-message {
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    padding: 40px;
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+
+/* ──────────────────────────────────────────────────────────
+   18. Media queries
+   ────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
     .hub-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 992px) {
+    /* На вузьких екранах двопанельну сітку розкладаємо вертикально */
+    .page-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    .map-panel {
+        height: 50vh;
+    }
+
+    /* pam_species_dashboard — фільтри в стовпчик, кнопки рядком вниз */
+    .species-analysis-page .filters-grid {
+        grid-template-columns: 1fr;
+    }
+    .species-analysis-page .filter-item.year-filter { max-width: none; }
+    .species-analysis-page .filter-actions {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+    }
+    .species-analysis-page .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+    .species-analysis-page .chart-section.full-width {
+        grid-column: span 1;
+    }
+
+    /* pam_yearly_trends — фільтри в стовпчик */
+    .trends-analysis-page .filters-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* pam_import — двоколонна сітка стає однією, мапа стає 360px */
+    .import-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    .import-layout #map { height: 360px; }
+}
+
+/* pam_verification_upload: stats у ряд на широких екранах */
+@media (min-width: 992px) {
+    .verification-upload-page .stats-row {
+        display: flex;
+        gap: 18px;
+    }
+    .verification-upload-page .stats-row > .col {
+        flex: 1 1 0;
+        max-width: none;
+    }
+}
+
+@media (max-width: 991px) {
+    /* На вузьких екранах: layout у стовпчик, stats у 2 колонки,
+       species-list повертаємо в одну колонку */
+    .verif-upload-layout {
+        grid-template-columns: 1fr;
+    }
+    .verification-upload-page .upload-stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .verification-upload-page .species-list {
+        grid-template-columns: 1fr;
+    }
+    .verification-upload-page .species-list .species-row:nth-child(odd):not(:last-child) {
+        border-right: none;
+    }
+}
+
+/* pam_species_detailed: на широких planshets-екранах фільтри у 1 колонку */
+@media (max-width: 1200px) {
+    .dashboard-wrapper .filters-panel {
+        grid-template-columns: 1fr;
+    }
+}
+/* pam_species_detailed: dashboard-layout перемикається у стовпчик */
+@media (max-width: 992px) {
+    .dashboard-layout {
+        flex-direction: column;
+    }
+}
+
+/* pam_evaluation_results: компактна таблиця на телефонах */
+@media (max-width: 768px) {
+    .evaluation-container .results-table {
+        font-size: 0.8em;
+    }
+    .evaluation-container .results-table th,
+    .evaluation-container .results-table td {
+        padding: 8px 4px;
+    }
+    .evaluation-container .admin-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .evaluation-container .admin-buttons .btn {
+        margin-bottom: 10px;
+    }
+
+    /* pam_overview: layout у стовпчик + меньша таблиця */
+    .overview-layout {
+        flex-direction: column;
+    }
+    .overview-sidebar {
+        flex: none;
+        min-width: auto;
+    }
+    .ranking-table {
+        font-size: 14px;
+    }
+    .ranking-table th,
+    .ranking-table td {
+        padding: 8px;
+    }
+    .overview-wrapper .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* pam_overview: фільтри у 1 колонку на широких planshets */
+@media (max-width: 1200px) {
+    .overview-wrapper .filters-panel {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* pam_verification_interface: layout у стовпчик на середніх екранах */
+@media (max-width: 1024px) {
+    .verification-layout {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    .verification-container .left-panel {
+        position: static;
+    }
+}
+
+/* pam_verification_segments: filters в стовпчик + менші клітинки таблиці */
+@media (max-width: 768px) {
+    .segments-container .filters-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .segments-container .filter-group {
+        min-width: auto;
+    }
+    .segments-table {
+        font-size: 0.8em;
+    }
+    .segments-table th,
+    .segments-table td {
+        padding: 8px 4px;
+    }
+    .segments-container .summary-grid {
+        grid-template-columns: 1fr 1fr;
+    }
 }

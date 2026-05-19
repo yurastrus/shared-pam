@@ -1,83 +1,11 @@
-{# /myproject/app/templates/pam_yearly_trends.html #}
-
-{% extends "base.html" %}
+{% extends "pam_base.html" %}
 {% block title %}{{ _('Порівняльна таблиця') }} - {{ _('Акустичний моніторинг') }}{% endblock %}
 
-{% block head_extra %}
+{% block pam_head_extra %}
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <style>
-        .trends-wrapper { width: 100%; text-align: left; }
-        .page-header { text-align: center; margin-bottom: 30px; }
-        
-        .filters-panel {
-            display: grid; 
-            grid-template-columns: repeat(4, 1fr); /* Базова сітка на 4 колонки */
-            gap: 15px 20px; 
-            padding: 25px; 
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6; 
-            border-radius: 12px; 
-            margin-bottom: 25px;
-            align-items: end;
-        }
-
-        .filter-group { display: flex; flex-direction: column; }
-        
-        /* Специфічні розміри для компактності */
-        .span-2 { grid-column: span 2; }
-        .full-width { grid-column: 1 / -1; }
-        
-        /* Роки будуть займати по 1 колонці (25% ширини) */
-        .year-group { grid-column: span 1; } 
-
-        .filters-panel label { 
-            margin-bottom: 8px; 
-            font-weight: bold; 
-            font-size: 14px; 
-            color: #495057;
-        }
-
-        /* Стилізація Select2 */
-        .filters-panel .select2-container .select2-selection--single,
-        .filters-panel .select2-container .select2-selection--multiple { 
-            min-height: 38px; 
-            border: 1px solid #ced4da; 
-            border-radius: 6px;
-        }
-
-        .action-group { 
-            display: flex; 
-            justify-content: center; 
-            margin-top: 15px;
-        }
-
-        .btn-primary {
-            padding: 10px 30px;
-            font-weight: bold;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .results-container {
-            margin-top: 25px; padding: 20px; background-color: #ffffff;
-            border: 1px solid #e0e0e0; border-radius: 8px; overflow-x: auto;
-        }
-
-        .trends-table {
-            border-collapse: collapse; margin-top: 15px; font-size: 0.9em;
-            width: auto; min-width: 600px; margin-left: auto; margin-right: auto;
-        }
-        .trends-table th, .trends-table td { padding: 8px 12px; text-align: left; border: 1px solid #ddd; white-space: nowrap; }
-        .trends-table thead th { background-color: #0779e4; color: white; position: sticky; top: -1px; }
-        .trends-table tbody tr:hover { background-color: #f1f1f1; }
-        .trends-table td { text-align: right; }
-        .trends-table th:nth-child(2), .trends-table td:nth-child(2) { text-align: left; font-weight: bold; }
-        .trends-table th:first-child, .trends-table td:first-child { text-align: center; font-weight: normal; }
-        .trends-table th:last-child, .trends-table td:last-child { font-weight: bold; background-color: #f8f9fa; }
-    </style>
 {% endblock %}
 
-{% block content %}
+{% block pam_content %}
 <div class="container">
     <div class="trends-wrapper">
         <h1 class="page-header">{{ _('Порівняльна таблиця річної активності видів') }}</h1>

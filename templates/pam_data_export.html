@@ -1,40 +1,12 @@
-{# myproject/app/templates/pam_data_export.html - ОНОВЛЕННЯ З КОСМЕТИКОЮ #}
-
-{% extends "base.html" %}
+{% extends "pam_base.html" %}
 
 {% block title %}{{ _('Експорт даних') }} - {{ _('Акустичний моніторинг') }}{% endblock %}
 
-{% block head_extra %}
+{% block pam_head_extra %}
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <style>
-        /* ... (всі стилі залишаються без змін) ... */
-        .data-wrapper { max-width: 900px; width: 100%; margin: 0 auto; text-align: left; }
-        .page-header { text-align: center; margin-bottom: 2rem; }
-        .filters-panel {
-            padding: 20px; background-color: #f8f9fa; border: 1px solid #dee2e6;
-            border-radius: 8px; margin-bottom: 25px; display: grid;
-            grid-template-columns: 1fr 1fr; gap: 20px;
-        }
-        .filter-group { display: flex; flex-direction: column; }
-        .filter-group.full-width { grid-column: 1 / -1; }
-        .filter-group label { margin-bottom: 5px; font-weight: bold; }
-        .btn {
-            background-color: #0779e4; color: white !important; border: none; padding: 10px 20px;
-            border-radius: 5px; cursor: pointer; transition: background-color 0.2s;
-            margin: 0 5px; /* Додамо відступ між кнопками */
-        }
-        .btn:hover { background-color: #0056b3; }
-        .btn-secondary { background-color: #6c757d; } /* Стиль для кнопки "Скинути" */
-        .btn-secondary:hover { background-color: #5a6268; }
-        .results-area { display: none; margin-top: 30px; }
-        .preview-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-        .preview-table th, .preview-table td { border: 1px solid #ddd; padding: 6px; text-align: left; }
-        .preview-table th { background-color: #f2f2f2; }
-        .spinner-wrapper { text-align: center; padding: 40px; }
-    </style>
 {% endblock %}
 
-{% block content %}
+{% block pam_content %}
 <div class="container">
     <div class="data-wrapper">
         <h1 class="page-header">{{ _('Підготовка даних для експорту - ПАМ') }}</h1>

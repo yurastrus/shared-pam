@@ -1,33 +1,12 @@
-{% extends "base.html" %}
+{% extends "pam_base.html" %}
 
 {% block title %}{{ display_name }} - {{ _('Детальна оцінка') }}{% endblock %}
 
-{% block head_extra %}
+{% block pam_head_extra %}
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
-<style>
-    .detail-container {
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 30px;
-    }
-    .coeffs-table th { width: 50%; color: #666; font-size: 0.9em; }
-    .coeffs-table td { font-family: monospace; font-weight: bold; color: #0779e4; }
-    .formula-box {
-        background: #f8f9fa;
-        padding: 10px;
-        border-radius: 4px;
-        font-family: monospace;
-        font-size: 0.85em;
-        margin-top: 15px;
-        border: 1px solid #e9ecef;
-        word-break: break-all;
-    }
-</style>
 {% endblock %}
 
-{% block content %}
+{% block pam_content %}
 <div class="container-fluid mt-4" style="max-width: 1400px;">
     
     <!-- ГАРАНТОВАНЕ ЦЕНТРУВАННЯ ЧЕРЕЗ СІТКУ (GRID) -->
