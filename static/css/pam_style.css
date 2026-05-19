@@ -201,6 +201,10 @@ main .container:not(.maplistcontainer) {
     grid-template-columns: 480px 520px;
     gap: 20px;
     align-items: start;
+    /* Центруємо фіксовану 480+520 сітку в широкому контейнері,
+       щоб уникнути порожньої смуги праворуч на широких моніторах. */
+    justify-content: center;
+    width: 100%;
 }
 .verification-container .left-panel {
     position: sticky;
