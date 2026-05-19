@@ -198,10 +198,10 @@ main .container:not(.maplistcontainer) {
 }
 .verification-layout {
     display: grid;
-    grid-template-columns: 480px 520px;
+    grid-template-columns: 480px 760px;
     gap: 20px;
     align-items: start;
-    /* Центруємо фіксовану 480+520 сітку в широкому контейнері,
+    /* Центруємо фіксовану сітку в широкому контейнері,
        щоб уникнути порожньої смуги праворуч на широких моніторах. */
     justify-content: center;
     width: 100%;
@@ -2086,11 +2086,15 @@ main .container:not(.maplistcontainer) {
     line-height: 0;
 }
 #spectrogram-image {
+    width: 100%;          /* примусово розтягуємо на повну ширину панелі */
     max-width: 100%;
     height: auto;
     border: 1px solid var(--border-color);
     border-radius: 4px;
 }
+/* Wrapper для спектрограми теж має займати повну ширину,
+   щоб inline-block не обмежував зображення натуральним розміром. */
+.verification-container .spectrogram-wrapper { width: 100%; }
 #playback-line {
     position: absolute;
     top: 0;
