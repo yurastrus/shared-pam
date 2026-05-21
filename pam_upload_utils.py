@@ -415,7 +415,15 @@ def process_zip_archive(zip_file, upload_directory):
         }
         
         extract_target_dir = os.path.join(temp_extract_dir, 'extracted')
+        MAX_TOTAL_EXTRACTED = 5 * 1024 * 1024 * 1024  # 5GB — comfortable cap vs 1GB compressed limit
+
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            total_size = sum(info.file_size for info in zip_ref.infolist())
+            if total_size > MAX_TOTAL_EXTRACTED:
+                raise ValueError(
+                    f"ZIP refuses extraction: uncompressed size {total_size} bytes > "
+                    f"limit {MAX_TOTAL_EXTRACTED} bytes (potential zip bomb)"
+                )
             zip_ref.extractall(extract_target_dir)
         current_app.logger.info("ZIP extraction completed")
         
