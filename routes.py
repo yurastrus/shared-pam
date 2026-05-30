@@ -2996,9 +2996,17 @@ def api_get_pam_locations_with_status(lang_code):
             if last_visit and last_visit.visit_purpose_id == DEVICE_REMOVED_PURPOSE_ID:
                 status, status_reason = 'inactive', "Прилад демонтовано"
             else:
-                last_activity_date = last_data_map.get(loc.location_id)
-                if not last_activity_date and last_visit:
-                    last_activity_date = last_visit.visit_datetime
+                # Активність = найсвіжіше з: останні дані (recordings) АБО останній
+                # сервісний візит. Свіже встановлення/обслуговування — це теж активність,
+                # тож НЕ вважаємо локацію «мертвою» лише через старі осінні записи, якщо
+                # прилад нещодавно перевстановлено (баг: reinstall показувався inactive).
+                last_recording_date = last_data_map.get(loc.location_id)
+                last_visit_date = last_visit.visit_datetime if last_visit else None
+                _activity_candidates = [d for d in (last_recording_date, last_visit_date) if d is not None]
+                last_activity_date = (
+                    max(_activity_candidates, key=lambda d: d.replace(tzinfo=None))
+                    if _activity_candidates else None
+                )
 
                 if not last_activity_date:
                     status, status_reason = 'inactive', "Немає ані даних, ані записів про обслуговування"

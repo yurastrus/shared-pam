@@ -296,8 +296,9 @@ $(document).ready(function() {
     function getMarkerIcon(loc) {
         if (loc.location_id == activeLocationId) return selectedIcon;
         if (mapMode === 'service') {
-            const s = serviceStatus[loc.location_id];
-            return s ? (serviceIcons[s] || serviceIcons.unknown) : serviceIcons.unknown;
+            const info = serviceStatus[loc.location_id];
+            const st = info ? info.status : null;
+            return st ? (serviceIcons[st] || serviceIcons.unknown) : serviceIcons.unknown;
         }
         return getStatusIcon(loc);
     }
@@ -316,10 +317,49 @@ $(document).ready(function() {
         else if (!loc.has_name_en)                             listItem.addClass('loc-no-name-en');
     }
 
+    // Прогноз обслуговування у tooltip маркера (service-режим).
+    // Будуємо з структурованих полів (не зі status_reason), щоб лишалось двомовним.
+    function buildServiceTooltip(loc, info) {
+        const name = (loc && loc.name) ? loc.name : (info ? info.name : '');
+        if (!info) return `<strong>${name}</strong><br>{{ _('Немає даних про обслуговування') }}`;
+        const fmt = d => (d === null || d === undefined)
+            ? '—'
+            : (d < 0 ? '{{ _("прострочено") }}' : '~' + d + ' {{ _("дн.") }}');
+        let html = `<strong>${name}</strong>`;
+        if (info.status === 'inactive') {
+            html += '<br>{{ _("Неактивна / демонтовано") }}';
+            if (info.last_visit_date && info.last_visit_date !== '---')
+                html += '<br>{{ _("Останній візит") }}: ' + info.last_visit_date;
+            return html;
+        }
+        if (info.last_visit_date && info.last_visit_date !== '---') {
+            html += '<br>{{ _("Останній візит") }}: ' + info.last_visit_date;
+            if (info.days_since_visit !== null && info.days_since_visit !== undefined)
+                html += ' (' + info.days_since_visit + ' {{ _("дн. тому") }})';
+        }
+        const hasForecast = (info.battery_days_left !== null && info.battery_days_left !== undefined)
+                         || (info.sd_card_days_left !== null && info.sd_card_days_left !== undefined);
+        if (hasForecast) {
+            html += '<br>🔋 {{ _("Батарея") }}: ' + fmt(info.battery_days_left)
+                  + ' &nbsp; 💾 {{ _("SD-карта") }}: ' + fmt(info.sd_card_days_left);
+        } else {
+            html += '<br>{{ _("Немає записів для прогнозу") }}';
+        }
+        return html;
+    }
+
     function refreshAllMarkers() {
         locationsData.forEach(loc => {
-            if (markers[loc.location_id]) {
-                markers[loc.location_id].setIcon(getMarkerIcon(loc));
+            const marker = markers[loc.location_id];
+            if (!marker) return;
+            marker.setIcon(getMarkerIcon(loc));
+            if (mapMode === 'service') {
+                marker.bindTooltip(
+                    buildServiceTooltip(loc, serviceStatus[loc.location_id]),
+                    { direction: 'top', offset: [0, -34], sticky: false }
+                );
+            } else {
+                marker.unbindTooltip();
             }
         });
     }
@@ -447,7 +487,7 @@ $(document).ready(function() {
                 return;
             }
             serviceStatus = {};
-            data.forEach(loc => { serviceStatus[loc.id] = loc.status; });
+            data.forEach(loc => { serviceStatus[loc.id] = loc; });
             refreshAllMarkers();
         } catch(e) {
             console.error('Помилка завантаження статусів:', e);
