@@ -6,7 +6,6 @@ import traceback
 from sqlalchemy import text
 import os
 import math
-import json
 import threading
 import pandas as pd
 from .pam_upload_utils import process_zip_archive, get_upload_statistics
@@ -192,12 +191,19 @@ def process_verification_upload(lang_code):
             'stats': stats
         }), 200
         
+    except ValueError as e:
+        # Навмисні user-facing повідомлення валідації (pam_upload_utils)
+        current_app.logger.error(f"ZIP archive validation error: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Помилка обробки архіву: {str(e)}'
+        }), 400
     except Exception as e:
         current_app.logger.error(f"Error processing ZIP archive: {e}")
         current_app.logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({
-            'success': False, 
-            'error': f'Помилка обробки архіву: {str(e)}'
+            'success': False,
+            'error': 'Помилка обробки архіву'
         }), 500
 
 @pam_bp.route('/<lang_code>/pam/verification/segments')
@@ -1926,7 +1932,6 @@ def manage_pam_locations(lang_code):
                                biotopes=biotopes,
                                available_institutions=all_assignable_list,
                                filter_institutions=filter_institutions,
-                               locations_json_string=json.dumps(final_locations),
                                battery_types=battery_types,
                                sd_card_statuses=sd_card_statuses,
                                visit_purposes=visit_purposes,
@@ -2916,7 +2921,7 @@ def api_yearly_trends_table(lang_code):
 
     except Exception as e:
         current_app.logger.error(f"Error in yearly trends table: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
     finally:
         if conn: conn.close()
 
@@ -3737,7 +3742,7 @@ def pam_import(lang_code):
         return render_template(
             'pam_import.html',
             institutions=institutions,
-            locations_json_string=json.dumps(final_locations),
+            locations_data=final_locations,
             importers=importers_list,
             biotopes=biotopes,
             geoserver_url=current_app.config.get('GEOSERVER_URL', ''),
@@ -3804,9 +3809,13 @@ def api_pam_import(lang_code):
         )
         return jsonify({'success': True, 'stats': stats})
 
+    except ValueError as e:
+        # Навмисні user-facing повідомлення валідації (pam_import_utils)
+        current_app.logger.error(f"PAM import validation error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
         current_app.logger.error(f"PAM import API error: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 

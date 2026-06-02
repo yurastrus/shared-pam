@@ -244,7 +244,7 @@ $(function() {
     });
 
     // ── DATA ─────────────────────────────────────────────────────────────────
-    const allLocations  = {{ locations_json_string|safe }};
+    const allLocations  = {{ locations_data|tojson }};
     const geoserverUrl  = '{{ geoserver_url }}';
     const importApiUrl  = '{{ url_for("pam.api_pam_import", lang_code=g.lang_code) }}';
     const createLocUrl  = '/{{ g.lang_code }}/pam/api/location/create';
