@@ -1066,15 +1066,16 @@ def api_next_verification_segment(lang_code):
                 WHERE seg.status = 'pending'
                 AND seg.species_id = :species_id
                 AND seg.id NOT IN (
-                    SELECT sv.segment_id 
-                    FROM segment_verifications sv 
+                    SELECT sv.segment_id
+                    FROM segment_verifications sv
                     WHERE sv.user_id = :user_id
                 )
-                ORDER BY RANDOM() LIMIT 1
+                ORDER BY COALESCE(seg.verification_count, 0) DESC, RANDOM() LIMIT 1
             """)
             params["species_id"] = species_id
         else:
-            query = text(str(query) + " ORDER BY RANDOM() LIMIT 1")
+            # Пріоритет сегментам, яким бракує голосів до консенсусу (Idea 7)
+            query = text(str(query) + " ORDER BY COALESCE(seg.verification_count, 0) DESC, RANDOM() LIMIT 1")
         
         result = conn.execute(query, params).fetchone()
         
