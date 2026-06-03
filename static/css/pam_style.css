@@ -198,10 +198,15 @@ main .container:not(.maplistcontainer) {
 }
 .verification-layout {
     display: grid;
-    grid-template-columns: 480px 760px;
+    /* Права колонка (сонограма) гнучка: до 760px на широких екранах, але
+       стискається коли контейнер вужчий (Bootstrap .container ≤1140px на
+       ноутбуках). Раніше було жорстко 760px → сума 1260px не вписувалась,
+       і правий край сонограми (остання секунда) обрізався. minmax(0,…)
+       дозволяє стиснення нижче min-content зображення. */
+    grid-template-columns: 480px minmax(0, 760px);
     gap: 20px;
     align-items: start;
-    /* Центруємо фіксовану сітку в широкому контейнері,
+    /* Центруємо сітку в широкому контейнері,
        щоб уникнути порожньої смуги праворуч на широких моніторах. */
     justify-content: center;
     width: 100%;
