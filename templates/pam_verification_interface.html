@@ -90,7 +90,8 @@
                     <div class="spectrogram-section" style="text-align: center;">
                         <div class="spectrogram-wrapper">
                             <img id="spectrogram-image" src="" alt="{{ _('Сонограма аудіосегменту') }}">
-                            <div id="playback-line"></div>
+                            <div id="playback-line" role="slider" tabindex="0"
+                                 aria-label="{{ _('Позиція відтворення') }}"></div>
                             
                             <!-- Лінії для виділення центральної частини (для довгих файлів) -->
                             <div id="region-start-line" class="region-line"></div>
@@ -163,7 +164,14 @@ $(document).ready(function() {
     const speciesFilter = $('#species-filter');
     const verificationMessage = $('#verification-message');
     const playbackLine = $('#playback-line');
-    
+    const spectrogramWrapper = document.querySelector('.spectrogram-wrapper');
+
+    // Стан плавного руху лінії + перетягування
+    let rafId = null;            // id requestAnimationFrame-циклу (null = не йде)
+    let isDragging = false;      // чи зараз тягнемо лінію
+    let wasPlaying = false;      // чи грало аудіо до початку drag (щоб відновити)
+    let suppressNextClick = false; // не дати mouseup-after-drag спрацювати як seek
+
     // Ініціалізація Select2 для фільтра видів
     speciesFilter.select2({
         language: "{{ g.lang_code }}",
@@ -221,16 +229,109 @@ $(document).ready(function() {
         }
     }
 
-    audioPlayer.addEventListener('timeupdate', updatePlaybackLine);
+    // Інверсія формули updatePlaybackLine: clientX (px) → currentTime (сек),
+    // clamp до [0, duration]. null якщо ще нема геометрії/тривалості.
+    function clientXToTime(clientX) {
+        if (!spectrogramWrapper || !(audioPlayer.duration > 0)) return null;
+        const rect = spectrogramWrapper.getBoundingClientRect();
+        if (!rect.width) return null;
+        const percent = ((clientX - rect.left) / rect.width) * 100;
+        const plotAreaWidth = 100 - SPECTROGRAM_PADDING_LEFT_PERCENT - SPECTROGRAM_PADDING_RIGHT_PERCENT;
+        let t = ((percent - SPECTROGRAM_PADDING_LEFT_PERCENT) / plotAreaWidth) * audioPlayer.duration;
+        return Math.max(0, Math.min(audioPlayer.duration, t));
+    }
+
+    // RAF-цикл: під час play оновлюємо лінію кожен кадр (~60fps) — плавно,
+    // на відміну від timeupdate (~4 рази/сек). timeupdate лишається як
+    // fallback (фонова вкладка, де RAF призупиняється браузером).
+    function rafTick() {
+        updatePlaybackLine();
+        if (!audioPlayer.paused && !audioPlayer.ended) {
+            rafId = requestAnimationFrame(rafTick);
+        } else {
+            rafId = null;
+        }
+    }
+    function startRaf() { if (rafId === null) rafId = requestAnimationFrame(rafTick); }
+    function stopRaf() { if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; } }
+
+    audioPlayer.addEventListener('play', startRaf);
+    audioPlayer.addEventListener('pause', stopRaf);
+    audioPlayer.addEventListener('emptied', stopRaf);
+
+    audioPlayer.addEventListener('timeupdate', updatePlaybackLine); // fallback
     audioPlayer.addEventListener('seeking', updatePlaybackLine);
 
     audioPlayer.addEventListener('ended', function() {
+        stopRaf();
         const endPosition = 100 - SPECTROGRAM_PADDING_RIGHT_PERCENT;
         playbackLine.css('left', endPosition + '%');
     });
 
     audioPlayer.addEventListener('loadstart', function() {
         playbackLine.css('left', SPECTROGRAM_PADDING_LEFT_PERCENT + '%');
+    });
+
+    // --- Click-to-seek: клік по сонограмі перематує аудіо в цю точку ---
+    if (spectrogramWrapper) {
+        spectrogramWrapper.addEventListener('click', function(e) {
+            if (suppressNextClick) { suppressNextClick = false; return; }
+            if (e.target.id === 'playback-line') return; // це був drag, не seek
+            const rect = spectrogramWrapper.getBoundingClientRect();
+            const percent = ((e.clientX - rect.left) / rect.width) * 100;
+            // Ігноруємо кліки в зонах осей matplotlib (зліва/справа)
+            if (percent < SPECTROGRAM_PADDING_LEFT_PERCENT ||
+                percent > 100 - SPECTROGRAM_PADDING_RIGHT_PERCENT) return;
+            const t = clientXToTime(e.clientX);
+            if (t !== null) audioPlayer.currentTime = t;
+        });
+    }
+
+    // --- Drag лінії (миша + touch) ---
+    function startDrag(clientX) {
+        wasPlaying = !audioPlayer.paused;
+        if (wasPlaying) audioPlayer.pause();
+        isDragging = true;
+        const t = clientXToTime(clientX);
+        if (t !== null) audioPlayer.currentTime = t; // seeking → updatePlaybackLine
+    }
+    function moveDrag(clientX) {
+        if (!isDragging) return;
+        const t = clientXToTime(clientX);
+        if (t !== null) audioPlayer.currentTime = t;
+    }
+    function endDrag() {
+        if (!isDragging) return;
+        isDragging = false;
+        suppressNextClick = true; // mouseup після drag не має тригерити seek
+        if (wasPlaying) audioPlayer.play();
+        wasPlaying = false;
+    }
+
+    // Миша
+    playbackLine[0].addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        startDrag(e.clientX);
+    });
+    document.addEventListener('mousemove', function(e) {
+        if (isDragging) moveDrag(e.clientX);
+    });
+    document.addEventListener('mouseup', function() {
+        if (isDragging) endDrag();
+    });
+
+    // Touch (mobile)
+    playbackLine[0].addEventListener('touchstart', function(e) {
+        if (e.touches.length) startDrag(e.touches[0].clientX);
+    }, { passive: true });
+    document.addEventListener('touchmove', function(e) {
+        if (isDragging && e.touches.length) {
+            e.preventDefault(); // не скролити сторінку під час drag
+            moveDrag(e.touches[0].clientX);
+        }
+    }, { passive: false });
+    document.addEventListener('touchend', function() {
+        if (isDragging) endDrag();
     });
     /**
     // --- Клавіатурні скорочення ---

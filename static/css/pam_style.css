@@ -2094,7 +2094,7 @@ main .container:not(.maplistcontainer) {
 }
 /* Wrapper для спектрограми теж має займати повну ширину,
    щоб inline-block не обмежував зображення натуральним розміром. */
-.verification-container .spectrogram-wrapper { width: 100%; }
+.verification-container .spectrogram-wrapper { width: 100%; cursor: pointer; }
 #playback-line {
     position: absolute;
     top: 0;
@@ -2102,8 +2102,23 @@ main .container:not(.maplistcontainer) {
     width: 2px;
     height: 100%;
     background-color: rgba(255, 0, 0, 0.8);
-    pointer-events: none;
+    /* було pointer-events:none — тепер лінію можна хапати й перетягувати.
+       z-index вище за region-line(5), щоб drag не блокувався жовтими лініями.
+       touch-action:none — щоб drag пальцем не скролив сторінку. */
+    pointer-events: auto;
+    cursor: ew-resize;
+    z-index: 6;
+    touch-action: none;
     display: none;
+}
+/* Невидима розширена зона захоплення (12px), сама лінія лишається 2px. */
+#playback-line::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -5px;
+    width: 12px;
+    height: 100%;
 }
 .region-line {
     position: absolute;
