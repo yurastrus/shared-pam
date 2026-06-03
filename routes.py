@@ -1980,6 +1980,69 @@ def get_pam_location_details(lang_code, location_id):
     finally:
         if conn: conn.close()
 
+@pam_bp.route('/<lang_code>/pam/location/<int:location_id>/coverage')
+@login_required
+@role_required('pam_verifier')
+def pam_location_coverage(lang_code, location_id):
+    """Календар покриття локації записами по днях (Idea 10).
+
+    Покриття = кількість аудіозаписів (recordings) на день для локації;
+    зусилля ≈ count * RECORDING_DURATION_SECONDS (узгоджено з yearly-trends).
+    """
+    g.lang_code = lang_code
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        loc = conn.execute(text(
+            "SELECT location_id, location_name, location_name_en "
+            "FROM locations WHERE location_id = :id"
+        ), {'id': location_id}).fetchone()
+        if not loc:
+            flash('Локацію не знайдено.', 'danger')
+            return redirect(url_for('pam.manage_pam_locations', lang_code=lang_code))
+
+        # Доступ: admin бачить усе; інакше локація має належати установі юзера
+        if not current_user.has_role('admin'):
+            user_inst_ids = [i.id for i in current_user.institutions]
+            allowed = False
+            if user_inst_ids:
+                allowed = conn.execute(text(
+                    "SELECT 1 FROM location_institutions "
+                    "WHERE location_id = :id AND institution_id = ANY(:insts) LIMIT 1"
+                ), {'id': location_id, 'insts': user_inst_ids}).fetchone()
+            if not allowed:
+                flash('Немає доступу до цієї локації.', 'danger')
+                return redirect(url_for('pam.manage_pam_locations', lang_code=lang_code))
+
+        rows = conn.execute(text(
+            "SELECT DATE(datetime_start) AS day, COUNT(*) AS cnt "
+            "FROM recordings WHERE location_id = :id GROUP BY day ORDER BY day"
+        ), {'id': location_id}).fetchall()
+        day_counts = {r.day: r.cnt for r in rows}
+
+        from .utils import build_coverage_calendar, COVERAGE_GOOD_SECONDS
+        coverage = build_coverage_calendar(day_counts)
+
+        loc_name = loc.location_name
+        if lang_code == 'en' and loc.location_name_en:
+            loc_name = loc.location_name_en
+
+        return render_template(
+            'pam_location_coverage.html',
+            location_id=location_id,
+            location_name=loc_name,
+            coverage=coverage,
+            good_threshold_hours=COVERAGE_GOOD_SECONDS // 3600,
+        )
+    except Exception as e:
+        current_app.logger.error(f"PAM coverage page error: {e}", exc_info=True)
+        flash('Помилка завантаження календаря покриття.', 'danger')
+        return redirect(url_for('pam.manage_pam_locations', lang_code=lang_code))
+    finally:
+        if conn:
+            conn.close()
+
+
 @pam_bp.route('/<lang_code>/pam/api/location/create', methods=['POST'])
 @login_required
 @role_required('admin', 'manager')

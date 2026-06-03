@@ -1,0 +1,81 @@
+{% extends "pam_base.html" %}
+
+{% block title %}{{ _('Календар покриття') }} — {{ location_name }}{% endblock %}
+
+{% block pam_content %}
+<div class="container mt-4 coverage-page">
+
+    <div class="coverage-header">
+        <div>
+            <h2>{{ _('Календар покриття записами') }}</h2>
+            <p class="coverage-loc">{{ location_name }}</p>
+        </div>
+        <a href="{{ url_for('pam.manage_pam_locations', lang_code=g.lang_code) }}"
+           class="btn btn-secondary btn-sm">&larr; {{ _('До локацій') }}</a>
+    </div>
+
+    {# ── Зведення ── #}
+    <div class="coverage-summary">
+        <div class="coverage-stat">
+            <div class="coverage-stat__num">{{ '{:,}'.format(coverage.total_recordings).replace(',', ' ') }}</div>
+            <div class="coverage-stat__label">{{ _('Усього записів') }}</div>
+        </div>
+        <div class="coverage-stat">
+            <div class="coverage-stat__num">{{ '%.1f'|format(coverage.total_effort_seconds / 3600) }} {{ _('год') }}</div>
+            <div class="coverage-stat__label">{{ _('Сумарне зусилля') }}</div>
+        </div>
+        <div class="coverage-stat">
+            <div class="coverage-stat__num">{{ coverage.active_days }}</div>
+            <div class="coverage-stat__label">{{ _('Днів із записами') }}</div>
+        </div>
+        {% if coverage.day_range %}
+        <div class="coverage-stat">
+            <div class="coverage-stat__num">{{ coverage.day_range[0].strftime('%d.%m.%Y') }} – {{ coverage.day_range[1].strftime('%d.%m.%Y') }}</div>
+            <div class="coverage-stat__label">{{ _('Діапазон') }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# ── Легенда ── #}
+    <div class="coverage-legend">
+        <span><i class="coverage-swatch coverage-good"></i> {{ _('Добре') }} (&ge;{{ good_threshold_hours }} {{ _('год') }})</span>
+        <span><i class="coverage-swatch coverage-partial"></i> {{ _('Частково') }}</span>
+        <span><i class="coverage-swatch coverage-missing"></i> {{ _('Немає записів') }}</span>
+    </div>
+
+    {% if not coverage.months %}
+        <p class="coverage-empty">{{ _('Для цієї локації ще немає записів.') }}</p>
+    {% else %}
+    {% set weekdays = [_('Пн'), _('Вт'), _('Ср'), _('Чт'), _('Пт'), _('Сб'), _('Нд')] %}
+    <div class="coverage-grid">
+        {% for month in coverage.months %}
+        <div class="coverage-month">
+            <h4 class="coverage-month__title">{{ month.label }}</h4>
+            <table class="coverage-table">
+                <thead>
+                    <tr>{% for wd in weekdays %}<th>{{ wd }}</th>{% endfor %}</tr>
+                </thead>
+                <tbody>
+                    {% for week in month.weeks %}
+                    <tr>
+                        {% for cell in week %}
+                            {% if cell is none %}
+                                <td class="coverage-cell coverage-empty-cell"></td>
+                            {% else %}
+                                <td class="coverage-cell coverage-{{ cell.level }}"
+                                    title="{{ cell.date.strftime('%d.%m.%Y') }}: {{ cell.count }} {{ _('записів') }} (~{{ '%.1f'|format(cell.effort_seconds / 3600) }} {{ _('год') }})">
+                                    {{ cell.day }}
+                                </td>
+                            {% endif %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

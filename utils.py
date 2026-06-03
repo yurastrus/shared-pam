@@ -1,5 +1,6 @@
 # myproject/app/pam/utils.py
 
+import calendar
 import csv
 import io
 import math
@@ -1714,3 +1715,82 @@ def get_weather_data(start_date, end_date, lat, lon):
     finally:
         if conn:
             conn.close()
+
+
+# ── Календар покриття локації записами (Idea 10) ─────────────────────────────
+
+# Тривалість одного запису PAM у секундах. Узгоджено з yearly-trends
+# (effort = COUNT(recordings) * 5 / 60 хв). Виносимо в константу — легко
+# змінити, якщо режим запису колись стане іншим.
+RECORDING_DURATION_SECONDS = 5
+
+# Пороги денного покриття (у секундах ефективного запису).
+COVERAGE_GOOD_SECONDS = 7200  # ≥2 год запису/день — добре покрито
+
+
+def _coverage_level(effort_seconds):
+    """Категорія клітинки календаря за денним зусиллям запису."""
+    if effort_seconds is None or effort_seconds <= 0:
+        return 'missing'
+    if effort_seconds >= COVERAGE_GOOD_SECONDS:
+        return 'good'
+    return 'partial'
+
+
+def build_coverage_calendar(day_counts, rec_seconds=RECORDING_DURATION_SECONDS):
+    """Перетворює {date: recording_count} на структуру помісячного календаря.
+
+    Чиста функція (без БД) — легко тестується.
+
+    Повертає dict:
+        {
+          'months': [
+             {'year': int, 'month': int, 'label': 'YYYY-MM',
+              'weeks': [[cell|None, ... 7], ...]},  # Пн..Нд; None = чужий місяць
+             ...
+          ],
+          'total_recordings': int,
+          'total_effort_seconds': int,
+          'active_days': int,         # днів з ≥1 записом
+          'day_range': (min_date, max_date) | None,
+        }
+    cell = {'day': int, 'date': date, 'count': int,
+            'effort_seconds': int, 'level': 'good'|'partial'|'missing'}
+    """
+    if not day_counts:
+        return {'months': [], 'total_recordings': 0, 'total_effort_seconds': 0,
+                'active_days': 0, 'day_range': None}
+
+    days = sorted(day_counts)
+    first, last = days[0], days[-1]
+    total_recordings = sum(day_counts.values())
+
+    cal = calendar.Calendar(firstweekday=0)  # 0 = Monday
+    months = []
+    y, m = first.year, first.month
+    while (y, m) <= (last.year, last.month):
+        weeks = []
+        for week in cal.monthdatescalendar(y, m):
+            row = []
+            for d in week:
+                if d.month != m:
+                    row.append(None)  # день сусіднього місяця — порожньо
+                    continue
+                cnt = day_counts.get(d, 0)
+                eff = cnt * rec_seconds
+                row.append({'day': d.day, 'date': d, 'count': cnt,
+                            'effort_seconds': eff, 'level': _coverage_level(eff)})
+            weeks.append(row)
+        months.append({'year': y, 'month': m, 'label': f'{y}-{m:02d}',
+                       'weeks': weeks})
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+
+    return {
+        'months': months,
+        'total_recordings': total_recordings,
+        'total_effort_seconds': total_recordings * rec_seconds,
+        'active_days': len(day_counts),
+        'day_range': (first, last),
+    }

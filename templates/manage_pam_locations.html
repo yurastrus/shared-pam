@@ -61,7 +61,11 @@
                 {% for loc in locations %}
                     <li data-location-id="{{ loc.location_id }}"
                         class="{% if not loc.inst_ids %}loc-no-inst{% elif not loc.biotope_ids %}loc-no-biotope{% elif not loc.has_name_en %}loc-no-name-en{% endif %}">
-                        {{ loc.name }}
+                        <span class="loc-name">{{ loc.name }}</span>
+                        <a class="coverage-link"
+                           href="{{ url_for('pam.pam_location_coverage', lang_code=g.lang_code, location_id=loc.location_id) }}"
+                           title="{{ _('Календар покриття записами') }}"
+                           onclick="event.stopPropagation();">📅</a>
                     </li>
                 {% endfor %}
             </ul>
