@@ -156,10 +156,14 @@ class PAMImportProcessor:
         stats = processor.process_batch(request.files.getlist('files'))
     """
 
-    def __init__(self, engine, location_id: int, importer: BaseDetectionImporter):
+    def __init__(self, engine, location_id: int, importer: BaseDetectionImporter,
+                 duration_minutes=5):
         self.engine = engine
         self.location_id = location_id
         self.importer = importer
+        # Тривалість одного аудіофайлу (хв) — однакова для всього batchʼа імпорту,
+        # задається у формі pam/import (default 5). Іде в recordings.duration_minutes.
+        self.duration_minutes = duration_minutes
         self.stats = {
             'files_processed': 0,
             'files_empty': 0,
@@ -236,13 +240,15 @@ class PAMImportProcessor:
         dt = self.importer.parse_datetime(filename)
 
         result = conn.execute(text("""
-            INSERT INTO recordings (filename, location_id, datetime_start)
-            VALUES (:fn, :loc, :dt)
+            INSERT INTO recordings (filename, location_id, datetime_start, duration_minutes)
+            VALUES (:fn, :loc, :dt, :dur)
             ON CONFLICT (filename) DO UPDATE
-                SET location_id    = EXCLUDED.location_id,
-                    datetime_start = COALESCE(EXCLUDED.datetime_start, recordings.datetime_start)
+                SET location_id     = EXCLUDED.location_id,
+                    datetime_start  = COALESCE(EXCLUDED.datetime_start, recordings.datetime_start),
+                    duration_minutes = EXCLUDED.duration_minutes
             RETURNING recording_id, (xmax = 0) AS was_inserted
-        """), {'fn': filename, 'loc': self.location_id, 'dt': dt})
+        """), {'fn': filename, 'loc': self.location_id, 'dt': dt,
+               'dur': self.duration_minutes})
 
         row = result.fetchone()
         if not row:

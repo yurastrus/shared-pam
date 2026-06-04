@@ -2016,12 +2016,12 @@ def pam_location_coverage(lang_code, location_id):
 
         rows = conn.execute(text(
             "SELECT DATE(datetime_start) AS day, COUNT(*) AS cnt, "
-            "COUNT(DISTINCT EXTRACT(HOUR FROM datetime_start)) AS hours "
+            "SUM(duration_minutes) AS minutes "
             "FROM recordings WHERE location_id = :id "
             "AND datetime_start IS NOT NULL "
             "GROUP BY day ORDER BY day"
         ), {'id': location_id}).fetchall()
-        day_data = {r.day: {'count': r.cnt, 'hours': int(r.hours)} for r in rows}
+        day_data = {r.day: {'count': r.cnt, 'minutes': float(r.minutes or 0)} for r in rows}
 
         from .utils import build_coverage_calendar, COVERAGE_GOOD_HOURS
         coverage = build_coverage_calendar(day_data)
@@ -3850,6 +3850,11 @@ def api_pam_import(lang_code):
         if not files:
             return jsonify({'success': False, 'error': 'No files uploaded'}), 400
 
+        # Тривалість файлу (хв) — однакова для всього batchʼа; default 5.
+        duration_minutes = request.form.get('duration_minutes', 5, type=float)
+        if not duration_minutes or duration_minutes <= 0:
+            duration_minutes = 5
+
         # Verify user has access to this location
         is_admin = current_user.has_role('admin')
         if not is_admin:
@@ -3867,7 +3872,8 @@ def api_pam_import(lang_code):
                 conn.close()
 
         engine = get_pam_engine()
-        processor = PAMImportProcessor(engine, location_id, importer)
+        processor = PAMImportProcessor(engine, location_id, importer,
+                                       duration_minutes=duration_minutes)
         stats = processor.process_batch(files)
 
         current_app.logger.info(
