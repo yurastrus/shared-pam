@@ -1725,9 +1725,8 @@ def get_weather_data(start_date, end_date, lat, lon):
 
 # Поріг «добре» у годинах реального запису на добу (узгоджено з користувачем).
 COVERAGE_GOOD_HOURS = 6  # ≥6 год запису/день — добре
-# Денний максимум: сума тривалості не може перевищувати добу. Якщо записи
-# перекриваються/паралельні і сума > 24 год — обрізаємо до 24 (рішення користувача).
-COVERAGE_MAX_HOURS_PER_DAY = 24
+# Cap НЕ застосовуємо: на локації може стояти кілька ресиверів (паралельні
+# записи), тож сумарна тривалість за добу законно може перевищувати 24 год.
 
 
 def _coverage_level(hours_recorded):
@@ -1783,8 +1782,9 @@ def build_coverage_calendar(day_data):
                 info = day_data.get(d)
                 cnt = info.get('count', 0) if info else 0
                 minutes = float(info.get('minutes', 0) or 0) if info else 0.0
-                # Сума годин за добу, обрізана до 24 (доба не може мати >24 год).
-                hours = round(min(minutes / 60.0, COVERAGE_MAX_HOURS_PER_DAY), 1)
+                # Сума годин запису за добу (БЕЗ обмеження 24 — кілька ресиверів
+                # на локації можуть давати законно >24 год сумарно).
+                hours = round(minutes / 60.0, 1)
                 total_hours += hours
                 row.append({'day': d.day, 'date': d, 'count': cnt,
                             'hours': hours, 'level': _coverage_level(hours)})
