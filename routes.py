@@ -1986,8 +1986,8 @@ def get_pam_location_details(lang_code, location_id):
 def pam_location_coverage(lang_code, location_id):
     """Календар покриття локації записами по днях (Idea 10).
 
-    Покриття = кількість аудіозаписів (recordings) на день для локації;
-    зусилля ≈ count * RECORDING_DURATION_SECONDS (узгоджено з yearly-trends).
+    Покриття дня = к-сть різних годин доби (0..24) з ≥1 записом. Чесна оцінка
+    без припущень про тривалість запису (recordings не зберігає duration).
     """
     g.lang_code = lang_code
     conn = None
@@ -2015,13 +2015,16 @@ def pam_location_coverage(lang_code, location_id):
                 return redirect(url_for('pam.manage_pam_locations', lang_code=lang_code))
 
         rows = conn.execute(text(
-            "SELECT DATE(datetime_start) AS day, COUNT(*) AS cnt "
-            "FROM recordings WHERE location_id = :id GROUP BY day ORDER BY day"
+            "SELECT DATE(datetime_start) AS day, COUNT(*) AS cnt, "
+            "COUNT(DISTINCT EXTRACT(HOUR FROM datetime_start)) AS hours "
+            "FROM recordings WHERE location_id = :id "
+            "AND datetime_start IS NOT NULL "
+            "GROUP BY day ORDER BY day"
         ), {'id': location_id}).fetchall()
-        day_counts = {r.day: r.cnt for r in rows}
+        day_data = {r.day: {'count': r.cnt, 'hours': int(r.hours)} for r in rows}
 
-        from .utils import build_coverage_calendar, COVERAGE_GOOD_SECONDS
-        coverage = build_coverage_calendar(day_counts)
+        from .utils import build_coverage_calendar, COVERAGE_GOOD_HOURS
+        coverage = build_coverage_calendar(day_data)
 
         loc_name = loc.location_name
         if lang_code == 'en' and loc.location_name_en:
@@ -2032,7 +2035,7 @@ def pam_location_coverage(lang_code, location_id):
             location_id=location_id,
             location_name=loc_name,
             coverage=coverage,
-            good_threshold_hours=COVERAGE_GOOD_SECONDS // 3600,
+            good_threshold_hours=COVERAGE_GOOD_HOURS,
         )
     except Exception as e:
         current_app.logger.error(f"PAM coverage page error: {e}", exc_info=True)

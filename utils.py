@@ -1718,52 +1718,51 @@ def get_weather_data(start_date, end_date, lat, lon):
 
 
 # ── Календар покриття локації записами (Idea 10) ─────────────────────────────
+#
+# Метрика покриття дня = СКІЛЬКИ РІЗНИХ ГОДИН ДОБИ (0..24) мали хоча б один
+# запис. Це чесна оцінка охоплення без припущень про тривалість запису
+# (recordings не зберігає duration — лише datetime_start). Відповідає
+# інтуїції «X годин на день», «цілими ночами».
 
-# Тривалість одного запису PAM у секундах. Узгоджено з yearly-trends
-# (effort = COUNT(recordings) * 5 / 60 хв). Виносимо в константу — легко
-# змінити, якщо режим запису колись стане іншим.
-RECORDING_DURATION_SECONDS = 5
-
-# Пороги денного покриття (у секундах ефективного запису).
-COVERAGE_GOOD_SECONDS = 7200  # ≥2 год запису/день — добре покрито
+# Поріг «добре» у годинах доби з записами (узгоджено з користувачем).
+COVERAGE_GOOD_HOURS = 6  # ≥6 год охоплення/день — добре
 
 
-def _coverage_level(effort_seconds):
-    """Категорія клітинки календаря за денним зусиллям запису."""
-    if effort_seconds is None or effort_seconds <= 0:
+def _coverage_level(hours_covered):
+    """Категорія клітинки календаря за к-стю годин доби з записами."""
+    if not hours_covered or hours_covered <= 0:
         return 'missing'
-    if effort_seconds >= COVERAGE_GOOD_SECONDS:
+    if hours_covered >= COVERAGE_GOOD_HOURS:
         return 'good'
     return 'partial'
 
 
-def build_coverage_calendar(day_counts, rec_seconds=RECORDING_DURATION_SECONDS):
-    """Перетворює {date: recording_count} на структуру помісячного календаря.
+def build_coverage_calendar(day_data):
+    """Перетворює {date: {'count': int, 'hours': int}} на помісячний календар.
 
-    Чиста функція (без БД) — легко тестується.
+    `hours` — кількість різних годин доби (0..24), у які був ≥1 запис у цей
+    день; `count` — загальна к-сть записів (для підказки). Чиста функція.
 
     Повертає dict:
         {
-          'months': [
-             {'year': int, 'month': int, 'label': 'YYYY-MM',
-              'weeks': [[cell|None, ... 7], ...]},  # Пн..Нд; None = чужий місяць
-             ...
-          ],
+          'months': [{'year', 'month', 'label': 'YYYY-MM',
+                      'weeks': [[cell|None, ... 7], ...]}, ...],  # Пн..Нд
           'total_recordings': int,
-          'total_effort_seconds': int,
-          'active_days': int,         # днів з ≥1 записом
+          'active_days': int,             # днів з ≥1 записом
           'day_range': (min_date, max_date) | None,
         }
-    cell = {'day': int, 'date': date, 'count': int,
-            'effort_seconds': int, 'level': 'good'|'partial'|'missing'}
+    cell = {'day', 'date', 'count', 'hours', 'level': good|partial|missing}
     """
-    if not day_counts:
-        return {'months': [], 'total_recordings': 0, 'total_effort_seconds': 0,
+    # Відсіюємо записи без дати (DATE(NULL)=None ключ ламає сортування дат).
+    day_data = {d: v for d, v in (day_data or {}).items() if d is not None}
+
+    if not day_data:
+        return {'months': [], 'total_recordings': 0,
                 'active_days': 0, 'day_range': None}
 
-    days = sorted(day_counts)
+    days = sorted(day_data)
     first, last = days[0], days[-1]
-    total_recordings = sum(day_counts.values())
+    total_recordings = sum(v.get('count', 0) for v in day_data.values())
 
     cal = calendar.Calendar(firstweekday=0)  # 0 = Monday
     months = []
@@ -1776,10 +1775,11 @@ def build_coverage_calendar(day_counts, rec_seconds=RECORDING_DURATION_SECONDS):
                 if d.month != m:
                     row.append(None)  # день сусіднього місяця — порожньо
                     continue
-                cnt = day_counts.get(d, 0)
-                eff = cnt * rec_seconds
+                info = day_data.get(d)
+                cnt = info.get('count', 0) if info else 0
+                hours = info.get('hours', 0) if info else 0
                 row.append({'day': d.day, 'date': d, 'count': cnt,
-                            'effort_seconds': eff, 'level': _coverage_level(eff)})
+                            'hours': hours, 'level': _coverage_level(hours)})
             weeks.append(row)
         months.append({'year': y, 'month': m, 'label': f'{y}-{m:02d}',
                        'weeks': weeks})
@@ -1790,7 +1790,6 @@ def build_coverage_calendar(day_counts, rec_seconds=RECORDING_DURATION_SECONDS):
     return {
         'months': months,
         'total_recordings': total_recordings,
-        'total_effort_seconds': total_recordings * rec_seconds,
-        'active_days': len(day_counts),
+        'active_days': len(day_data),
         'day_range': (first, last),
     }

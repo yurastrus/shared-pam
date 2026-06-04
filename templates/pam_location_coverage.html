@@ -21,10 +21,6 @@
             <div class="coverage-stat__label">{{ _('Усього записів') }}</div>
         </div>
         <div class="coverage-stat">
-            <div class="coverage-stat__num">{{ '%.1f'|format(coverage.total_effort_seconds / 3600) }} {{ _('год') }}</div>
-            <div class="coverage-stat__label">{{ _('Сумарне зусилля') }}</div>
-        </div>
-        <div class="coverage-stat">
             <div class="coverage-stat__num">{{ coverage.active_days }}</div>
             <div class="coverage-stat__label">{{ _('Днів із записами') }}</div>
         </div>
@@ -38,8 +34,8 @@
 
     {# ── Легенда ── #}
     <div class="coverage-legend">
-        <span><i class="coverage-swatch coverage-good"></i> {{ _('Добре') }} (&ge;{{ good_threshold_hours }} {{ _('год') }})</span>
-        <span><i class="coverage-swatch coverage-partial"></i> {{ _('Частково') }}</span>
+        <span><i class="coverage-swatch coverage-good"></i> {{ _('Добре') }} (&ge;{{ good_threshold_hours }} {{ _('год/день') }})</span>
+        <span><i class="coverage-swatch coverage-partial"></i> {{ _('Частково') }} (1&ndash;{{ good_threshold_hours - 1 }} {{ _('год') }})</span>
         <span><i class="coverage-swatch coverage-missing"></i> {{ _('Немає записів') }}</span>
     </div>
 
@@ -63,7 +59,7 @@
                                 <td class="coverage-cell coverage-empty-cell"></td>
                             {% else %}
                                 <td class="coverage-cell coverage-{{ cell.level }}"
-                                    title="{{ cell.date.strftime('%d.%m.%Y') }}: {{ cell.count }} {{ _('записів') }} (~{{ '%.1f'|format(cell.effort_seconds / 3600) }} {{ _('год') }})">
+                                    title="{{ cell.date.strftime('%d.%m.%Y') }}: {{ cell.hours }} {{ _('год охоплення') }}, {{ cell.count }} {{ _('записів') }}">
                                     {{ cell.day }}
                                 </td>
                             {% endif %}
