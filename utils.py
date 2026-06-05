@@ -1738,6 +1738,26 @@ def _coverage_level(hours_recorded):
     return 'partial'
 
 
+def _apply_coverage_intensity(months, value_of, include):
+    """Проставляє cell['intensity'] ∈ [0,1] лінійно від min до max значення
+    (#43, градієнтна заливка). include(cell) → чи входить у шкалу; інакше
+    intensity=None (нейтральний/сірий). Якщо всі рівні — intensity=1.0.
+    """
+    vals = [value_of(c) for mo in months for wk in mo['weeks']
+            for c in wk if c and include(c)]
+    if vals:
+        lo, hi = min(vals), max(vals)
+        span = (hi - lo) or 1.0
+    else:
+        lo, hi, span = 0, 0, 1.0
+    for mo in months:
+        for wk in mo['weeks']:
+            for c in wk:
+                if not c:
+                    continue
+                c['intensity'] = ((value_of(c) - lo) / span) if include(c) else None
+
+
 def build_coverage_calendar(day_data, mode='all'):
     """Перетворює {date: {'count': int, 'minutes': float}} на помісячний календар.
 
@@ -1792,6 +1812,7 @@ def build_coverage_calendar(day_data, mode='all'):
                 weeks.append(row)
             months.append({'year': 2000, 'month': m, 'label': f'{m:02d}',
                            'weeks': weeks})
+        _apply_coverage_intensity(months, lambda c: c['hours'], lambda c: c['hours'] > 0)
         years_all = sorted({dt.year for dt in day_data})
         return {
             'months': months, 'total_recordings': total_recordings,
@@ -1830,6 +1851,7 @@ def build_coverage_calendar(day_data, mode='all'):
         if m > 12:
             m, y = 1, y + 1
 
+    _apply_coverage_intensity(months, lambda c: c['hours'], lambda c: c['hours'] > 0)
     return {
         'months': months,
         'total_recordings': total_recordings,

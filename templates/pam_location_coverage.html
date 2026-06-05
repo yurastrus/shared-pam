@@ -42,11 +42,12 @@
         {% endif %}
     </div>
 
-    {# ── Легенда ── #}
+    {# ── Легенда (градієнт інтенсивності) ── #}
     <div class="coverage-legend">
-        <span><i class="coverage-swatch coverage-good"></i> {{ _('Добре') }} (&ge;{{ good_threshold_hours }} {{ _('год запису/день') }})</span>
-        <span><i class="coverage-swatch coverage-partial"></i> {{ _('Частково') }} (&lt;{{ good_threshold_hours }} {{ _('год') }})</span>
-        <span><i class="coverage-swatch coverage-missing"></i> {{ _('Немає записів') }}</span>
+        <span>{{ _('менше') }}</span>
+        <i class="coverage-gradient-bar"></i>
+        <span>{{ _('більше годин запису') }}</span>
+        <span class="coverage-legend-sep"><i class="coverage-swatch coverage-missing"></i> {{ _('Немає записів') }}</span>
     </div>
 
     {% if not coverage.months %}
@@ -68,7 +69,8 @@
                             {% if cell is none %}
                                 <td class="coverage-cell coverage-empty-cell"></td>
                             {% else %}
-                                <td class="coverage-cell coverage-{{ cell.level }}"
+                                <td class="coverage-cell{% if cell.intensity is none %} coverage-missing{% endif %}"
+                                    {% if cell.intensity is not none %}style="background: rgba(76,175,80,{{ (0.15 + 0.85 * cell.intensity)|round(3) }}); color: {{ '#fff' if cell.intensity > 0.55 else '#333' }};"{% endif %}
                                     title="{% if coverage.mode == 'aggregated' %}{{ cell.date.strftime('%d.%m') }}: {{ cell.hours }} {{ _('год запису') }}, {{ cell.count }} {{ _('записів') }}, {{ cell.years }} {{ _('р.') }}{% else %}{{ cell.date.strftime('%d.%m.%Y') }}: {{ cell.hours }} {{ _('год запису') }}, {{ cell.count }} {{ _('записів') }}{% endif %}">
                                     {{ cell.day }}
                                 </td>
