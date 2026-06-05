@@ -1738,36 +1738,71 @@ def _coverage_level(hours_recorded):
     return 'partial'
 
 
-def build_coverage_calendar(day_data):
+def build_coverage_calendar(day_data, mode='all'):
     """Перетворює {date: {'count': int, 'minutes': float}} на помісячний календар.
 
     `minutes` — сума тривалості записів за добу (recordings.duration_minutes);
     `count` — к-сть записів. Години реального запису = minutes/60. Чиста функція.
 
-    Повертає dict:
-        {
-          'months': [{'year', 'month', 'label': 'YYYY-MM',
-                      'weeks': [[cell|None, ... 7], ...]}, ...],  # Пн..Нд
-          'total_recordings': int,
-          'total_hours': float,           # сумарні години запису за весь діапазон
-          'active_days': int,             # днів з ≥1 записом
-          'day_range': (min_date, max_date) | None,
-        }
-    cell = {'day', 'date', 'count', 'hours', 'level': good|partial|missing}
-        (hours = години запису за цей день, round 1)
+    mode='all' (дефолт): усі роки помісячно за весь діапазон.
+    mode='aggregated': один умовний рік (12 міс); кожен (місяць,день) сумує
+        значення за ВСІ роки + рахує к-сть років із даними (cell['years']).
+
+    cell = {'day', 'date', 'count', 'hours', 'level', ['years' у aggregated]}.
     """
     # Відсіюємо записи без дати (DATE(NULL)=None ключ ламає сортування дат).
     day_data = {d: v for d, v in (day_data or {}).items() if d is not None}
 
     if not day_data:
         return {'months': [], 'total_recordings': 0, 'total_hours': 0.0,
-                'active_days': 0, 'day_range': None}
+                'active_days': 0, 'day_range': None, 'mode': mode}
 
+    total_recordings = sum(v.get('count', 0) for v in day_data.values())
+    cal = calendar.Calendar(firstweekday=0)  # 0 = Monday
+
+    if mode == 'aggregated':
+        # Згортка по (month, day) за всі роки.
+        agg = {}  # (m, d) -> {'minutes', 'count', 'years': set}
+        for dt, v in day_data.items():
+            a = agg.setdefault((dt.month, dt.day),
+                               {'minutes': 0.0, 'count': 0, 'years': set()})
+            a['minutes'] += float(v.get('minutes', 0) or 0)
+            a['count'] += v.get('count', 0)
+            a['years'].add(dt.year)
+        months = []
+        total_hours = 0.0
+        # Умовний рік 2000 (високосний — щоб 29 лютого існувало).
+        for m in range(1, 13):
+            weeks = []
+            for week in cal.monthdatescalendar(2000, m):
+                row = []
+                for d in week:
+                    if d.month != m:
+                        row.append(None)
+                        continue
+                    a = agg.get((m, d.day))
+                    minutes = a['minutes'] if a else 0.0
+                    hours = round(minutes / 60.0, 1)
+                    total_hours += hours
+                    row.append({'day': d.day, 'date': d,
+                                'count': a['count'] if a else 0,
+                                'hours': hours,
+                                'years': len(a['years']) if a else 0,
+                                'level': _coverage_level(hours)})
+                weeks.append(row)
+            months.append({'year': 2000, 'month': m, 'label': f'{m:02d}',
+                           'weeks': weeks})
+        years_all = sorted({dt.year for dt in day_data})
+        return {
+            'months': months, 'total_recordings': total_recordings,
+            'total_hours': round(total_hours, 1), 'active_days': len(day_data),
+            'day_range': (min(day_data), max(day_data)), 'mode': 'aggregated',
+            'years': years_all,
+        }
+
+    # mode == 'all'
     days = sorted(day_data)
     first, last = days[0], days[-1]
-    total_recordings = sum(v.get('count', 0) for v in day_data.values())
-
-    cal = calendar.Calendar(firstweekday=0)  # 0 = Monday
     months = []
     total_hours = 0.0
     y, m = first.year, first.month
@@ -1801,4 +1836,5 @@ def build_coverage_calendar(day_data):
         'total_hours': round(total_hours, 1),
         'active_days': len(day_data),
         'day_range': (first, last),
+        'mode': 'all',
     }

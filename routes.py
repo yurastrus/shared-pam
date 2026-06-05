@@ -2023,8 +2023,11 @@ def pam_location_coverage(lang_code, location_id):
         ), {'id': location_id}).fetchall()
         day_data = {r.day: {'count': r.cnt, 'minutes': float(r.minutes or 0)} for r in rows}
 
+        mode = request.args.get('mode', 'all')
+        if mode not in ('all', 'aggregated'):
+            mode = 'all'
         from .utils import build_coverage_calendar, COVERAGE_GOOD_HOURS
-        coverage = build_coverage_calendar(day_data)
+        coverage = build_coverage_calendar(day_data, mode=mode)
 
         loc_name = loc.location_name
         if lang_code == 'en' and loc.location_name_en:

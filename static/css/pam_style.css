@@ -2914,3 +2914,5 @@ main .container:not(.maplistcontainer) {
         padding-bottom: 8px;
     }
 }
+
+.coverage-modes { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
