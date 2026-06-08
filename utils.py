@@ -64,6 +64,33 @@ def get_pam_engine():
     
     return _pam_engine
 
+
+def get_user_pam_stats(user_id):
+    """#31: персональна PAM-статистика користувача (read-only).
+
+    Повертає dict: verifications (усього), positive (підтверджень = 1),
+    positive_rate (%), species_count (унікальні види у верифікованих сегментах).
+    """
+    engine = get_pam_engine()
+    with engine.connect() as conn:
+        r = conn.execute(text("""
+            SELECT COUNT(*) AS total,
+                   COUNT(CASE WHEN sv.verification_result = 1 THEN 1 END) AS positive,
+                   COUNT(DISTINCT s.species_id) AS species
+            FROM segment_verifications sv
+            JOIN segments s ON s.id = sv.segment_id
+            WHERE sv.user_id = :uid
+        """), {"uid": user_id}).fetchone()
+    total = (r.total if r else 0) or 0
+    positive = (r.positive if r else 0) or 0
+    return {
+        'verifications': total,
+        'positive': positive,
+        'positive_rate': round(positive * 100.0 / total, 1) if total else 0.0,
+        'species_count': (r.species if r else 0) or 0,
+    }
+
+
 def get_pam_db_connection():
     """
     Створює та повертає з'єднання до бази даних PAM.
