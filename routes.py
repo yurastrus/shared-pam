@@ -1317,6 +1317,28 @@ def api_verification_stats(lang_code):
         if conn:
             conn.close()
 
+def _confine_to_pam_base(path):
+    """#26 (SEC-013): дозволяє лише шляхи всередині PAM_UPLOAD_PATH.
+
+    Повертає realpath, якщо він у межах бази; інакше abort(403). Захист від
+    підміненого в БД file_path (інсайдер / майбутній SQLi / зламаний адмін),
+    який інакше повернув би довільний файл сервера. Якщо PAM_UPLOAD_PATH не
+    налаштовано — лог-помилка і пропуск (щоб не давати регресії наявної поведінки).
+    """
+    base = current_app.config.get('PAM_UPLOAD_PATH')
+    if not base:
+        current_app.logger.error(
+            "PAM_UPLOAD_PATH не налаштовано — path confinement пропущено (#26).")
+        return path
+    allowed_base = os.path.realpath(base)
+    target = os.path.realpath(path)
+    if target != allowed_base and not target.startswith(allowed_base + os.sep):
+        current_app.logger.warning(
+            f"PAM path confinement (#26): '{path}' поза дозволеною базою — 403.")
+        abort(403)
+    return target
+
+
 @pam_bp.route('/<lang_code>/audio/segments/<int:segment_id>')
 @login_required
 @role_required('pam_verifier')
@@ -1337,13 +1359,9 @@ def serve_verification_audio(lang_code, segment_id):
         
         file_path, filename = result
 
-        # --- ПОЧАТОК ТИМЧАСОВОЇ ЗАГЛУШКИ ДЛЯ ЛОКАЛЬНОЇ РОЗРОБКИ ---
-        # local_upload_path = "C:/Users/IuriiStrus/GitHub_cloned_repos/myproject/pam_data_import/segments/"
-        # server_base_path = '/home/yura/pam_data_import/segments/'
-        # file_path = file_path.replace(server_base_path, local_upload_path)
-        # print(f"Local Base Path : {local_upload_path}")
-        # print(f"Final Path      : {file_path}")
-        # --- КІНЕЦЬ ТИМЧАСОВОЇ ЗАГЛУШКИ ---
+        # #26 (SEC-013): підтвердити, що шлях лежить усередині PAM_UPLOAD_PATH —
+        # інакше підмінений у БД file_path міг би віддати довільний файл сервера.
+        _confine_to_pam_base(file_path)
 
         current_app.logger.info(f"Serving audio file: {file_path}")
         
@@ -1688,14 +1706,9 @@ def serve_spectrogram_image(lang_code, segment_id):
         
         audio_path = result[0]
 
-        # --- ПОЧАТОК ТИМЧАСОВОЇ ЗАГЛУШКИ ДЛЯ ЛОКАЛЬНОЇ РОЗРОБКИ ---
-        # local_upload_path = "C:/Users/IuriiStrus/GitHub_cloned_repos/myproject/pam_data_import/segments/"
-        # server_base_path = '/home/yura/pam_data_import/segments/'
-        # audio_path = audio_path.replace(server_base_path, local_upload_path)
-        # print(f"Local Base Path : {local_upload_path}")
-        # print(f"Final Path      : {audio_path}")
-        # --- КІНЕЦЬ ТИМЧАСОВОЇ ЗАГЛУШКИ ---
-
+        # #26 (SEC-013): підтвердити, що шлях лежить усередині PAM_UPLOAD_PATH
+        # (захист і генерації спектрограми, і віддачі картинки з тієї ж теки).
+        _confine_to_pam_base(audio_path)
 
         base_path, _ = os.path.splitext(audio_path)
         spectrogram_path = f"{base_path}.png"
