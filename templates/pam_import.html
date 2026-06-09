@@ -292,7 +292,7 @@ $(function() {
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
         ]);
-        hybridLayer.addTo(map);
+        osmLayer.addTo(map);  // #44: OSM — дефолт скрізь
 
         const overlayMaps = {};
         if (geoserverUrl) {
@@ -337,7 +337,7 @@ $(function() {
             });
         }
 
-        L.control.layers({ "Hybrid": hybridLayer, "OSM": osmLayer }, overlayMaps).addTo(map);
+        L.control.layers({ "{{ _('OSM') }}": osmLayer, "{{ _('Супутник') }}": hybridLayer }, overlayMaps).addTo(map);
 
         markersGroup = L.featureGroup();
         allLocations.forEach(loc => addMarkerToMap(loc, defaultIcon));

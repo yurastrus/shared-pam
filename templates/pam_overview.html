@@ -375,9 +375,16 @@
                 if (map) map.remove();
                 
                 map = L.map(mapElement).setView([49.0, 23.5], 8);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                }).addTo(map);
+                });
+                const satellite = L.layerGroup([
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
+                ]);
+                osm.addTo(map);  // #44: OSM — дефолт
+                L.control.layers({ "{{ _('OSM') }}": osm, "{{ _('Супутник') }}": satellite }).addTo(map);
 
                 if (locations && locations.length > 0) {
                     const markers = L.featureGroup();
