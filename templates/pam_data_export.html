@@ -12,7 +12,6 @@
         <h1 class="page-header">{{ _('Підготовка даних для експорту - ПАМ') }}</h1>
 
         <form id="data-filters-form" class="filters-panel">
-            <!-- ... (всі фільтри залишаються без змін) ... -->
             <div class="filter-group"><label for="class-select">{{ _('Клас:') }}</label><select id="class-select" class="form-control tax-filter"></select></div>
             <div class="filter-group"><label for="order-select">{{ _('Ряд:') }}</label><select id="order-select" class="form-control tax-filter"></select></div>
             <div class="filter-group"><label for="family-select">{{ _('Родина:') }}</label><select id="family-select" class="form-control tax-filter"></select></div>
@@ -64,7 +63,6 @@
         </form>
 
         <div id="results-area" class="results-area">
-             <!-- ЗМІНА: Заголовок тепер буде динамічним -->
              <h3 id="preview-title"></h3> 
             <div id="preview-container"></div>
             <div style="text-align: center; margin-top: 20px;"><button type="button" id="download-btn" class="btn">{{ _('Завантажити повний CSV-файл') }}</button></div>
@@ -78,7 +76,7 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
     $(document).ready(function() {
-        // --- 1. Ініціалізація змінних та Select2 ---
+        // --- 1. Variable and Select2 initialisation ---
         const filters = {
             'class': $('#class-select'),
             'order': $('#order-select'),
@@ -88,7 +86,7 @@
         };
         const taxFilterLevels = ['class', 'order', 'family', 'genus'];
 
-        // Ініціалізація плагіну Select2 для всіх таксономічних фільтрів
+        // Initialise Select2 for all taxonomic filters.
         for (const [key, element] of Object.entries(filters)) {
             element.select2({
                 placeholder: '{{ _("Завантаження...") }}',
@@ -97,14 +95,14 @@
             });
         }
 
-        // Select2 для фільтра установ (multi-select)
+        // Select2 for the institution filter (multi-select).
         $('#institution-select').select2({
             placeholder: '{{ _("Усі доступні установи") }}',
             allowClear: true,
             width: '100%'
         });
 
-        // --- 2. Допоміжні функції для фільтрів ---
+        // --- 2. Filter helper functions ---
         function updateSelectOptions(element, options, placeholder, isMultiSelect = false) {
             const currentVal = element.val();
             const data = (options || []).map(item => (typeof item === 'object' ? item : { id: item, text: item }));
@@ -117,7 +115,7 @@
             });
 
             if (isMultiSelect && Array.isArray(currentVal)) {
-                // Відновлюємо вибір, якщо він все ще валідний
+                // Restore selection if still valid.
                 const validValues = currentVal.filter(val => data.some(opt => opt.id == val));
                 element.val(validValues).trigger('change.select2');
             } else if (!isMultiSelect && currentVal && data.some(opt => opt.id == currentVal)) {
@@ -146,12 +144,12 @@
                 });
         }
 
-        // Обробка зміни таксономічних фільтрів (каскадне оновлення)
+        // Handle taxonomic filter changes (cascade update).
         $('.tax-filter').on('change', function(e) {
             const changedLevel = e.target.id.split('-')[0];
             const changedIndex = taxFilterLevels.indexOf(changedLevel);
             
-            // Якщо очистили фільтр вищого рівня, очищаємо всі підлеглі
+            // If an upper-level filter was cleared, clear all its children.
             if (!$(this).val()) {
                 for (let i = changedIndex + 1; i < taxFilterLevels.length; i++) {
                     filters[taxFilterLevels[i]].val(null).trigger('change.select2');
@@ -161,9 +159,9 @@
             fetchAllFilterOptions();
         });
 
-        // --- 3. Логіка нових UI елементів (Агрегація) ---
+        // --- 3. New UI element logic (aggregation) ---
         
-        // Показувати/ховати поле хвилин в залежності від типу агрегації
+        // Show/hide the minutes field depending on the aggregation type.
         $('#aggregation-level').on('change', function() {
             if ($(this).val() === 'location_time') {
                 $('#time-interval-group').slideDown(200);
@@ -172,23 +170,23 @@
             }
         });
 
-        // Оновлення значення повзунка впевненості
+        // Update confidence slider value.
         $('#confidence-slider').on('input', () => {
             $('#confidence-value').text(parseFloat($('#confidence-slider').val()).toFixed(2));
         });
 
-        // --- 4. Функція скидання (Reset) ---
+        // --- 4. Reset function ---
         function resetToDefaults() {
-            // Скидаємо таксони
+            // Reset taxonomy.
             for (const key of taxFilterLevels) {
                 filters[key].val(null).trigger('change.select2');
             }
             filters.species.val(null).trigger('change.select2');
             
-            // Оновлюємо списки опцій до повних
+            // Reload full option lists.
             fetchAllFilterOptions();
 
-            // Скидаємо дати
+            // Reset dates.
             const formatLocalDate = (date) => {
                 const year = date.getFullYear();
                 const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -202,38 +200,38 @@
             $('#start-date-select').val(formatLocalDate(startOfYear));
             $('#end-date-select').val(formatLocalDate(today));
             
-            // Скидаємо повзунок
+            // Reset slider.
             $('#confidence-slider').val(0.95);
             $('#confidence-value').text('0.95');
 
-            // Скидаємо текстові поля
+            // Reset text fields.
             $('#institution-code').val('');
             $('#detector-name').val('');
 
-            // Скидаємо фільтр установ
+            // Reset institution filter.
             $('#institution-select').val(null).trigger('change');
 
-            // --- НОВЕ: Скидаємо режим експорту та агрегацію ---
+            // Reset export mode and aggregation.
             $('#export-mode').val('standard');
-            $('#aggregation-level').val('none').trigger('change'); // trigger запустить приховування поля часу
+            $('#aggregation-level').val('none').trigger('change'); // trigger will hide the time field
             $('#aggregation-minutes').val(60);
 
-            // Ховаємо результати
+            // Hide results.
             $('#results-area').hide();
         }
 
-        // Прив'язка кнопки скидання
+        // Bind reset button.
         $('#reset-btn').on('click', resetToDefaults);
 
-        // Ініціалізація початкового стану
+        // Initialise default state.
         resetToDefaults();
 
 
-        // --- 5. Збір параметрів для API ---
+        // --- 5. Build API parameters ---
         function getApiParams() {
             const params = new URLSearchParams();
             
-            // Таксони
+            // Taxonomy.
             if (filters.class.val()) params.append('class', filters.class.val());
             if (filters.order.val()) params.append('order', filters.order.val());
             if (filters.family.val()) params.append('family', filters.family.val());
@@ -244,18 +242,18 @@
                 params.append('species_ids', selectedSpecies.join(','));
             }
 
-            // Multi-select установ → 'institution_ids=1,2,3'
+            // Multi-select institutions → 'institution_ids=1,2,3'.
             const selectedInsts = $('#institution-select').val();
             if (selectedInsts && selectedInsts.length > 0) {
                 params.append('institution_ids', selectedInsts.join(','));
             }
 
-            // Дати та впевненість
+            // Dates and confidence.
             if ($('#start-date-select').val()) params.append('start_date', $('#start-date-select').val());
             if ($('#end-date-select').val()) params.append('end_date', $('#end-date-select').val());
             params.append('confidence', $('#confidence-slider').val());
 
-            // --- НОВЕ: Режим та агрегація ---
+            // Export mode and aggregation.
             params.append('export_mode', $('#export-mode').val());
             params.append('aggregation', $('#aggregation-level').val());
             
@@ -264,18 +262,18 @@
                 params.append('aggregation_minutes', minutes ? minutes : 60);
             }
 
-            // Інше
+            // Other parameters.
             params.append('institution_code', $('#institution-code').val() || 'RSNR');
             params.append('detector_name', $('#detector-name').val() || 'BirdNET 2.4');
             
             return params;
         }
 
-        // --- 6. Обробка кнопки "Підготувати дані" (Прев'ю) ---
+        // --- 6. "Prepare data" button handler (preview) ---
         $('#prepare-btn').on('click', function() {
             const params = getApiParams();
             
-            // Валідація: вимагаємо вибрати хоча б один таксон
+            // Validation: require at least one taxon.
             if (!params.has('species_ids') && !params.has('genus') && !params.has('family') && !params.has('order') && !params.has('class')) {
                 alert("{{ _('Будь ласка, оберіть хоча б один таксон (Клас, Ряд, Родина або Вид).') }}");
                 return;
@@ -287,17 +285,17 @@
             fetch(`/{{ g.lang_code }}/api/pam/data-preview?${params.toString()}`)
                 .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
                 .then(data => {
-                    // data.preview_data - масив, data.total_count - число
+                    // data.preview_data — array, data.total_count — number.
                     
                     $('#preview-title').text(`{{ _('Попередній перегляд (n =') }} ${data.total_count})`);
 
                     const previewData = data.preview_data;
                     if (previewData && previewData.length > 0) {
-                        // Визначаємо колонки для відображення в таблиці
+                        // Define columns to display in the preview table.
                         const previewColumns = [
                             'occurrenceID',
                             'scientificName',
-                            //'identificationVerificationStatus', // Важливо для режиму verified_only
+                            //'identificationVerificationStatus', // Important for verified_only mode.
                             'eventDate', 
                             'eventTime',
                             'decimalLatitude',
@@ -329,7 +327,7 @@
                 });
         });
 
-        // --- 7. Обробка кнопки "Завантажити" ---
+        // --- 7. "Download" button handler ---
         $('#download-btn').on('click', function() {
             const params = getApiParams();
             
@@ -338,7 +336,7 @@
                 return;
             }
             
-            // Перенаправлення на URL завантаження
+            // Redirect to the download URL.
             window.location.href = `/{{ g.lang_code }}/api/pam/data-download?${params.toString()}`;
         });
     });
