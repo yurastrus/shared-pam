@@ -1009,10 +1009,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
             conn.close()
 
 def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=0.75, location_ids=None, biotope_ids=None, min_detections=1, tax_filters=None, institution_id=None):
-    """
-    Повертає дані локацій для відображення на карті.
-    ОНОВЛЕНО: враховує фільтри по локаціях, біотопах та мінімальній кількості детекцій.
-    """
+    """Return location data for the map, filtered by locations, biotopes, and min detections."""
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -1063,7 +1060,7 @@ def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=
         else:
             access_conditions.append("s.required_role IS NULL")
 
-        # Формуємо рядок access_filter, який буде додано до SQL-запитів
+        # Build access_filter to append to SQL queries.
         access_filter = ("WHERE " + " AND ".join(access_conditions)) if access_conditions else ""
         
         sql = f"""
@@ -1119,12 +1116,12 @@ def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=
 
 def generate_spectrogram_image(audio_path, spectrogram_type='linear', force_regenerate=False):
     """
-    Генерує спектрограму (Mel або Linear) з фіксованими відступами для JS.
-    
+    Generate a spectrogram (Mel or Linear) with fixed margins for JS sync.
+
     Args:
-        audio_path (str): Шлях до аудіофайлу.
-        spectrogram_type (str): 'mel' (за замовчуванням) або 'linear'.
-        force_regenerate (bool): Чи перезаписувати існуючий файл.
+        audio_path (str): Path to the audio file.
+        spectrogram_type (str): 'mel' (default) or 'linear'.
+        force_regenerate (bool): Whether to overwrite an existing file.
     """
     try:
         base_path, _ = os.path.splitext(audio_path)
@@ -1137,37 +1134,37 @@ def generate_spectrogram_image(audio_path, spectrogram_type='linear', force_rege
             print(f"Не знайдено аудіофайл: {audio_path}")
             return False
 
-        # 1. Завантаження аудіо
+        # 1. Load audio.
         y, sr = librosa.load(audio_path, sr=None)
         duration = librosa.get_duration(y=y, sr=sr)
         
-        # 2. Налаштування полотна (HD DPI)
+        # 2. Canvas setup (HD DPI).
         fig_width = max(6, duration * 1.2)
         fig = plt.figure(figsize=(fig_width, 3), dpi=100)
         
-        # Жорсткі відступи для синхронізації з JS плеєром
+        # Hard-coded margins to sync with the JS player.
         ax = fig.add_axes([0.12, 0.20, 0.864, 0.75])
         
-        # Спільні налаштування для HD якості
-        hop_length = 256  # Малий крок для гладкості по часу
-        fmax = 8000       # Обрізка частот зверху
-        vmin = -70        # Поріг тиші (прибирає фоновий шум)
+        # Shared settings for HD quality.
+        hop_length = 256  # Small hop for smooth time resolution.
+        fmax = 8000        # Upper frequency cap.
+        vmin = -70         # Silence threshold (suppresses background noise).
 
         S_DB = None
         y_axis_mode = 'mel'
 
-        # 3. Логіка вибору типу спектрограми
+        # 3. Spectrogram type selection.
         if spectrogram_type == 'linear':
-            # --- ЛІНІЙНА (STFT) ---
-            # Високий n_fft для деталізації тонких ліній частот
+            # --- LINEAR (STFT) ---
+            # High n_fft for detailed thin frequency lines.
             n_fft = 4096 
             D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length)
             S_DB = librosa.amplitude_to_db(np.abs(D), ref=np.max)
             y_axis_mode = 'linear'
             
         else:
-            # --- MEL (За замовчуванням) ---
-            # n_mels=256 дає високу вертикальну деталізацію
+            # --- MEL (default) ---
+            # n_mels=256 for high vertical resolution.
             n_fft = 2048
             n_mels = 256
             S = librosa.feature.melspectrogram(
@@ -1177,27 +1174,27 @@ def generate_spectrogram_image(audio_path, spectrogram_type='linear', force_rege
             S_DB = librosa.power_to_db(S, ref=np.max)
             y_axis_mode = 'mel'
 
-        # 4. Відображення
+        # 4. Render.
         librosa.display.specshow(
             S_DB, 
             sr=sr, 
             hop_length=hop_length, 
             x_axis='time', 
-            y_axis=y_axis_mode,  # Автоматично підбирає правильну шкалу
+            y_axis=y_axis_mode,  # Automatically selects the correct scale.
             ax=ax, 
             fmax=fmax, 
-            cmap='magma',        # Контрастна палітра
+            cmap='magma',         # High-contrast colour map.
             vmin=vmin
         )
         
-        # Оформлення осей
+        # Axis formatting.
         ax.set_xlabel("sec")
         ax.set_ylabel("kHz")
         
-        # Форматувальник для переведення Гц у кГц (працює і для linear, і для mel)
+        # Formatter to convert Hz → kHz (works for both linear and mel).
         ax.yaxis.set_major_formatter(FuncFormatter(lambda x, pos: '{:.1f}'.format(x/1000)))
 
-        # Збереження
+        # Save.
         plt.savefig(spectrogram_path, transparent=False)
         plt.close(fig)
 
@@ -1208,15 +1205,12 @@ def generate_spectrogram_image(audio_path, spectrogram_type='linear', force_rege
         return False
 
 def get_occurrence_data(filters, limit=None):
-    """
-    Отримує дані Occurrence.
-    ОПТИМІЗОВАНО: Використовує UNION ALL для Smart Filter та пряме порівняння Timestamp для індексів.
-    """
+    """Fetch occurrence data, optimised with UNION ALL for Smart Filter and timestamp index comparisons."""
     conn = None
     try:
         conn = get_pam_db_connection()
         
-        # 1. Отримуємо параметри фільтрації
+        # 1. Fetch filter parameters.
         export_mode = filters.get('export_mode', 'standard')
         agg_type = filters.get('aggregation', 'none')
         try:
@@ -1224,15 +1218,15 @@ def get_occurrence_data(filters, limit=None):
         except (ValueError, TypeError):
             agg_minutes = 60
 
-        # --- ОПТИМІЗАЦІЯ ДАТИ ---
-        # Формуємо timestamp межі, щоб SQL використовував індекс по datetime_start
+        # --- DATE OPTIMISATION ---
+        # Use timestamp bounds so SQL can use the datetime_start index.
         start_date_str = filters.get('start_date')
         end_date_str = filters.get('end_date')
         
         params = {
             'start_ts': f"{start_date_str} 00:00:00",
             'end_ts': f"{end_date_str} 23:59:59",
-            # Якщо Smart Filter - ігноруємо слайдер (ставимо 0), інакше беремо значення
+            # Smart Filter: ignore the confidence slider (set to 0), otherwise use its value.
             'confidence': 0.0 if export_mode == 'smart_filter' else float(filters.get('confidence', 0))
         }
 
@@ -1245,7 +1239,7 @@ def get_occurrence_data(filters, limit=None):
         )
         params.update(inst_params)
 
-        # --- ТАКСОНОМІЧНІ ФІЛЬТРИ ---
+        # --- TAXONOMIC FILTERS ---
         taxo_conditions = []
         if filters.get('species_ids'):
             taxo_conditions.append("s.species_id IN :species_ids")
@@ -1265,8 +1259,8 @@ def get_occurrence_data(filters, limit=None):
 
         taxo_where = " AND " + " AND ".join(taxo_conditions) if taxo_conditions else ""
 
-        # --- CTE: ВЕРИФІКАТОРИ ---
-        # Використовується для отримання імен користувачів
+        # --- CTE: VERIFIERS ---
+        # Used to retrieve user names.
         cte_verifiers = """
             WITH Verifiers AS (
                 SELECT segment_id, STRING_AGG(user_id::text, '|') as verifier_user_ids
@@ -1274,7 +1268,7 @@ def get_occurrence_data(filters, limit=None):
             )
         """
 
-        # Список колонок, однаковий для всіх частин UNION
+        # Column list, identical for all parts of the UNION.
         select_columns = """
             d.detection_id, d.confidence, 
             s.scientific_name, s.kingdom, s.phylum, s.class, s.order_rank, s.family, s.genus, s.establishment_means, 
@@ -1287,16 +1281,16 @@ def get_occurrence_data(filters, limit=None):
         base_sql = ""
 
         # =========================================================================
-        # ЛОГІКА ПОБУДОВИ SQL ЗАПИТУ
+        # SQL QUERY CONSTRUCTION LOGIC
         # =========================================================================
         
         if export_mode == 'smart_filter':
-            # --- РЕЖИМ SMART FILTER (OPTIMIZED) ---
-            # Розбиваємо на два запити:
-            # 1. Чітко верифіковані (швидкий доступ через dvm)
-            # 2. Розумна автоматика (швидкий доступ через evaluation + detections)
+            # --- SMART FILTER MODE (OPTIMISED) ---
+            # Split into two queries:
+            # 1. Clearly verified (fast path via dvm).
+            # 2. Smart auto (fast path via evaluation + detections).
             
-            # Частина 1: Тільки Верифіковані
+            # Part 1: Verified only.
             sql_part_verified = f"""
                 SELECT {select_columns}, v.verifier_user_ids
                 FROM detection_verification_map dvm
@@ -1315,8 +1309,8 @@ def get_occurrence_data(filters, limit=None):
                     {taxo_where}
             """
 
-            # Частина 2: Тільки High Confidence Auto
-            # Явно виключаємо те, що вже є в dvm (щоб не було дублікатів з першою частиною)
+            # Part 2: High confidence auto-detections only.
+            # Explicitly exclude rows already in dvm (to avoid duplicates with Part 1).
             sql_part_smart = f"""
                 SELECT {select_columns}, NULL::text as verifier_user_ids
                 FROM detections d
@@ -1341,11 +1335,11 @@ def get_occurrence_data(filters, limit=None):
                     AND (dvm.verification_result IS NULL OR dvm.verification_result != 0)
             """
 
-            # Об'єднуємо
+            # Merge the two parts.
             base_sql = f"{sql_part_verified} UNION ALL {sql_part_smart}"
 
         else:
-            # --- СТАНДАРТНІ РЕЖИМИ ---
+            # --- STANDARD MODES ---
             mode_condition = ""
             if export_mode == 'verified_only':
                 mode_condition = " AND dvm.positive_votes >= 1 AND (dvm.verification_result != 0 OR dvm.verification_result IS NULL)"
@@ -1373,13 +1367,13 @@ def get_occurrence_data(filters, limit=None):
             """
 
         # =========================================================================
-        # АГРЕГАЦІЯ ТА ЛІМІТИ
+        # AGGREGATION AND LIMITS
         # =========================================================================
         
         final_sql = ""
         count_sql = ""
 
-        # Якщо потрібна агрегація (1 запис на день/годину)
+        # Apply aggregation if requested (one record per day/hour).
         if agg_type in ['location_day', 'location_time']:
             if agg_type == 'location_day':
                 partition_expr = "DATE(datetime_start)"
@@ -1387,8 +1381,8 @@ def get_occurrence_data(filters, limit=None):
                 params['agg_seconds'] = agg_minutes * 60
                 partition_expr = "FLOOR(EXTRACT(EPOCH FROM datetime_start) / :agg_seconds)"
 
-            # Обгортаємо base_sql у CTE для ранжування
-            # UNION результат стає джерелом даних
+            # Wrap base_sql in a CTE for ranking.
+            # The UNION result becomes the data source.
             final_sql = f"""
                 {cte_verifiers},
                 RawData AS ({base_sql}),
@@ -1405,7 +1399,7 @@ def get_occurrence_data(filters, limit=None):
                 SELECT * FROM RankedData WHERE rn = 1 ORDER BY datetime_start
             """
             
-            # Для підрахунку кількості при агрегації
+            # Count query for aggregated mode.
             count_sql = f"""
                 {cte_verifiers},
                 RawData AS ({base_sql}),
@@ -1419,18 +1413,18 @@ def get_occurrence_data(filters, limit=None):
                 SELECT COUNT(*) FROM RankedData WHERE rn = 1
             """
         else:
-            # Без агрегації - просто повертаємо дані
+            # No aggregation — return data as-is.
             final_sql = f"{cte_verifiers} {base_sql} ORDER BY datetime_start"
             count_sql = f"{cte_verifiers} SELECT COUNT(*) FROM ({base_sql}) as total_rows"
 
         # =========================================================================
-        # ВИКОНАННЯ ЗАПИТІВ
+        # QUERY EXECUTION
         # =========================================================================
         
-        # 1. Count (Загальна кількість)
+        # 1. Count total rows.
         total_count = conn.execute(text(count_sql), params).scalar() or 0
         
-        # 2. Data (Дані з лімітом, якщо потрібно)
+        # 2. Fetch data (with limit if requested).
         if limit:
             final_sql += " LIMIT :limit"
             params['limit'] = limit
@@ -1438,10 +1432,10 @@ def get_occurrence_data(filters, limit=None):
         db_result = conn.execute(text(final_sql), params).mappings().fetchall()
         
         # =========================================================================
-        # ПОСТОБРОБКА (Mapping users & Formatting CSV dicts)
+        # POST-PROCESSING (map users & format CSV dicts)
         # =========================================================================
         
-        # Збираємо ID користувачів для мапінгу імен
+        # Collect user IDs for name mapping.
         all_user_ids = set()
         for row in db_result:
             if row['verifier_user_ids']:
@@ -1477,9 +1471,9 @@ def get_occurrence_data(filters, limit=None):
                 identifiedBy = detector_name
                 basisOfRecord = 'MachineObservation'
                 
-                # Логіка Remarks для Smart Filter
+                # Remarks logic for Smart Filter.
                 if export_mode == 'smart_filter' and p95 and row['confidence'] >= p95:
-                    identificationVerificationStatus = 'unverified' # Технічно це все ще MachineObservation
+                    identificationVerificationStatus = 'unverified'  # Technically still MachineObservation.
                     identificationRemarks = (f"High confidence detection by {detector_name} (Conf: {round(row['confidence'], 2)} "
                                              f">= Species 95% Threshold: {round(p95, 2)}).")
                 else:
@@ -1515,30 +1509,30 @@ def get_occurrence_data(filters, limit=None):
     finally:
         if conn: conn.close()
 
-# Список параметрів, які ми хочемо тягнути (можна легко розширити)
+# List of Open-Meteo parameters to fetch (easy to extend).
 OPEN_METEO_PARAMS = [
     "temperature_2m_max",
     "temperature_2m_min",
-    "temperature_2m_mean",     # Середня температура
-    "precipitation_sum",       # Опади
-    "wind_speed_10m_max",      # Вітер пориви
-    "wind_speed_10m_mean",     # Вітер середній
-    "relative_humidity_2m_mean", # Вологість
+    "temperature_2m_mean",      # Mean temperature.
+    "precipitation_sum",        # Precipitation.
+    "wind_speed_10m_max",       # Wind gusts.
+    "wind_speed_10m_mean",      # Mean wind speed.
+    "relative_humidity_2m_mean",  # Relative humidity.
     "surface_pressure_mean"
 ]
 
 def get_weather_data(start_date, end_date, lat, lon):
     """
-    Отримує погодні дані з бази geodata або Open-Meteo.
-    Логіка кешування:
-    1. Дані старші за 7 днів вважаються "історичними" і не оновлюються.
-    2. Дані за останні 7 днів оновлюються, ЯКЩО останнє оновлення було > 12 годин тому.
-    3. Використовує PostGIS для фолбеку.
+    Fetch weather data from the geodata database or Open-Meteo.
+    Caching logic:
+    1. Data older than 7 days is treated as "historical" and is not refreshed.
+    2. Data from the last 7 days is refreshed IF the last update was > 12 hours ago.
+    3. Uses PostGIS for nearest-point fallback.
     """
-    # --- НАЛАШТУВАННЯ ---
-    COORD_PRECISION = 2           # Точність координат (знаків після коми)
-    STABILITY_THRESHOLD_DAYS = 7  # Період "нестабільності" (дні)
-    CACHE_FRESHNESS_HOURS = 24    # Як часто оновлювати нестабільні дані (години)
+    # --- Settings ---
+    COORD_PRECISION = 2            # Coordinate precision (decimal places).
+    STABILITY_THRESHOLD_DAYS = 7   # "Unstable" data period in days.
+    CACHE_FRESHNESS_HOURS = 24     # How often to refresh unstable data (hours).
     # --------------------
 
     lat_fixed = round(float(lat), COORD_PRECISION)
@@ -1553,17 +1547,17 @@ def get_weather_data(start_date, end_date, lat, lon):
         delta = e_date - s_date
         required_dates = {(s_date + timedelta(days=i)).strftime('%Y-%m-%d') for i in range(delta.days + 1)}
         
-        # Дата, до якої дані вважаються "архівними" і незмінними
+        # Cut-off date after which data is considered archived and immutable.
         cutoff_date = (datetime.now() - timedelta(days=STABILITY_THRESHOLD_DAYS)).date()
         
-        # Час, після якого свіжі дані вважаються "застарілими" і потребують повторного запиту
+        # Point in time after which recent data is considered stale and needs a refresh.
         refresh_cutoff_time = datetime.now() - timedelta(hours=CACHE_FRESHNESS_HOURS)
 
-        # 2. Розумна перевірка наявності даних
-        # Ми беремо дату з бази, ЯКЩО:
-        # (А) Вона стара і стабільна (date <= cutoff_date)
-        # АБО
-        # (Б) Вона свіжа, АЛЕ ми її оновили зовсім недавно (updated_at >= refresh_cutoff_time)
+        # 2. Smart existence check.
+        # Accept a cached row ONLY IF:
+        # (A) it is old and stable (date <= cutoff_date)
+        # OR
+        # (B) it is recent AND was updated very recently (updated_at >= refresh_cutoff_time).
         existing_valid_query = text("""
             SELECT date FROM weather.daily_archive 
             WHERE latitude = :lat AND longitude = :lon 
@@ -1587,7 +1581,7 @@ def get_weather_data(start_date, end_date, lat, lon):
         existing_dates = {row[0].strftime('%Y-%m-%d') for row in result}
         missing_dates = required_dates - existing_dates
         
-        # 3. Спроба оновлення через API (тільки якщо чогось не вистачає)
+        # 3. Try to refresh via API (only for missing/stale dates).
         if missing_dates:
             try:
                 current_app.logger.info(f"Weather: Fetching {len(missing_dates)} dates (expired or missing) for ({lat_fixed}, {lon_fixed})")
@@ -1612,8 +1606,8 @@ def get_weather_data(start_date, end_date, lat, lon):
                     values_to_insert = []
                     
                     for i, date_str in enumerate(time_list):
-                        # Вставляємо тільки ті дати, яких немає у списку "валідних"
-                        # Тобто: або зовсім нові, або старі, які протухли (updated_at старий)
+                        # Insert only dates absent from the "valid" list
+                        # (brand-new dates or stale ones with an old updated_at).
                         if date_str in existing_dates:
                             continue
                             
@@ -1630,7 +1624,7 @@ def get_weather_data(start_date, end_date, lat, lon):
                             'metrics': metrics_json
                         })
                     
-                    # 4. Зберігаємо в базу (Upsert)
+                    # 4. Upsert into the database.
                     if values_to_insert:
                         weather_table = table("daily_archive",
                             column("date"),
@@ -1647,7 +1641,7 @@ def get_weather_data(start_date, end_date, lat, lon):
                             constraint='pk_weather_archive',
                             set_={
                                 'metrics': stmt.excluded.metrics,
-                                'updated_at': datetime.now() # Оновлюємо час, продовжуючи "життя" кешу
+                                'updated_at': datetime.now()  # Refresh timestamp to extend cache life.
                             }
                         )
                         conn.execute(do_update_stmt)
@@ -1658,7 +1652,7 @@ def get_weather_data(start_date, end_date, lat, lon):
             except Exception as api_err:
                 current_app.logger.error(f"Weather API Connection Failed: {api_err}")
 
-        # 5. Фінальна вибірка
+        # 5. Final data fetch.
         final_query = text("""
             SELECT date, metrics
             FROM weather.daily_archive
@@ -1674,7 +1668,7 @@ def get_weather_data(start_date, end_date, lat, lon):
             'end_date': end_date
         }).mappings().fetchall()
         
-        # Fallback з використанням PostGIS (якщо API впав і даних немає)
+        # PostGIS fallback (if the API failed and data is incomplete).
         expected_days = (e_date - s_date).days + 1
         
         if len(final_result) < expected_days:
@@ -1707,7 +1701,7 @@ def get_weather_data(start_date, end_date, lat, lon):
                     'end_date': end_date
                 }).mappings().fetchall()
 
-        # Форматування
+        # Format results.
         processed_data = []
         for row in final_result:
             item = {'date': row['date'].strftime('%Y-%m-%d')}
@@ -1725,20 +1719,20 @@ def get_weather_data(start_date, end_date, lat, lon):
             conn.close()
 
 
-# ── Календар покриття локації записами (Idea 10 / #37) ───────────────────────
+# ── Location coverage calendar (Idea 10 / #37) ───────────────────────────────
 #
-# Метрика покриття дня = СУМА ТРИВАЛОСТІ записів за добу (recordings.duration_minutes
-# / 60 = години реального запису). Усі наявні записи 5-хвилинні (default 5);
-# при імпорті тривалість задається у формі pam/import.
+# Day coverage metric = SUM OF RECORDING DURATIONS per day (recordings.duration_minutes
+# / 60 = actual recording hours). All existing recordings are 5 min (default 5);
+# duration is set in the pam/import form at import time.
 
-# Поріг «добре» у годинах реального запису на добу (узгоджено з користувачем).
-COVERAGE_GOOD_HOURS = 6  # ≥6 год запису/день — добре
-# Cap НЕ застосовуємо: на локації може стояти кілька ресиверів (паралельні
-# записи), тож сумарна тривалість за добу законно може перевищувати 24 год.
+# "Good" threshold in actual recording hours per day (agreed with the user).
+COVERAGE_GOOD_HOURS = 6  # ≥6 h/day = good
+# No cap applied: a location can have multiple receivers recording in parallel,
+# so the daily total may legitimately exceed 24 hours.
 
 
 def _coverage_level(hours_recorded):
-    """Категорія клітинки календаря за сумарними годинами запису за добу."""
+    """Return calendar cell category based on total recording hours for the day."""
     if not hours_recorded or hours_recorded <= 0:
         return 'missing'
     if hours_recorded >= COVERAGE_GOOD_HOURS:
@@ -1747,9 +1741,9 @@ def _coverage_level(hours_recorded):
 
 
 def _apply_coverage_intensity(months, value_of, include):
-    """Проставляє cell['intensity'] ∈ [0,1] лінійно від min до max значення
-    (#43, градієнтна заливка). include(cell) → чи входить у шкалу; інакше
-    intensity=None (нейтральний/сірий). Якщо всі рівні — intensity=1.0.
+    """Set cell['intensity'] ∈ [0,1] by linear scaling from min to max value
+    (#43, gradient shading). include(cell) determines whether the cell is in
+    the scale; otherwise intensity=None (neutral/grey). All equal → intensity=1.0.
     """
     vals = [value_of(c) for mo in months for wk in mo['weeks']
             for c in wk if c and include(c)]
@@ -1767,18 +1761,18 @@ def _apply_coverage_intensity(months, value_of, include):
 
 
 def build_coverage_calendar(day_data, mode='all'):
-    """Перетворює {date: {'count': int, 'minutes': float}} на помісячний календар.
+    """Convert {date: {'count': int, 'minutes': float}} to a month-by-month calendar.
 
-    `minutes` — сума тривалості записів за добу (recordings.duration_minutes);
-    `count` — к-сть записів. Години реального запису = minutes/60. Чиста функція.
+    `minutes` — sum of recording durations per day (recordings.duration_minutes);
+    `count`   — number of recordings. Actual hours = minutes/60. Pure function.
 
-    mode='all' (дефолт): усі роки помісячно за весь діапазон.
-    mode='aggregated': один умовний рік (12 міс); кожен (місяць,день) сумує
-        значення за ВСІ роки + рахує к-сть років із даними (cell['years']).
+    mode='all' (default): all years, month by month, for the full date range.
+    mode='aggregated': one synthetic year (12 months); each (month, day) sums
+        values across ALL years and counts years with data (cell['years']).
 
-    cell = {'day', 'date', 'count', 'hours', 'level', ['years' у aggregated]}.
+    cell = {'day', 'date', 'count', 'hours', 'level', ['years' in aggregated mode]}.
     """
-    # Відсіюємо записи без дати (DATE(NULL)=None ключ ламає сортування дат).
+    # Filter out records with no date (DATE(NULL)=None key breaks date sorting).
     day_data = {d: v for d, v in (day_data or {}).items() if d is not None}
 
     if not day_data:
@@ -1789,7 +1783,7 @@ def build_coverage_calendar(day_data, mode='all'):
     cal = calendar.Calendar(firstweekday=0)  # 0 = Monday
 
     if mode == 'aggregated':
-        # Згортка по (month, day) за всі роки.
+        # Roll up by (month, day) across all years.
         agg = {}  # (m, d) -> {'minutes', 'count', 'years': set}
         for dt, v in day_data.items():
             a = agg.setdefault((dt.month, dt.day),
@@ -1799,7 +1793,7 @@ def build_coverage_calendar(day_data, mode='all'):
             a['years'].add(dt.year)
         months = []
         total_hours = 0.0
-        # Умовний рік 2000 (високосний — щоб 29 лютого існувало).
+        # Use synthetic year 2000 (leap year — so February 29 exists).
         for m in range(1, 13):
             weeks = []
             for week in cal.monthdatescalendar(2000, m):
@@ -1841,13 +1835,13 @@ def build_coverage_calendar(day_data, mode='all'):
             row = []
             for d in week:
                 if d.month != m:
-                    row.append(None)  # день сусіднього місяця — порожньо
+                    row.append(None)  # Day from adjacent month — leave empty.
                     continue
                 info = day_data.get(d)
                 cnt = info.get('count', 0) if info else 0
                 minutes = float(info.get('minutes', 0) or 0) if info else 0.0
-                # Сума годин запису за добу (БЕЗ обмеження 24 — кілька ресиверів
-                # на локації можуть давати законно >24 год сумарно).
+                # Total recording hours per day (NO 24-hour cap — multiple receivers
+                # at a location can legally sum to >24 h).
                 hours = round(minutes / 60.0, 1)
                 total_hours += hours
                 row.append({'day': d.day, 'date': d, 'count': cnt,
