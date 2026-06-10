@@ -10,7 +10,7 @@
             <p class="lead">{{ _('Метрики точності автоматичної класифікації видів на основі людських верифікацій') }}</p>
         </div>
 
-        <!-- Загальна статистика -->
+        <!-- Overall statistics -->
         <div class="summary-grid">
             <div class="summary-card">
                 <h5>{{ _('Оцінених видів') }}</h5>
@@ -29,7 +29,7 @@
             </div>
         </div>
 
-        <!-- Панель адміністратора -->
+        <!-- Admin panel -->
         {% if current_user.is_authenticated and current_user.has_role('manager') %}
         <div class="admin-panel">
             <h4>{{ _('Адміністраторські функції') }}</h4>
@@ -39,7 +39,7 @@
                 
                 <div class="d-flex align-items-end flex-wrap" style="gap: 10px;">
                     
-                    <!-- Група: Кількість -->
+                    <!-- Group: Count -->
                     <div class="form-group mb-0">
                         <label for="min_verifications" class="small text-muted mb-1 d-block">{{ _('Мін. вер.') }}</label>
                         <input type="number" id="min_verifications" name="min_verifications" 
@@ -48,7 +48,7 @@
                             style="width: 60px;">
                     </div>
 
-                    <!-- Група: Вибір виду -->
+                    <!-- Group: Species selection -->
                     <div class="form-group mb-0">
                        <!-- <label for="species_choice" class="small text-muted mb-1 d-block">{{ _('Вид') }}</label>  -->
                         <select name="species_choice" id="species_choice" 
@@ -74,7 +74,7 @@
                         </select>
                     </div>
 
-                    <!-- Кнопка (без лейблу, вирівняна по низу) -->
+                    <!-- Button (no label, bottom-aligned) -->
                     <div class="form-group mb-0">
                         <button type="submit" class="btn btn-warning btn-sm" 
                                 onclick="return confirm('{{ _('Підтвердіть перерахунок метрик.') }}')"
@@ -134,11 +134,11 @@
         </div>
         {% endif %}
 
-        <!-- Детальні результати -->
+        <!-- Detailed results -->
         <div class="detailed-results-section">
             <h4>{{ _('Детальні результати по всіх видах') }}</h4>
             
-            <!-- Фільтри та сортування -->
+            <!-- Filters and sorting -->
             <div class="filters-row">
                 <div class="filter-group">
                     <label for="sort-select">{{ _('Сортувати за:') }}</label>
@@ -165,7 +165,7 @@
                 </div>
             </div>
 
-            <!-- Таблиця результатів -->
+            <!-- Results table -->
             <div id="results-container">
                 <div class="loading-spinner">
                     <div class="spinner-border" style="width: 3rem; height: 3rem; color: #0779e4;" role="status">
@@ -174,7 +174,7 @@
                 </div>
             </div>
 
-            <!-- Пагінація -->
+            <!-- Pagination -->
             <div id="pagination-container"></div>
         </div>
     </div>
@@ -185,14 +185,14 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Зберігаємо код мови для формування URL у JS
+    // Store the language code for building URLs in JS.
     const g_lang_code = '{{ g.lang_code }}';
     
     let currentPage = 1;
     let currentSort = 'precision_score';
     let currentOrder = 'desc';
 
-    // Переклади для JS
+    // JS translations.
     const translations = {
         species: '{{ _("Вид") }}',
         samples: '{{ _("Зразків") }}', 
@@ -204,10 +204,10 @@ $(document).ready(function() {
         r2: 'R²'
     };
     
-    // Початкове завантаження
+    // Initial load.
     loadDetailedResults();
     
-    // Обробник кнопки оновлення
+    // Refresh button handler.
     $('#refresh-results').on('click', function() {
         currentPage = 1;
         currentSort = $('#sort-select').val();
@@ -215,10 +215,10 @@ $(document).ready(function() {
         loadDetailedResults();
     });
 
-    // Обробник зміни сортування в селектах
+    // Sort select change handler.
     $('#sort-select, #order-select').on('change', function() {
-        // Можна зробити автооновлення при зміні селекта, або чекати натискання кнопки
-        // Тут чекаємо натискання кнопки "Оновити", як в попередньому коді
+        // Could auto-update on select change, or wait for the button click.
+        // Here we wait for the "Refresh" button, as in the previous implementation.
     });
     
     function loadDetailedResults(page = 1) {
@@ -262,7 +262,7 @@ $(document).ready(function() {
     function formatValueWithCI(value, lower, upper) {
         const formattedMain = formatThreshold(value); 
         
-        // Перевірка на наявність даних для інтервалів
+        // Check for CI data.
         if (value == null || lower == null || upper == null) {
             return formattedMain;
         }
@@ -274,16 +274,16 @@ $(document).ready(function() {
             return formattedMain;
         }
 
-        // Якщо інтервал "схлопнувся" в мінімум (все <= 0.1), не показуємо його
+        // If the CI collapsed to the minimum (all <= 0.1), do not show it.
         if (numLower <= 0.100001 && numUpper <= 0.100001) {
             return formattedMain;
         }
 
-        // Форматування меж
+        // Format bounds.
         const fmtLower = (numLower <= 0.100001) ? '&le;0.10' : numLower.toFixed(2);
         let fmtUpper = (numUpper <= 0.100001) ? '&le;0.10' : numUpper.toFixed(2);
         
-        // Красиве відображення для 1.0
+        // Pretty-print for 1.0.
         if (parseFloat(numUpper) >= 0.999) fmtUpper = '1.00';
         
         return `
@@ -317,19 +317,19 @@ $(document).ready(function() {
         data.results.forEach(function(result) {
             const precisionClass = getMetricClass(result.precision);
             
-            // Інтервал для Precision
+            // CI for Precision.
             let ciHtml = '';
             if (result.precision_lower != null && result.precision_upper != null) {
                 ciHtml = `<div class="ci-range">[${result.precision_lower} - ${result.precision_upper}]</div>`;
             }
 
-            // Формування лінка для R2 (ОНОВЛЕНО)
+            // Build R² link.
             let r2Html = '<span class="text-muted">-</span>';
             if (result.logistic_r_squared !== null) {
-                // Формуємо URL до сторінки деталей
+                // Build URL to the detail page.
                 const detailUrl = `/${g_lang_code}/pam/evaluation/species/${result.species_id}`;
                 
-                // Створюємо посилання, що відкривається в новій вкладці
+                // Create a link that opens in a new tab.
                 r2Html = `
                     <a href="${detailUrl}" target="_blank" class="metric-link" title="{{ _('Відкрити графік регресії') }}">
                         ${result.logistic_r_squared} <i class="fas fa-external-link-alt fa-xs" style="margin-left: 2px; opacity: 0.6;"></i>
@@ -383,7 +383,7 @@ $(document).ready(function() {
         $('#pagination-container').html(html);
     }
     
-    // Експортуємо функцію в window (для пагінації onclick)
+    // Export function to window (for pagination onclick).
     window.loadDetailedResults = loadDetailedResults;
 });
 </script>

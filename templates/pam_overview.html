@@ -13,7 +13,7 @@
         <h1 class="page-header" style="margin-bottom: 20px;">{{ _('Рейтингова таблиця видів за кількістю акустичних детекцій') }}</h1>
         
         <form id="overview-filters-form" class="filters-panel">
-            <!-- Рядок 1: Дати (на всю ширину, по центру) -->
+            <!-- Row 1: Dates (full width, centred) -->
             <div class="filter-group full-width" style="max-width: 50%; margin: 0 auto; min-width: 300px;">
                 <label style="text-align: center;">{{ _('Діапазон дат:') }}</label>
                 <div style="display: flex; gap: 5px;">
@@ -21,7 +21,7 @@
                     <input type="date" id="end-date-select" class="form-control">
                 </div>
             </div>
-            <!-- Рядок 2: Таксономія -->
+            <!-- Row 2: Taxonomy -->
             <div class="filter-group">
                 <label for="class-select">{{ _('Клас:') }}</label>
                 <select id="class-select" class="form-control tax-filter"></select>
@@ -38,7 +38,7 @@
                 <label for="genus-select">{{ _('Рід:') }}</label>
                 <select id="genus-select" class="form-control tax-filter"></select>
             </div>
-            <!-- Рядок 3: Біотопи та Локації -->
+            <!-- Row 3: Biotopes and locations -->
             <div class="filter-group">
                 <label for="institution-select">{{ _('Установа/проект:') }}</label>
                 <select id="institution-select" class="form-control" multiple></select>
@@ -52,7 +52,7 @@
                 <select id="locations-select" class="form-control" multiple></select>
             </div>
             
-            <!-- Рядок 4: Повзунки -->
+            <!-- Row 4: Sliders -->
             <div class="filter-group full-width" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 100%; margin: 0 auto;">
                 <div class="filter-group">
                     <label for="confidence-slider">{{ _('Впевненість:') }} <span id="confidence-value">0.95</span></label>
@@ -78,7 +78,7 @@
         </form>
 
         <div class="overview-layout">
-            <!-- Ліва колонка - статистика та карта -->
+            <!-- Left column: statistics and map -->
             <div class="overview-sidebar">
                 <div class="overview-section">
                     <h2 class="section-title">{{ _('Загальна статистика') }}</h2>
@@ -99,7 +99,7 @@
                 </div>
             </div>
 
-            <!-- Права колонка - рейтингова таблиця -->
+            <!-- Right column: ranking table -->
             <div class="overview-main">
                 <div class="ranking-table-container">
                     <h3 style="margin: 0 0 10px 0;">{{ _('Рейтинг видів за кількістю детекцій') }}</h3>
@@ -122,7 +122,7 @@
     
     <script>
         $(document).ready(function() {
-            // --- Ініціалізація змінних ---
+            // --- Variable initialisation ---
             const startDateInput = $('#start-date-select');
             const endDateInput = $('#end-date-select');
             const confidenceSlider = $('#confidence-slider');
@@ -146,11 +146,11 @@
 
             let map = null;
 
-            // --- Ініціалізація сторінки ---
+            // --- Page initialisation ---
             (function setupInitialValues() {
                 confidenceValueSpan.text(parseFloat(confidenceSlider.val()).toFixed(2));
                 minDetectionsValueSpan.text(minDetectionsSlider.val());
-                // Встановлюємо дати
+                // Set dates.
                 const today = new Date();
                 const yearAgo = new Date();
                 yearAgo.setFullYear(yearAgo.getFullYear() - 1);
@@ -163,7 +163,7 @@
                 familySelect.select2({ placeholder: '{{ _("-- Всі родини --") }}', allowClear: true, width: '100%' });
                 genusSelect.select2({ placeholder: '{{ _("-- Всі роди --") }}', allowClear: true, width: '100%' });
 
-                // 2. Ініціалізація Select2 (додай до setupInitialValues)
+                // 2. Select2 initialisation (institution select).
                 institutionSelect.select2({
                     placeholder: '{{ _("-- Всі установи/проекти --") }}',
                     allowClear: true,
@@ -171,7 +171,7 @@
                     multiple: true
                 });
 
-                // Ініціалізація Select2 для нових фільтрів
+                // Initialise Select2 for new filters.
                 biotopesSelect.select2({
                     placeholder: '{{ _("-- Всі біотопи --") }}',
                     allowClear: true,
@@ -183,26 +183,26 @@
                     width: '100%'
                 });
 
-                // Первинне завантаження даних для фільтрів
+                // Initial filter data load.
                 updateDynamicFilters();
             })();
 
-            // --- Обробники подій ---
+            // --- Event handlers ---
             applyButton.on('click', updateAllContent);
             confidenceSlider.on('input', () => confidenceValueSpan.text(parseFloat(confidenceSlider.val()).toFixed(2)));
             minDetectionsSlider.on('input', () => minDetectionsValueSpan.text(minDetectionsSlider.val()));
             taxFilters.on('change', function() {
-                // При зміні будь-якого таксономічного рівня, оновлюємо доступні варіанти для інших
+                // Taxonomic level changed — update available options for all other levels.
                 updateDynamicFilters();
             });
 
 
-            // Оновлюємо фільтри при зміні дати
+            // Refresh filters when dates change.
             startDateInput.on('change', updateDynamicFilters);
             endDateInput.on('change', updateDynamicFilters);
 
             institutionSelect.on('change', function() {
-                updateDynamicFilters(); // Оновлюємо інші фільтри (локації/біотопи)
+                updateDynamicFilters(); // Refresh other filters (locations/biotopes).
             });
 
             function updateDynamicFilters() {
@@ -210,7 +210,7 @@
                 const endDate = endDateInput.val();
                 if (!startDate || !endDate) return;
 
-                // Збираємо поточні значення
+                // Collect current values.
                 const currentValues = {
                     class: classSelect.val(),
                     order: orderSelect.val(),
@@ -218,10 +218,10 @@
                     genus: genusSelect.val(),
                     locations: locationsSelect.val(),
                     biotopes: biotopesSelect.val(),
-                    institution: institutionSelect.val() // Тут буде масив для multiple select
+                    institution: institutionSelect.val() // Array for multiple select.
                 };
 
-                // Формуємо параметри
+                // Build parameters.
                 const params = new URLSearchParams({
                     start_year: new Date(startDate).getFullYear(),
                     end_year: new Date(endDate).getFullYear(),
@@ -233,7 +233,7 @@
                     genus: currentValues.genus || ''
                 });
 
-                // Додаємо установи (якщо вибрано кілька - з'єднуємо комою)
+                // Add institutions (comma-joined if multiple selected).
                 if (currentValues.institution && currentValues.institution.length > 0) {
                     params.append('institution_id', currentValues.institution.join(','));
                 }
@@ -242,15 +242,14 @@
                     .then(response => response.json())
                     .then(data => {
                         
-                        // --- ВИПРАВЛЕНА ФУНКЦІЯ ОНОВЛЕННЯ ---
                         const refreshSelect = (el, items, placeholder, currentVal) => {
-                            // 1. Формуємо нові опції
+                            // 1. Build new options.
                             const formattedData = [{ id: '', text: '' }];
                             items.forEach(item => {
                                 formattedData.push(typeof item === 'object' ? item : { id: item, text: item });
                             });
 
-                            // 2. Очищаємо та ініціалізуємо Select2
+                            // 2. Clear and re-init Select2.
                             el.empty().select2({
                                 data: formattedData,
                                 placeholder: placeholder,
@@ -258,16 +257,16 @@
                                 width: '100%'
                             });
 
-                            // 3. ВІДНОВЛЕННЯ ЗНАЧЕНЬ (Виправлена логіка)
+                            // 3. Restore selection.
                             if (currentVal) {
-                                // Перетворюємо currentVal на масив, якщо це не масив
+                                // Coerce currentVal to an array if needed.
                                 const currentArray = Array.isArray(currentVal) ? currentVal : [currentVal];
                                 
-                                // Створюємо список доступних ID у нових даних (як рядки)
-                                // item.id може бути числом, тому конвертуємо в String для порівняння
+                                // Build list of available IDs in the new data (as strings).
+                                // item.id may be a number — convert to String for comparison.
                                 const availableIds = items.map(item => String(typeof item === 'object' ? item.id : item));
                                 
-                                // Фільтруємо: залишаємо тільки ті вибрані значення, які є в новому списку
+                                // Keep only selected values present in the new list.
                                 const validSelection = currentArray.filter(val => availableIds.includes(String(val)));
 
                                 if (validSelection.length > 0) {
@@ -279,19 +278,18 @@
                                 el.val(null).trigger('change.select2');
                             }
                         };
-                        // -------------------------------------
 
                         if (data.institutions) {
                             refreshSelect(institutionSelect, data.institutions, '{{ _("-- Всі установи/проекти --") }}', currentValues.institution);
                         }
 
-                        // Оновлюємо таксономію
+                        // Update taxonomy.
                         refreshSelect(classSelect, data.classes, '{{ _("-- Всі класи --") }}', currentValues.class);
                         refreshSelect(orderSelect, data.orders, '{{ _("-- Всі ряди --") }}', currentValues.order);
                         refreshSelect(familySelect, data.families, '{{ _("-- Всі родини --") }}', currentValues.family);
                         refreshSelect(genusSelect, data.genera, '{{ _("-- Всі роди --") }}', currentValues.genus);
 
-                        // Оновлюємо локації та біотопи
+                        // Update locations and biotopes.
                         refreshSelect(biotopesSelect, data.biotopes, '{{ _("-- Всі біотопи --") }}', currentValues.biotopes);
                         refreshSelect(locationsSelect, data.locations, '{{ _("-- Всі локації --") }}', currentValues.locations);
                     })
@@ -306,20 +304,20 @@
                     end_date: endDateInput.val()
                 });
                 
-                // ОБРОБКА МНОЖИННОГО ВИБОРУ
+                // Handle multiple selection.
                 const institutions = institutionSelect.val();
                 if (institutions && institutions.length > 0) {
                     params.append('institution_id', institutions.join(','));
                 }
 
-                // Гео-фільтри
+                // Geo-filters.
                 const locs = locationsSelect.val();
                 if (locs && locs.length > 0) params.append('locations', locs.join(','));
                 
                 const bios = biotopesSelect.val();
                 if (bios && bios.length > 0) params.append('biotopes', bios.join(','));
 
-                // ТАКСОНОМІЯ
+                // Taxonomy.
                 if (classSelect.val()) params.append('class', classSelect.val());
                 if (orderSelect.val()) params.append('order', orderSelect.val());
                 if (familySelect.val()) params.append('family', familySelect.val());
@@ -331,7 +329,7 @@
             function updateAllContent() {
                 updateStatistics();
                 updateMap();
-                updateRankingTable(); // Оновлюємо таблицю в кінці
+                updateRankingTable(); // Update ranking table last.
             }
 
             function updateStatistics() {
@@ -383,13 +381,13 @@
                     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
                     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
                 ]);
-                osm.addTo(map);  // #44: OSM — дефолт
+                osm.addTo(map);  // #44: OSM — default
                 L.control.layers({ "{{ _('OSM') }}": osm, "{{ _('Супутник') }}": satellite }).addTo(map);
 
                 if (locations && locations.length > 0) {
                     const markers = L.featureGroup();
                     locations.forEach(loc => {
-                        // Використовуємо нову назву з API
+                        // Use the new name from the API.
                         const popupContent = `
                             <b>${loc.location_name}</b><br>
                             {{ _('Детекцій:') }} <b>${loc.detection_count}</b><br>
