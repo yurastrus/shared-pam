@@ -1,5 +1,3 @@
-# myproject/app/pam/utils.py
-
 import calendar
 import csv
 import io
@@ -8,7 +6,7 @@ import os
 import threading
 from datetime import date, datetime, timedelta, timezone
 
-# Сторонні бібліотеки (Data Science & Audio)
+# Third-party libraries (Data Science & Audio).
 import librosa
 import librosa.display
 import numpy as np
@@ -16,13 +14,13 @@ import pandas as pd
 import requests
 from suncalc import get_times
 
-# Matplotlib (налаштування бекенду має йти перед імпортом pyplot)
+# Matplotlib (backend must be set before importing pyplot).
 import matplotlib
-matplotlib.use('Agg')  # Запобігає спробам відкрити GUI на сервері
+matplotlib.use('Agg')  # Prevents GUI window attempts on a headless server.
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-# Flask та розширення
+# Flask and extensions.
 from flask import current_app
 from flask_login import current_user
 
@@ -31,10 +29,10 @@ from sqlalchemy import create_engine, table, text, column
 from sqlalchemy.dialects.postgresql import insert, JSONB
 from sqlalchemy.pool import QueuePool, StaticPool
 
-# Локальні модулі
+# Local modules.
 from app.models import User
 
-# Глобальна змінна для зберігання engine
+# Global variable for the engine singleton.
 _pam_engine = None
 _engine_lock = threading.Lock()
 
@@ -43,8 +41,8 @@ _geodata_lock = threading.Lock()
 
 def get_pam_engine():
     """
-    Створює та повертає SQLAlchemy engine з правильно налаштованим пулом з'єднань.
-    Використовує singleton pattern для уникнення створення множинних engine.
+    Create and return a SQLAlchemy engine with a correctly configured connection pool.
+    Uses the singleton pattern to avoid creating multiple engines.
     """
     global _pam_engine
     
@@ -54,11 +52,11 @@ def get_pam_engine():
                 _pam_engine = create_engine(
                     current_app.config['PAM_DATABASE_URI'],
                     poolclass=QueuePool,
-                    pool_size=5,          # Максимум 5 з'єднань у пулі
-                    max_overflow=10,      # Максимум 10 додаткових з'єднань
-                    pool_timeout=30,      # Таймаут очікування з'єднання
-                    pool_recycle=300,    # Оновлення з'єднань кожні 30 хвилин
-                    pool_pre_ping=True,   # Перевірка з'єднань перед використанням
+                    pool_size=5,           # Max 5 connections in the pool.
+                    max_overflow=10,       # Max 10 overflow connections.
+                    pool_timeout=30,       # Connection wait timeout.
+                    pool_recycle=300,      # Recycle connections every 5 minutes.
+                    pool_pre_ping=True,    # Test connections before use.
                     echo=False
                 )
     
@@ -66,10 +64,10 @@ def get_pam_engine():
 
 
 def get_user_pam_stats(user_id):
-    """#31: персональна PAM-статистика користувача (read-only).
+    """Return personal PAM statistics for a user (read-only).
 
-    Повертає dict: verifications (усього), positive (підтверджень = 1),
-    positive_rate (%), species_count (унікальні види у верифікованих сегментах).
+    Returns a dict: verifications (total), positive (confirmed = 1),
+    positive_rate (%), species_count (unique species in verified segments).
     """
     engine = get_pam_engine()
     with engine.connect() as conn:
@@ -92,15 +90,12 @@ def get_user_pam_stats(user_id):
 
 
 def get_pam_db_connection():
-    """
-    Створює та повертає з'єднання до бази даних PAM.
-    Тепер використовує пул з'єднань.
-    """
+    """Create and return a PAM database connection (uses connection pool)."""
     engine = get_pam_engine()
     return engine.connect()
 
 def get_geodata_engine():
-    """Створює Singleton engine для бази геоданих."""
+    """Create and return a singleton engine for the geodata database."""
     global _geodata_engine
     if _geodata_engine is None:
         with _geodata_lock:
@@ -116,16 +111,16 @@ def get_geodata_engine():
     return _geodata_engine
 
 def get_geodata_db_connection():
-    """Повертає з'єднання до бази GEODATA."""
+    """Return a connection to the GEODATA database."""
     engine = get_geodata_engine()
     return engine.connect()
 
 def get_institution_filter(user_inst_ids=None, is_admin=False, selected_inst_id=None):
     """
-    Генерує SQL-умову для фільтрації за правами доступу ТА вибраними установами.
-    selected_inst_id — може бути рядком '1,2,3', числом 2, або списком [1, 2]
+    Generate a SQL condition for access-rights filtering AND selected institutions.
+    selected_inst_id can be a string '1,2,3', a number 2, or a list [1, 2].
     """
-    # 1. Базова умова прав доступу
+    # 1. Base access-rights condition.
     if is_admin:
         base_condition = "1=1"
         params = {}
@@ -142,9 +137,9 @@ def get_institution_filter(user_inst_ids=None, is_admin=False, selected_inst_id=
         """
         params = {"user_inst_ids": user_inst_ids}
 
-    # 2. Додаткова умова вибраних установ (якщо вибрані у фільтрі)
+    # 2. Additional condition for selected institutions (when set via filter).
     if selected_inst_id:
-        # Нормалізуємо до списку int
+        # Normalise to a list of ints.
         if isinstance(selected_inst_id, str):
             ids = [int(i) for i in selected_inst_id.split(',') if i.strip().isdigit()]
         elif isinstance(selected_inst_id, (int, float)):
@@ -166,23 +161,23 @@ def get_institution_filter(user_inst_ids=None, is_admin=False, selected_inst_id=
 
 def calculate_sun_times_simple(date_obj, longitude, latitude):
     """
-    Спрощений розрахунок часу сходу та заходу сонця.
-    ВИПРАВЛЕНО: Додано конвертацію в часовий пояс UTC+2.
+    Simplified sunrise/sunset time calculation.
+    Converts results to UTC+2 (Kyiv time).
     """
     try:
-        # Константи
+        # Constants.
         CIVIL_ZENITH = 90.833
         
-        # День року
+        # Day of year.
         day_of_year = date_obj.timetuple().tm_yday
         
-        # Розрахунок сонячного схилення
+        # Solar declination.
         P = math.asin(.39795 * math.cos(.98563 * (day_of_year - 173) * math.pi / 180))
         
-        # Розрахунок для даної широти
+        # Latitude in radians.
         lat_rad = latitude * math.pi / 180
         
-        # Розрахунок кута годин
+        # Hour-angle calculation.
         argument = -math.tan(lat_rad) * math.tan(P)
         
         if argument < -1:
@@ -192,22 +187,22 @@ def calculate_sun_times_simple(date_obj, longitude, latitude):
             
         hour_angle = 24 * math.acos(argument) / (2 * math.pi)
         
-        # Розрахунок часів в годинах (відносно UTC)
+        # Times in decimal hours (relative to UTC).
         sunrise_hour = 12 - hour_angle - longitude / 15
         sunset_hour = 12 + hour_angle - longitude / 15
 
-        # 1. Створення "наївних" datetime об'єктів в UTC
+        # 1. Create naive datetime objects in UTC.
         utc_sunrise = datetime.combine(date_obj, datetime.min.time()) + timedelta(hours=sunrise_hour)
         utc_sunset = datetime.combine(date_obj, datetime.min.time()) + timedelta(hours=sunset_hour)
 
-        # 2. Визначення цільового часового поясу (UTC+2)
+        # 2. Target timezone (UTC+2).
         kyiv_tz = timezone(timedelta(hours=2))
 
-        # 3. Створення "свідомих" (aware) datetime об'єктів шляхом встановлення UTC як початкового поясу
+        # 3. Make timezone-aware objects using UTC as the source timezone.
         aware_utc_sunrise = utc_sunrise.replace(tzinfo=timezone.utc)
         aware_utc_sunset = utc_sunset.replace(tzinfo=timezone.utc)
 
-        # 4. Конвертація в цільовий часовий пояс
+        # 4. Convert to the target timezone.
         local_sunrise = aware_utc_sunrise.astimezone(kyiv_tz)
         local_sunset = aware_utc_sunset.astimezone(kyiv_tz)
         
@@ -218,7 +213,7 @@ def calculate_sun_times_simple(date_obj, longitude, latitude):
         
     except Exception as e:
         current_app.logger.error(f"Error calculating sun times: {e}")
-        # Fallback значення (також тепер з часовим поясом)
+        # Fallback values (also timezone-aware).
         kyiv_tz = timezone(timedelta(hours=2))
         sunrise_time = (datetime.combine(date_obj, datetime.min.time()) + timedelta(hours=6)).replace(tzinfo=kyiv_tz)
         sunset_time = (datetime.combine(date_obj, datetime.min.time()) + timedelta(hours=18)).replace(tzinfo=kyiv_tz)
@@ -228,10 +223,7 @@ def calculate_sun_times_simple(date_obj, longitude, latitude):
         }
 
 def get_available_species(lang_code):
-    """
-    Повертає список видів з pam_db, доступних поточному користувачеві.
-    ВИПРАВЛЕНО: тепер з правильним керуванням з'єднаннями.
-    """
+    """Return the list of PAM species accessible to the current user."""
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -240,17 +232,17 @@ def get_available_species(lang_code):
         params = {}
         
         if current_user.is_authenticated and hasattr(current_user, 'roles'):
-            # Отримуємо список назв усіх ролей користувача
+            # Get all role names for this user.
             user_roles = [role.name for role in current_user.roles]
             
-            # 3. Адміністратор бачить абсолютно все, це винятковий випадок
+            # Admin sees everything — no restrictions.
             if 'admin' in user_roles:
-                query_filter = ""  # Знімаємо будь-які обмеження
+                query_filter = ""  # Remove all restrictions.
             
-            # 4. Для інших користувачів з ролями будуємо динамічний фільтр
-            elif user_roles: # Перевіряємо, чи список ролей не порожній
+            # For other users with roles, build a dynamic filter.
+            elif user_roles:  # Check that the roles list is not empty.
                 query_filter = "WHERE required_role IS NULL OR required_role IN :roles"
-                # SQLAlchemy/Psycopg2 коректно обробить список для оператора IN
+                # SQLAlchemy/psycopg2 handles the list correctly for the IN operator.
                 params['roles'] = tuple(user_roles)
         
         full_query = f"{base_query_select} {query_filter} ORDER BY scientific_name"
@@ -280,9 +272,7 @@ def get_available_species(lang_code):
                 current_app.logger.error(f"Error closing connection: {close_error}")
 
 def get_filtered_detections(species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None, institution_id=None):
-    """
-    ОНОВЛЕНО: Додано статус верифікації для кожної детекції.
-    """
+    """Return filtered detections, including verification status for each one."""
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -429,9 +419,7 @@ def get_daily_detection_counts(species_name, start_date, end_date, confidence, l
             conn.close()
 
 def get_time_scatter_data(species_name, start_date, end_date, confidence, location_ids=None, biotope_ids=None, excel_exp=False, institution_id=None):
-    """
-    ОНОВЛЕНО: Додано статус верифікації для кожної точки на графіку добової активності.
-    """
+    """Return scatter data for daily activity chart, including verification status per point."""
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -473,7 +461,7 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
         
         where_clause = " AND ".join(conditions)
 
-        # 1. Визначаємо базові поля, які потрібні завжди
+        # 1. Base fields always required.
         select_fields = [
             "r.datetime_start",
             "l.lat",
@@ -481,14 +469,14 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
             "dvm.verification_result"
         ]
 
-        # 2. Додаємо додаткові поля, якщо треба
+        # 2. Optional extra fields.
         if excel_exp:
             select_fields.append("d.confidence")
 
-        # 3. Формуємо рядок (об'єднуємо через кому)
+        # 3. Build the column string.
         columns_str = ", ".join(select_fields)
 
-        # 4. Підставляємо в єдиний запит
+        # 4. Assemble the query.
         query_sql = f"""
             SELECT 
                 {columns_str}
@@ -575,7 +563,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
               AND {inst_condition}
         """
 
-        # CTE для відбору локацій, що задовольняють умову min_detections
+        # CTE to filter locations satisfying the min_detections threshold.
         with_clause = f"""
             WITH valid_locations AS (
                 SELECT l.location_id
@@ -602,7 +590,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
         
         condition_sql = (" AND " + " AND ".join(conditions)) if conditions else ""
 
-        # Загальна кількість детекцій по виду (вже на відфільтрованих локаціях)
+        # Total detections for the species (on filtered locations only).
         sql_total = f"""
             {with_clause}
             SELECT COUNT(*) as cnt
@@ -614,7 +602,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
         """
         total_detections = conn.execute(text(sql_total), params).scalar() or 0
 
-        # Кількість унікальних локалітетів
+        # Unique locations count.
         sql_locs = f"""
             {with_clause}
             SELECT COUNT(DISTINCT l.location_id) as cnt
@@ -626,7 +614,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
         """
         unique_locations = conn.execute(text(sql_locs), params).scalar() or 0
 
-        # Кількість днів з виявленням
+        # Days with detections.
         sql_days = f"""
             {with_clause}
             SELECT COUNT(DISTINCT DATE(r.datetime_start)) as cnt
@@ -638,7 +626,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
         """
         days_with_detections = conn.execute(text(sql_days), params).scalar() or 0
 
-        # Загальна кількість детекцій по всіх видах (для %)
+        # Total detections across all species (for percentage calculation).
         sql_all_species = f"""
             SELECT COUNT(*) as cnt
             FROM detections d
@@ -697,7 +685,7 @@ def get_unique_detection_points(lang_code, species_name, start_date=None, end_da
         user_inst_ids = []
         is_admin = False
         if current_user.is_authenticated:
-            # Збираємо ID всіх установ, до яких належить користувач
+            # Collect IDs of all institutions the user belongs to.
             user_inst_ids = [inst.id for inst in current_user.institutions]
             is_admin = current_user.has_role('admin')
 
@@ -769,10 +757,7 @@ def get_unique_detection_points(lang_code, species_name, start_date=None, end_da
             conn.close()
 
 def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.0, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None, institution_id=None):
-    """
-    Повертає рейтингову таблицю видів з кількістю детекцій.
-    ВИПРАВЛЕНО: Коректна фільтрація з використанням INNER JOIN.
-    """
+    """Return a ranked species table with detection counts."""
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -792,7 +777,7 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
         
-        # Базові JOIN'и, які потрібні завжди
+        # Base JOINs always required.
         from_clause = """
             FROM species s
             JOIN detections d ON s.species_id = d.species_id
@@ -800,11 +785,11 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
             JOIN locations l ON r.location_id = l.location_id
         """
         
-        # Додаткові JOIN'и для фільтрів
+        # Additional JOINs for filters.
         if biotope_ids:
             from_clause += " JOIN location_biotopes lb ON l.location_id = lb.location_id"
 
-        # Формуємо умови WHERE
+        # Build WHERE conditions.
         conditions = [
             "d.confidence >= :confidence",
             "DATE(r.datetime_start) >= :start_date",
@@ -820,18 +805,18 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
             conditions.append("lb.biotope_id = ANY(:biotope_ids)")
             params['biotope_ids'] = biotope_ids
 
-        # Фільтр доступу
+        # Access filter.
         if current_user.is_authenticated and hasattr(current_user, 'roles'):
             user_roles = [role.name for role in current_user.roles]
             
-            # Адміністратор бачить абсолютно все, тому для нього не додаємо жодних обмежень по ролях
+            # Admin sees everything — no role restrictions added.
             if 'admin' not in user_roles:
-                # Для інших користувачів дозволяємо види без ролі АБО з роллю, яка є у користувача
-                # SQLAlchemy коректно обробить :user_roles як список для оператора IN
+                # For other users, allow species with no role OR a role the user has.
+                # SQLAlchemy handles :user_roles as a list for the IN operator.
                 conditions.append("(s.required_role IS NULL OR s.required_role IN :user_roles)")
                 params['user_roles'] = tuple(user_roles)
         else:
-            # Для неавтентифікованих користувачів - тільки види без ролі
+            # Unauthenticated users: only species with no role restriction.
             conditions.append("s.required_role IS NULL")
         
 
@@ -844,7 +829,6 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
 
         where_clause = "WHERE " + " AND ".join(conditions)
         
-        # --- КІНЕЦЬ ЗМІНЕНОГО БЛОКУ ---
         
         sql = f"""
             SELECT 
@@ -889,10 +873,7 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
                 current_app.logger.error(f"Error closing connection: {close_error}")
 
 def get_overview_statistics(lang_code, start_date=None, end_date=None, confidence=0.75, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None, institution_id=None):
-    """
-    Повертає загальну статистику для overview сторінки.
-    ОНОВЛЕНО: враховує фільтри по локаціях та біотопах.
-    """
+    """Return overall statistics for the overview page, filtered by locations and biotopes."""
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -912,7 +893,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
         
-        # Формуємо динамічні частини запиту
+        # Build dynamic query parts.
         joins = ""
         conditions = []
 
@@ -944,11 +925,11 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
         else:
             access_conditions.append("s.required_role IS NULL")
 
-        # Формуємо рядок access_filter, який буде додано до SQL-запитів
-        # Якщо access_conditions порожній (для адміна), то і фільтр буде порожнім
+        # Build access_filter string to append to SQL queries.
+        # Empty string for admins (no access conditions).
         access_filter = ("WHERE " + " AND ".join(access_conditions)) if access_conditions else ""
         
-        # Загальна кількість детекцій
+        # Total detections.
         total_detections_sql = f"""
             SELECT COUNT(r.recording_id)
             FROM detections d
@@ -965,7 +946,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
         """
         total_detections = conn.execute(text(total_detections_sql), params).scalar() or 0
         
-        # Кількість унікальних видів
+        # Unique species count.
         unique_species_sql = f"""
             SELECT COUNT(*) FROM (
                 SELECT s.species_id
@@ -986,7 +967,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
         """
         unique_species = conn.execute(text(unique_species_sql), params).scalar() or 0
         
-        # Кількість локацій
+        # Locations count.
         locations_count_sql = f"""
             SELECT COUNT(DISTINCT l.location_id)
             FROM detections d
