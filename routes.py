@@ -3614,7 +3614,7 @@ def export_detailed_data(lang_code):
 @pam_bp.route('/<lang_code>/pam/evaluation/species/<int:species_id>')
 @login_required
 def species_evaluation_detail(lang_code, species_id):
-    """Сторінка детальної оцінки та графіка регресії для виду."""
+    """Render the regression analysis page for a single species."""
     g.lang_code = lang_code
     
     data = get_species_logistic_data(species_id)
@@ -3623,7 +3623,7 @@ def species_evaluation_detail(lang_code, species_id):
         flash('Дані для цього виду відсутні або ще не розраховані.', 'warning')
         return redirect(url_for('pam.evaluation_results', lang_code=lang_code))
     
-    # Формуємо красиву назву для заголовка
+    # Build a user-friendly display name for the page title.
     info = data['info']
     display_name = info['scientific_name']
     if lang_code == 'uk' and info['common_name_uk']:
@@ -3642,13 +3642,13 @@ def species_evaluation_detail(lang_code, species_id):
 @login_required
 @role_required('pam_verifier')
 def download_species_evaluation_excel(lang_code, species_id):
-    """Експорт даних регресії в Excel."""
+    """Export logistic regression data to Excel."""
     try:
         data = get_species_logistic_data(species_id)
         if not data:
             return "No data", 404
 
-        # 1. Лист з точками
+        # 1. Data Points sheet.
         df_points = pd.DataFrame(data['points'])
         df_points = df_points.rename(columns={
             'confidence': 'Confidence Score (X)',
@@ -3656,8 +3656,8 @@ def download_species_evaluation_excel(lang_code, species_id):
             'avg_verification': 'Raw Consensus Score'
         })
 
-        # 2. Лист з метриками
-        # Фільтруємо словник info, щоб залишити тільки параметри
+        # 2. Model Parameters sheet.
+        # Filter the info dict to keep model parameters only.
         info = data['info']
         metrics = {k: v for k, v in info.items() if k not in ['scientific_name', 'common_name_uk', 'common_name_en']}
         df_params = pd.DataFrame([metrics])
@@ -3667,7 +3667,7 @@ def download_species_evaluation_excel(lang_code, species_id):
             df_points.to_excel(writer, sheet_name='Data Points', index=False)
             df_params.to_excel(writer, sheet_name='Model Parameters', index=False)
             
-            # Додаємо формулу
+            # Insert the logistic regression formula.
             ws = writer.sheets['Model Parameters']
             ws.cell(row=5, column=1, value="Formula: P(x) = 1 / (1 + exp(-(beta0 + beta1 * x)))")
 
@@ -3797,7 +3797,7 @@ def api_pam_import(lang_code):
         if not files:
             return jsonify({'success': False, 'error': 'No files uploaded'}), 400
 
-        # Тривалість файлу (хв) — однакова для всього batchʼа; default 5.
+        # File duration (min) — same for the whole batch; default 5.
         duration_minutes = request.form.get('duration_minutes', 5, type=float)
         if not duration_minutes or duration_minutes <= 0:
             duration_minutes = 5
@@ -3830,7 +3830,7 @@ def api_pam_import(lang_code):
         return jsonify({'success': True, 'stats': stats})
 
     except ValueError as e:
-        # Навмисні user-facing повідомлення валідації (pam_import_utils)
+        # Intentional user-facing validation messages from pam_import_utils.
         current_app.logger.error(f"PAM import validation error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
