@@ -13,7 +13,7 @@
         <h4>{{ _('УВАГА! Це експериментальна сторінка. Не варто тренди на основі ПАМ сприймати за справжню популяційну динаміку.') }}</h4>
     </div>
 
-    <!-- Панель фільтрів -->
+    <!-- Filter panel -->
     <div class="filters-container">
         <div class="filters-grid">
             <div class="filter-item species-filter">
@@ -54,7 +54,7 @@
         </div>
     </div>
     
-    <!-- Контейнер для графіків або повідомлення -->
+    <!-- Charts or message container -->
     <div id="dashboard-content">
         <div class="message-container info">
             <p>{{ _('Будь ласка, виберіть вид та натисніть "Побудувати графіки" для аналізу.') }}</p>
@@ -71,7 +71,7 @@
 <script>
 $(document).ready(function() {
     const speciesSelect = $('#species-select');
-    const institutionSelect = $('#institution-select'); // Новий селект
+    const institutionSelect = $('#institution-select'); // New select.
     const startYearSelect = $('#start-year-select');
     const endYearSelect = $('#end-year-select');
     const applyButton = $('#apply-filters-btn');
@@ -81,7 +81,7 @@ $(document).ready(function() {
     let yearlyChartInstance = null;
     let biotopeChartInstance = null;
 
-    // Ініціалізація Select2
+    // Initialise Select2.
     speciesSelect.select2({
         placeholder: '{{ _("-- Пошук та вибір виду --") }}',
         allowClear: true,
@@ -94,9 +94,9 @@ $(document).ready(function() {
         width: '100%'
     });
 
-    // --- Завантаження списку установ ---
+    // --- Load institution list ---
     function loadInstitutions() {
-        // Викликаємо API фільтрів, щоб отримати список доступних установ
+        // Call the filters API to get available institutions.
         fetch("{{ url_for('pam.api_get_pam_filters_data', lang_code=g.lang_code) }}")
             .then(r => r.ok ? r.json() : Promise.reject(r))
             .then(data => {
@@ -106,12 +106,12 @@ $(document).ready(function() {
                         institutionSelect.append(option);
                     });
                 }
-                institutionSelect.trigger('change'); // Оновити Select2
+                institutionSelect.trigger('change'); // Refresh Select2.
             })
             .catch(err => console.error("Error loading institutions:", err));
     }
     
-    loadInstitutions(); // Запуск завантаження
+    loadInstitutions(); // Start loading.
     // -----------------------------------
 
     function validateYearRange() {
@@ -133,7 +133,7 @@ $(document).ready(function() {
         const speciesId = speciesSelect.val();
         const startYear = startYearSelect.val();
         const endYear = endYearSelect.val();
-        const institutionId = institutionSelect.val(); // Отримуємо ID установи
+        const institutionId = institutionSelect.val(); // Get institution ID.
 
         if (!speciesId) {
             alert('{{ _("Будь ласка, виберіть вид.") }}');
@@ -147,7 +147,7 @@ $(document).ready(function() {
         apiUrl.searchParams.set('start_year', startYear);
         apiUrl.searchParams.set('end_year', endYear);
         
-        // Додаємо параметр institution_id, якщо він вибраний
+        // Append institution_id if selected.
         if (institutionId) {
             apiUrl.searchParams.set('institution_id', institutionId);
         }

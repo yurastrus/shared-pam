@@ -7,7 +7,7 @@
 
     <h4 class="upload-page-title">{{ _('Завантаження ZIP архівів з аудіосегментами') }}</h4>
 
-    <!-- Stats row (4 картки в одному ряду) -->
+    <!-- Stats row (4 cards in one row) -->
     {% if stats %}
     <div class="upload-stats-row">
         <div class="stats-card">
@@ -29,16 +29,16 @@
     </div>
     {% endif %}
 
-    <!-- Двоколонковий layout: зліва форма, справа інструкції/види -->
+    <!-- Two-column layout: form on left, instructions/species on right -->
     <div class="verif-upload-layout">
 
-        <!-- ── LEFT PANEL: форма ────────────────────────────────────────── -->
+        <!-- ── LEFT PANEL: form ─────────────────────────────────────────── -->
         <div class="left-panel">
 
             <form id="upload-form" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
-                <!-- STEP 1: вибір ZIP -->
+                <!-- STEP 1: choose ZIP -->
                 <div class="step-card">
                     <div class="step-title">
                         <span class="step-num">1</span>{{ _('ZIP архів') }}
@@ -60,7 +60,7 @@
                     </div>
                 </div>
 
-                <!-- STEP 2: завантажити -->
+                <!-- STEP 2: upload -->
                 <div class="step-card">
                     <div class="step-title">
                         <span class="step-num">2</span>{{ _('Завантаження') }}
@@ -70,19 +70,19 @@
                         ▲ {{ _('Завантажити та обробити') }}
                     </button>
 
-                    <!-- Прогрес -->
+                    <!-- Progress -->
                     <div class="progress" id="progress">
                         <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
                     </div>
 
-                    <!-- Результати -->
+                    <!-- Results -->
                     <div class="upload-results" id="upload-results"></div>
                 </div>
             </form>
 
         </div><!-- /left-panel -->
 
-        <!-- ── RIGHT PANEL: інструкції + топ видів ──────────────────────── -->
+        <!-- ── RIGHT PANEL: instructions + top species ────────────────────── -->
         <div class="right-panel">
 
             <div class="step-card">
@@ -121,7 +121,7 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <script>
-    // Конфігурація з backend (через змінні шаблону)
+    // Configuration from backend (via template variables).
     window.PAM_CONFIG = {
         maxUploadSize: {{ max_upload_size }},
         maxUploadSizeMB: {{ max_upload_size_mb }}
@@ -218,7 +218,7 @@ $(document).ready(function() {
         uploadBtn.prop('disabled', true).text('{{ _("Обробляється...") }}');
         results.hide();
         
-        // Симуляція прогресу (можна залишити)
+        // Progress simulation (can be left in).
         let progressValue = 0;
         const progressInterval = setInterval(() => {
             progressValue += Math.random() * 15;

@@ -10,7 +10,7 @@
     <div class="trends-wrapper">
         <h1 class="page-header">{{ _('Порівняльна таблиця річної активності видів') }}</h1>
         <div id="trends-filters-form" class="filters-panel">
-            <!-- Рядок 1: Роки + Повзунки (4 колонки) -->
+            <!-- Row 1: Years + Sliders (4 columns) -->
             <div class="filter-group">
                 <label for="start-year-select">{{ _('Рік початку:') }}</label>
                 <select id="start-year-select" class="form-control filter-param"></select>
@@ -28,7 +28,7 @@
                 <input type="range" class="form-control-range" id="min-detections-slider" min="1" max="100" step="1" value="5">
             </div>
 
-            <!-- Рядок 2: Таксономія (4 колонки) -->
+            <!-- Row 2: Taxonomy (4 columns) -->
             <div class="filter-group">
                 <label for="class-select">{{ _('Клас:') }}</label>
                 <select id="class-select" class="form-control filter-param tax-filter"></select>
@@ -46,7 +46,7 @@
                 <select id="genus-select" class="form-control filter-param tax-filter"></select>
             </div>
 
-            <!-- Рядок 3: Установи (2) + Географія (1+1) -->
+            <!-- Row 3: Institutions (2) + Geography (1+1) -->
             <div class="filter-group">
                 <label for="institution-select">{{ _('Установи/проекти:') }}</label>
                 <select id="institution-select" class="form-control filter-param" multiple="multiple"></select>
@@ -60,7 +60,7 @@
                 <select id="locations-select" class="form-control filter-param" multiple></select>
             </div>
             
-            <!-- Рядок 4: Кнопка (по центру на всю ширину) -->
+            <!-- Row 4: Button (full-width, centred) -->
             <div class="filter-group full-width action-group">
                 <button type="button" id="apply-filters-btn" class="btn btn-primary">{{ _('Згенерувати таблицю') }}</button>
             </div>
@@ -87,7 +87,7 @@ $(document).ready(function() {
     };
 
     const taxFilterLevels = ['class', 'order', 'family', 'genus'];
-    let isUpdatingFilters = false; // Прапорець для уникнення рекурсивних викликів
+    let isUpdatingFilters = false; // Guard flag to prevent recursive calls.
 
     function initSelect2() {
         $('.form-control').select2({ width: '100%', allowClear: true });
@@ -104,7 +104,7 @@ $(document).ready(function() {
         const params = new URLSearchParams();
         if (ui.years.start.val()) params.append('start_year', ui.years.start.val());
         if (ui.years.end.val()) params.append('end_year', ui.years.end.val());
-        const selectedInstIds = ui.institution.val(); // Тепер це масив
+        const selectedInstIds = ui.institution.val(); // Now an array.
         if (selectedInstIds && selectedInstIds.length > 0) {
             params.append('institution_id', selectedInstIds.join(','));
         }
@@ -126,7 +126,7 @@ $(document).ready(function() {
         const data = (options || []).map(item => (typeof item === 'object' ? item : { id: item, text: item }));
         element.empty().select2({ data: data, placeholder: placeholder, allowClear: true, width: '100%' });
         if (selectedValue) {
-             // Для мультиселектів, фільтруємо значення, які ще існують в новому списку
+             // For multi-selects, retain only values that still exist in the new list.
             const validValues = Array.isArray(selectedValue) ? selectedValue.filter(val => data.some(opt => opt.id == val)) : selectedValue;
             element.val(validValues).trigger('change.select2');
         } else {
@@ -152,7 +152,7 @@ $(document).ready(function() {
                 if (data.institutions) {
                     updateSelectOptions(ui.institution, data.institutions, '{{ _("Всі доступні") }}', currentValues.institution);
                 }
-                // Визначаємо мінімальний та максимальний роки
+                // Determine minimum and maximum years.
                 const minYear = data.years.length > 0 ? Math.min(...data.years) : data.years[0];
                 const maxYear = data.years.length > 0 ? Math.max(...data.years) : data.years[0];
                 
@@ -202,7 +202,7 @@ $(document).ready(function() {
         ui.containers.table.html(tableHtml);
     }
     
-    // --- Ініціалізація та обробники подій ---
+    // --- Initialisation and event handlers ---
     initSelect2();
     updateAllFilters();
     

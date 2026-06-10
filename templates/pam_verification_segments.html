@@ -14,7 +14,7 @@
             <p class="lead">{{ _('Перегляд та фільтрація завантажених аудіосегментів з інформацією про статус верифікації') }}</p>
         </div>
 
-        <!-- Фільтри -->
+        <!-- Filters -->
         <div class="filters-panel">
             <div class="filters-row">
                 <div class="filter-group">
@@ -55,7 +55,7 @@
             </div>
         </div>
 
-        <!-- Загальна інформація -->
+        <!-- Overall information -->
         <div id="summary-info" class="summary-info" style="display: none;">
             <h4 style="margin-top: 0;">{{ _('Загальна статистика (відфільтровано)') }}</h4>
             <div class="summary-grid">
@@ -86,7 +86,7 @@
             <div class="segments-table-section">
                 <h4 style="margin-top: 0;">{{ _('Топ верифікаторів (за фільтром)') }}</h4>
                 <div id="verifiers-rating-container">
-                    <!-- Сюди буде вставлено рейтинг через JS -->
+                    <!-- The rating will be populated here via JS -->
                     <div class="loading-spinner">
                         <div class="spinner-border" role="status"></div>
                     </div>
@@ -94,7 +94,7 @@
             </div>
         </div>
 
-        <!-- Таблиця сегментів -->
+        <!-- Segments table -->
         <div class="segments-table-section">
             <h4 style="margin-top: 0;">{{ _('Список сегментів') }}</h4>
             
@@ -106,7 +106,7 @@
                 </div>
             </div>
 
-            <!-- Пагінація -->
+            <!-- Pagination -->
             <div id="pagination-container"></div>
         </div>
     </div>
@@ -126,7 +126,7 @@ $(document).ready(function() {
         per_page: 50
     };
     
-    // Ініціалізація елементів DOM
+    // DOM element initialisation.
     const speciesFilter = $('#species-filter');
     const statusFilter = $('#status-filter');
     const perPageFilter = $('#per-page-filter');
@@ -136,11 +136,11 @@ $(document).ready(function() {
     const paginationContainer = $('#pagination-container');
     const summaryInfo = $('#summary-info');
     
-    // Нові елементи для рейтингу
+    // New elements for the verifier rating.
     const verifiersRatingContainer = $('#verifiers-rating-container');
     const verifiersRatingSection = $('#verifiers-rating-section');
     
-    // Ініціалізація Select2
+    // Initialise Select2.
     speciesFilter.select2({
         placeholder: "{{ _('-- Усі види --') }}",
         allowClear: true
@@ -154,16 +154,16 @@ $(document).ready(function() {
         minimumResultsForSearch: Infinity
     });
     
-    // Початкове завантаження даних
+    // Initial data load.
     loadSegments();
-    loadVerifiersRating(); // Завантажуємо рейтинг
+    loadVerifiersRating(); // Load verifier rating.
     
-    // Обробники подій для кнопок
+    // Button event handlers.
     applyButton.on('click', function() {
         currentPage = 1;
         updateFiltersFromForm();
         loadSegments();
-        loadVerifiersRating(); // Оновлюємо рейтинг при застосуванні фільтрів
+        loadVerifiersRating(); // Refresh rating when filters are applied.
     });
     
     resetButton.on('click', function() {
@@ -174,10 +174,10 @@ $(document).ready(function() {
         currentPage = 1;
         updateFiltersFromForm();
         loadSegments();
-        loadVerifiersRating(); // Оновлюємо рейтинг при скиданні
+        loadVerifiersRating(); // Refresh rating on reset.
     });
     
-    // Функція для оновлення поточних фільтрів
+    // Update current filters from the form.
     function updateFiltersFromForm() {
         currentFilters = {
             species_id: speciesFilter.val(),
@@ -186,7 +186,7 @@ $(document).ready(function() {
         };
     }
     
-    // --- Логіка завантаження основної таблиці сегментів ---
+    // --- Main segment table loading logic ---
     function loadSegments(page = 1) {
         segmentsContainer.html('<div class="loading-spinner"><div class="spinner-border" role="status"></div></div>');
         paginationContainer.empty();
@@ -221,7 +221,7 @@ $(document).ready(function() {
         });
     }
 
-    // --- Нова, окрема логіка для завантаження рейтингу ---
+    // --- Standalone logic for loading the verifier rating ---
     function loadVerifiersRating() {
         verifiersRatingSection.show();
         verifiersRatingContainer.html('<div class="loading-spinner"><div class="spinner-border" role="status"></div></div>');
@@ -249,7 +249,7 @@ $(document).ready(function() {
         });
     }
     
-    // --- Функції відображення даних ---
+    // --- Data display functions ---
     
     function displaySegments(segments) {
         if (!segments || segments.length === 0) {
@@ -319,11 +319,11 @@ $(document).ready(function() {
             return;
         }
 
-        // Використовуємо нумерований список для рейтингу
+        // Use a numbered list for the rating.
         let html = '<ol style="padding-left: 0; margin: 0; list-style-type: decimal; list-style-position: inside;">';
         
         verifiers.forEach(function(verifier, index) {
-            // Додаємо стиль для нижнього підкреслення, крім останнього елемента
+            // Add bottom border to all items except the last.
             const itemStyle = (index < verifiers.length - 1) ? 'padding: 6px 0; border-bottom: 1px solid #eee;' : 'padding: 6px 0;';
             
             html += `
@@ -339,7 +339,7 @@ $(document).ready(function() {
         verifiersRatingContainer.html(html);
     }
     
-    // --- Допоміжні функції та пагінація ---
+    // --- Helpers and pagination ---
     
     function getConfidenceClass(confidence) {
         if (confidence >= 0.8) return 'confidence-high';
@@ -407,7 +407,7 @@ $(document).ready(function() {
         paginationContainer.html(html);
     }
     
-    // Глобальна функція для кнопок пагінації
+    // Global function for pagination buttons.
     window.changePage = function(page) {
         loadSegments(page);
     };

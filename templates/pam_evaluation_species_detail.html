@@ -9,7 +9,6 @@
 {% block pam_content %}
 <div class="container-fluid mt-4" style="max-width: 1400px;">
     
-    <!-- ГАРАНТОВАНЕ ЦЕНТРУВАННЯ ЧЕРЕЗ СІТКУ (GRID) -->
     <div class="row mb-4">
         <div class="col-12 text-center">
             <h2 class="mb-2 font-weight-bold">{{ display_name }}</h2>
@@ -27,14 +26,14 @@
     </div>
 
     <div class="row">
-        <!-- Ліва колонка: Графік (ширша, 9 cols) -->
+        <!-- Left column: chart (wider, 9 cols) -->
         <div class="col-lg-9">
             <div class="detail-container">
                 <div id="regression-plot" style="height: 600px;"></div>
             </div>
         </div>
 
-        <!-- Права колонка: Статистика (вужча, 3 cols) -->
+        <!-- Right column: statistics (narrower, 3 cols) -->
         <div class="col-lg-3">
             <div class="detail-container">
                 <h5 class="border-bottom pb-2 mb-3">{{ _('Параметри моделі') }}</h5>
@@ -89,17 +88,17 @@
         const params = data.info;
         const points = data.points;
 
-        // Debugging: Виводимо параметри в консоль браузера
+        // Debugging: log model parameters to the browser console.
         console.log("Model Params:", params);
 
-        // --- 1. Підготовка точок ---
+        // --- 1. Prepare data points ---
         const xRaw = points.map(p => p.confidence);
         const yRaw = points.map(p => p.avg_verification);
         
-        // Jitter: додаємо шум тільки якщо точок багато, щоб вони не злипались
+        // Jitter: add noise only when there are many points to prevent overlap.
         const yJitter = yRaw.map(y => {
             const noise = (Math.random() - 0.5) * 0.05; 
-            // Обмежуємо, щоб не вилазило за межі графіка занадто сильно
+            // Clamp so the value doesn't go too far outside the plot area.
             return Math.max(-0.02, Math.min(1.02, y + noise));
         });
 
@@ -131,7 +130,7 @@
             }
         };
 
-        // --- 2. Крива регресії ---
+        // --- 2. Regression curve ---
         const traceLine = {
             x: [],
             y: [],
@@ -141,7 +140,7 @@
             hoverinfo: 'x+y'
         };
 
-        // Перевіряємо наявність коефіцієнтів
+        // Check that regression coefficients are present.
         if (params.logistic_beta0 !== null && params.logistic_beta1 !== null && 
             params.logistic_beta0 !== undefined && params.logistic_beta1 !== undefined) {
             
@@ -150,7 +149,7 @@
 
             for (let x = 0.0; x <= 1.05; x += 0.01) {
                 traceLine.x.push(x);
-                // Формула: 1 / (1 + exp(-(b0 + b1*x)))
+                // Formula: 1 / (1 + exp(-(b0 + b1*x)))
                 const logit = b0 + (b1 * x);
                 const prob = 1 / (1 + Math.exp(-logit));
                 traceLine.y.push(prob);
@@ -159,7 +158,7 @@
             console.warn("Beta coefficients are NULL or missing. Curve will not be drawn.");
         }
 
-        // --- 3. Порогові лінії ---
+        // --- 3. Threshold lines ---
         const shapes = [];
         const annotations = [];
         const thresholds = [
@@ -181,7 +180,7 @@
                     xref: 'x', yref: 'y',
                     text: t.label,
                     showarrow: false,
-                    xanchor: 'center', // Центруємо текст над лінією
+                    xanchor: 'center', // Centre label above the line.
                     font: { color: t.color, size: 10, weight: 'bold' }
                 });
             }
