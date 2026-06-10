@@ -8,21 +8,21 @@ from sqlalchemy.orm import sessionmaker, declarative_base, Session as SessionTyp
 from sqlalchemy.exc import SQLAlchemyError
 from collections import defaultdict
 
-# --- Налаштування логування ---
+# --- Logging configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Конфігурація ---
+# --- Configuration ---
 DEFAULT_THRESHOLD = 0.95
 MIN_DETECTIONS_PER_YEAR = 50
 BOOTSTRAP_ITERATIONS = 10000
 RECORDING_DURATION_MIN = 5.0
 
-# --- Налаштування підключення до БД ---
+# --- Database connection settings ---
 DATABASE_URI = None
 engine = None
 Session = None
 
-# --- Оголошення моделей SQLAlchemy ---
+# --- SQLAlchemy model declarations ---
 Base = declarative_base()
 
 class AnalyticsLog(Base):
@@ -91,9 +91,9 @@ def _populate_monitoring_periods(session: SessionType):
 
 def _get_species_confidence_thresholds(session: SessionType, default_threshold: float = DEFAULT_THRESHOLD) -> defaultdict:
     """
-    Отримує порогові значення p0.95 для кожного виду з таблиці evaluation.
-    Для кожного виду вибирається найновіший розрахунок, що відповідає критеріям.
-    Якщо для виду немає валідного порогу, буде використано значення за замовчуванням.
+    Fetch p0.95 confidence thresholds for each species from the evaluation table.
+    For each species the most recent qualifying calculation is selected.
+    Falls back to the default threshold when no valid value exists for a species.
     """
     logging.info(f"Fetching species-specific confidence thresholds (p=0.95), fallback to {default_threshold}...")
     query = text("""
@@ -145,8 +145,8 @@ def _precalculate_effort_map(session: SessionType):
 
 def _precalculate_biotope_effort_map(session: SessionType, institution_id: int = None) -> pd.DataFrame:
     """
-    Розраховує зусилля (effort) для кожного біотопу.
-    Якщо вказано institution_id, рахує зусилля тільки для цієї установи.
+    Calculate monitoring effort for each biotope.
+    When institution_id is provided, counts effort only for that institution.
     """
     inst_join = ""
     inst_where = ""
@@ -216,16 +216,16 @@ def _calculate_and_save_biotope_activity(
     institution_id: int = None
 ):
     """
-    Розраховує активність видів по біотопах.
-    Підтримує фільтрацію по установі:
-    - Якщо institution_id is None -> Глобальний розрахунок.
-    - Якщо institution_id задано -> Враховуються тільки локації цієї установи.
+    Calculate and save species activity per biotope.
+    Supports institution-level filtering:
+    - institution_id is None  → global calculation.
+    - institution_id provided → only locations of that institution are counted.
     """
     if not species_ids:
         return
 
-    # 1. Очищення старих даних для конкретного контексту (глобально або для установи)
-    # Це критично, щоб не дублювати дані при повторному запуску
+    # 1. Delete stale records for this specific context (global or per institution).
+    # This prevents duplicates on re-run.
     query_filter = session.query(SpeciesBiotopeYearlyActivity).filter(
         SpeciesBiotopeYearlyActivity.species_id.in_(species_ids)
     )
@@ -237,8 +237,8 @@ def _calculate_and_save_biotope_activity(
         
     query_filter.delete(synchronize_session=False)
 
-    # 2. Формування динамічних умов для SQL
-    # Індивідуальні пороги впевненості (Confidence Thresholds)
+    # 2. Build dynamic SQL conditions.
+    # Per-species confidence thresholds.
     case_conditions = [
         f"WHEN d.species_id = {int(sid)} THEN d.confidence >= {float(thr)}" 
         for sid, thr in confidence_thresholds.items() if sid in species_ids
@@ -251,18 +251,18 @@ def _calculate_and_save_biotope_activity(
     else:
         where_confidence_clause = f"d.confidence >= {default_threshold}"
 
-    # Динамічний JOIN та WHERE для інституції
+    # Dynamic JOIN and WHERE for institution filtering.
     inst_join = ""
     inst_where = ""
     sql_params = {'species_ids': tuple(species_ids)}
 
     if institution_id is not None:
-        # Якщо рахуємо для установи, приєднуємо таблицю зв'язків
+        # Join the institution-location link table.
         inst_join = "JOIN location_institutions li ON r.location_id = li.location_id"
         inst_where = "AND li.institution_id = :inst_id"
         sql_params['inst_id'] = institution_id
 
-    # 3. Виконання запиту на отримання детекцій
+    # 3. Run the detection query.
     sql_query = text(f"""
         SELECT 
             d.species_id, 
@@ -289,45 +289,45 @@ def _calculate_and_save_biotope_activity(
         detections_df.dropna(subset=['year'], inplace=True)
         detections_df['year'] = detections_df['year'].astype(int)
 
-        # 4. Об'єднання з даними про зусилля (Effort)
-        # Примітка: biotope_effort_df повинен бути попередньо відфільтрований або глобальний
-        # в залежності від логіки виклику. Тут ми просто робимо merge.
+        # 4. Merge with effort data.
+        # Note: biotope_effort_df must be pre-filtered or global depending on the caller.
+        # Here we simply merge.
         merged_df = pd.merge(biotope_effort_df, detections_df, on=['biotope_id', 'year'], how='left')
         
-        # Заповнюємо пропуски для видів/років без детекцій, але з зусиллям
+        # Fill gaps for species/years with effort but no detections.
         merged_df['detection_count'] = merged_df['detection_count'].fillna(0)
         
-        # Вибираємо тільки ті рядки, де species_id є у списку (або додалися через merge)
-        # Оскільки merge left, у нас будуть рядки з effort, але без species_id.
-        # Нам потрібно зберегти записи тільки для наших species_ids
+        # Keep only rows where species_id is in the list.
+        # Left-merge adds rows from effort_df with NaN species_id — these are dropped
+        # to avoid storing zero-activity records for every species.
         final_records = []
         
-        # Оптимізація: ітеруємося по унікальних видах, щоб "розмножити" дані effort для кожного виду
+        # Optimisation: iterate over unique species to broadcast effort data per species.
         unique_species = set(species_ids)
         
-        # Перетворюємо на словник для швидкого доступу
+        # Convert to a dict for fast lookups.
         effort_dict = biotope_effort_df.set_index(['biotope_id', 'year']).to_dict('index')
         det_dict = detections_df.set_index(['species_id', 'biotope_id', 'year'])['detection_count'].to_dict()
 
         bulk_data = []
         
-        # Проходимо по наявних детекціях (це швидше ніж декартовий добуток)
-        # Але це не додасть нульові записи. Якщо потрібні нулі - логіка має бути іншою.
-        # В поточній реалізації зберігаємо тільки фактичні дані (детекції > 0 або effort > 0)
-        # Для спрощення зберігаємо результат merge, фільтруючи NaN у species_id
+        # Iterate over existing detections (faster than a cartesian product),
+        # but this will not produce zero-row records. If zeros are needed, the logic must change.
+        # Current implementation keeps only actual data (detections > 0 or effort > 0).
+        # For simplicity, save the merge result, dropping rows with NaN species_id.
         
-        # Відновлюємо species_id для записів, які прийшли з detections_df
-        # Ті записи, що прийшли з effort_df і не зматчились, матимуть NaN species_id.
-        # Ми їх відкидаємо, бо ми не зберігаємо "нульову активність" для всіх видів, щоб не роздувати базу.
+        # Restore species_id for rows from detections_df.
+        # Rows from effort_df that did not match will have NaN species_id — we drop them
+        # to avoid storing zero-activity records for every species, which would bloat the DB.
         final_df = merged_df.dropna(subset=['species_id']).copy()
 
         if final_df.empty:
             return
 
-        # 5. Підготовка до вставки
-        final_df['institution_id'] = institution_id  # Важливо: записуємо контекст
+        # 5. Prepare for bulk insert.
+        final_df['institution_id'] = institution_id  # Record the institution context.
 
-        # Приведення типів для коректної серіалізації в БД
+        # Cast types for correct DB serialisation.
         final_df = final_df.astype({
             'species_id': 'int64', 
             'biotope_id': 'int64', 
@@ -336,7 +336,7 @@ def _calculate_and_save_biotope_activity(
             'effort_hours': 'float64'
         })
         
-        # Конвертація NaN у None для поля institution_id (якщо воно не задане)
+        # Convert NaN to None for institution_id (when not set).
         records = final_df.where(pd.notnull(final_df), None).to_dict(orient='records')
         
         session.bulk_insert_mappings(SpeciesBiotopeYearlyActivity, records)
@@ -355,13 +355,13 @@ def _calculate_and_save_trends(
     institution_id: int = None
 ):
     """
-    Розраховує RAI (Relative Abundance Index) та довірчі інтервали.
-    intermediate_df вже повинен містити дані, відфільтровані для конкретної установи (або глобальні).
+    Calculate RAI (Relative Abundance Index) and confidence intervals.
+    intermediate_df must already contain data filtered for the given institution (or global).
     """
     if intermediate_df.empty:
         return
     
-    # 1. Очищення старих трендів для цього виду та цієї установи
+    # 1. Delete stale trends for this species and institution.
     query_filter = session.query(SpeciesYearlyTrends).filter(
         SpeciesYearlyTrends.species_id == species_id
     )
@@ -373,7 +373,7 @@ def _calculate_and_save_trends(
         
     query_filter.delete(synchronize_session=False)
 
-    # 2. Фільтрація за фенологією (періодом моніторингу виду)
+    # 2. Filter by phenology (species monitoring period).
     try:
         species_period = monitoring_periods.loc[species_id]
         season_df = intermediate_df[
@@ -381,19 +381,19 @@ def _calculate_and_save_trends(
             (intermediate_df['month'] <= species_period['end_month'])
         ]
     except KeyError:
-        # Якщо для виду не задано період, беремо весь рік
+        # No period defined for the species — use the full year.
         season_df = intermediate_df
 
     if season_df.empty:
         return
 
-    # 3. Агрегація даних по роках
+    # 3. Aggregate data by year.
     yearly_summary = season_df.groupby('year').agg(
         total_detections=('detection_count', 'sum'),
         total_effort=('effort_hours', 'sum')
     ).reset_index()
 
-    # Відкидаємо роки, де детекцій замало для статистичної значущості
+    # Drop years with too few detections for statistical significance.
     valid_years_summary = yearly_summary[yearly_summary['total_detections'] >= MIN_DETECTIONS_PER_YEAR]
     
     if valid_years_summary.empty:
@@ -401,16 +401,16 @@ def _calculate_and_save_trends(
         
     trends_to_save = []
     
-    # 4. Розрахунок RAI та Bootstrapping для кожного року
+    # 4. Calculate RAI and bootstrap confidence intervals per year.
     for _, row in valid_years_summary.iterrows():
         year = row['year']
         year_df = season_df[season_df['year'] == year]
         
-        # Захист від ділення на нуль
+        # Guard against division by zero.
         if year_df['effort_hours'].sum() == 0:
             continue
         
-        # RAI для кожного блоку даних (день/локація)
+        # RAI per data block (day/location).
         # RAI = Detections / Effort (hours)
         with np.errstate(divide='ignore', invalid='ignore'):
             rai_values = (year_df['detection_count'] / year_df['effort_hours'])
@@ -420,12 +420,12 @@ def _calculate_and_save_trends(
             continue
         
         # Bootstrapping (Monte Carlo resampling)
-        # Якщо точок мало, бутстреп ненадійний, беремо просте середнє
+        # Too few points for reliable bootstrap — fall back to a simple mean.
         if len(rai_values) < 5:
              mean_rai = float(np.mean(rai_values))
              lower_ci, upper_ci = mean_rai, mean_rai
         else:
-            # Генеруємо BOOTSTRAP_ITERATIONS вибірок
+            # Generate BOOTSTRAP_ITERATIONS resampled means.
             resampled_means = np.random.choice(rai_values, size=(BOOTSTRAP_ITERATIONS, len(rai_values)), replace=True).mean(axis=1)
             
             mean_rai = float(np.mean(resampled_means))
@@ -438,10 +438,10 @@ def _calculate_and_save_trends(
             mean_rai=mean_rai,
             lower_ci=lower_ci,
             upper_ci=upper_ci,
-            institution_id=institution_id  # Зберігаємо контекст
+            institution_id=institution_id  # Record the institution context.
         ))
         
-    # 5. Збереження в БД
+    # 5. Save to the database.
     if trends_to_save:
         session.bulk_save_objects(trends_to_save)
         # logging.info(f"Saved trends for species {species_id} (Inst: {institution_id}), Years: {len(trends_to_save)}")
@@ -449,30 +449,28 @@ def _calculate_and_save_trends(
 
 def _get_location_institution_map(session: SessionType) -> pd.DataFrame:
     """
-    Завантажує зв'язок між локаціями та установами.
-    Повертає DataFrame з колонками [location_id, institution_id].
+    Load the location-to-institution mapping.
+    Returns a DataFrame with columns [location_id, institution_id].
     """
     sql = "SELECT location_id, institution_id FROM location_institutions"
     return pd.read_sql(sql, session.bind)
 
 def _get_all_institution_ids(session: SessionType) -> list:
-    """Отримує список ID всіх установ."""
-    # Перевіряємо, чи існує таблиця institutions (для безпеки)
+    """Return a list of all institution IDs."""
+    # Check whether the institutions table exists (safety guard).
     try:
         return [r[0] for r in session.execute(text("SELECT id FROM institutions")).fetchall()]
     except Exception:
         return []
 
 def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataFrame, trends_only: bool, biotopes_only: bool):
-    """
-    Повний цикл розрахунків: біотопи та тренди (Глобально + Інституції).
-    """
-    # 1. Перевірка на наявність даних
+    """Full calculation cycle: biotopes and trends (global + per institution)."""
+    # 1. Guard: nothing to process.
     if species_to_process_df is None or species_to_process_df.empty:
         logging.info("No species to process. Exiting.")
         return
 
-    # 2. Ініціалізація базових списків (виконується ОДИН раз на початку)
+    # 2. Initialise base lists once at the start.
     all_species_ids = species_to_process_df.index.tolist()
     all_institutions = _get_all_institution_ids(session)
     confidence_thresholds = _get_species_confidence_thresholds(session)
@@ -480,16 +478,16 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
 
     logging.info(f"Starting calculation for {len(all_species_ids)} species and {len(all_institutions)} institutions.")
 
-    # --- БЛОК 1: РОЗРАХУНОК БІОТОПІВ ---
+    # --- BLOCK 1: BIOTOPE CALCULATION ---
     if not trends_only:
         logging.info("--- Step 1: Biotope Activity ---")
         try:
-            # 1.1. Глобальні біотопи
+            # 1.1. Global biotopes.
             logging.info("Calculating GLOBAL biotope activity...")
             global_biotope_effort = _precalculate_biotope_effort_map(session, institution_id=None)
             _calculate_and_save_biotope_activity(session, all_species_ids, global_biotope_effort, confidence_thresholds, institution_id=None)
             
-            # 1.2. Біотопи для кожної інституції окремо
+            # 1.2. Per-institution biotopes.
             for inst_id in all_institutions:
                 logging.info(f"Calculating biotope activity for institution ID: {inst_id}...")
                 inst_biotope_effort = _precalculate_biotope_effort_map(session, institution_id=inst_id)
@@ -501,11 +499,11 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
             session.rollback()
             logging.error(f"Critical error in biotope calculation: {e}", exc_info=True)
         
-        # Якщо запущено тільки для біотопів - виходимо
+        # Biotopes-only mode — exit after this block.
         if biotopes_only:
             return
 
-    # --- БЛОК 2: РОЗРАХУНОК ТРЕНДІВ ---
+    # --- BLOCK 2: TRENDS CALCULATION ---
     logging.info("--- Step 2: Yearly Trends ---")
     effort_df = _precalculate_effort_map(session)
     if effort_df.empty:
@@ -518,13 +516,13 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
     for i, species_id in enumerate(all_species_ids):
         logging.info(f"[{i+1}/{total_species}] Processing trends for species ID: {species_id}")
         try:
-            # Отримуємо проміжні дані (сирі детекції + зусилля)
+            # Fetch intermediate data (raw detections + effort).
             if trends_only:
-                # В режимі trends-only беремо те, що вже є в таблиці
+                # trends-only mode: use existing table data.
                 sql_intermediate = text("SELECT * FROM analysis_intermediate WHERE species_id = :sid")
                 intermediate_df = pd.read_sql(sql_intermediate, session.bind, params={'sid': species_id})
             else:
-                # В звичайному режимі перераховуємо intermediate_df
+                # Normal mode: recalculate intermediate_df.
                 session.query(AnalysisIntermediate).filter(AnalysisIntermediate.species_id == species_id).delete(synchronize_session=False)
                 
                 confidence_threshold = confidence_thresholds[species_id]
@@ -540,7 +538,7 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
                 if species_df.empty:
                     continue
 
-                # Підготовка даних для агрегації
+                # Prepare data for aggregation.
                 if species_df['datetime_start'].dt.tz is not None:
                     species_df['datetime_start'] = species_df['datetime_start'].dt.tz_localize(None)
                 
@@ -562,16 +560,16 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
             if intermediate_df.empty:
                 continue
 
-            # 2.1. Розрахунок ГЛОБАЛЬНОГО тренду
+            # 2.1. Calculate GLOBAL trend.
             _calculate_and_save_trends(session, intermediate_df, monitoring_periods, species_id, institution_id=None)
             
-            # 2.2. Розрахунок трендів для КОЖНОЇ інституції
+            # 2.2. Per-institution trends.
             if not loc_inst_map.empty:
                 merged_inter = pd.merge(intermediate_df, loc_inst_map, on='location_id', how='inner')
                 for inst_id, group_df in merged_inter.groupby('institution_id'):
                     _calculate_and_save_trends(session, group_df, monitoring_periods, species_id, institution_id=int(inst_id))
 
-            # Логування успішного завершення для виду
+            # Log successful completion for this species.
             if not trends_only:
                 current_count = int(species_to_process_df.loc[species_id, 'count'])
                 log_entry = session.get(AnalyticsLog, species_id)
