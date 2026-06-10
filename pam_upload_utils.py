@@ -1,5 +1,3 @@
-# myproject/app/pam/pam_upload_utils.py
-
 import os
 import re
 import zipfile
@@ -13,23 +11,23 @@ from .utils import get_pam_db_connection
 
 def parse_audio_filename(filename):
     """
-    Парсить ім'я аудіофайлу і витягає дані.
-    
-    Формати імен:
-    - 0.118_STAVY_20250303_184602_sec216_part1.wav (новий формат)
-    - 0.804_K1_20241110_074902.wav (старий формат)
-    - 0.120_ROZTOCH-POND_20230911_010102_sec270_part1.wav (новий формат з дефісом)
-    
-    Повертає dict з ключами:
+    Parse an audio filename and extract its components.
+
+    Filename formats:
+    - 0.118_STAVY_20250303_184602_sec216_part1.wav  (new format)
+    - 0.804_K1_20241110_074902.wav                  (old format)
+    - 0.120_ROZTOCH-POND_20230911_010102_sec270_part1.wav  (new format with hyphen)
+
+    Returns a dict with keys:
     - confidence: float (0.118, 0.804)
-    - location: str (STAVY, K1, ROZTOCH-POND)  
+    - location: str (STAVY, K1, ROZTOCH-POND)
     - date: datetime.date
     - time: datetime.time
     - original_filename: str
     """
     try:
-        # Розширений регекс для парсингу імені файлу
-        # Захоплює: confidence_location_date_time і ігнорує все після (sec216_part1 тощо)
+        # Extended regex for audio filename parsing.
+        # Captures: confidence_location_date_time and ignores everything after (sec216_part1, etc.).
         pattern = r'^(\d+\.\d+)_([A-Za-z0-9\-]+)_(\d{8})_(\d{6})(?:_.*)?\.(wav|flac)$'
         match = re.match(pattern, filename, re.IGNORECASE)
         
@@ -38,15 +36,15 @@ def parse_audio_filename(filename):
         
         confidence_str, location, date_str, time_str, _ = match.groups()
         
-        # Парсинг значень
+        # Parse component values.
         confidence = float(confidence_str)
         if not (0.0 <= confidence <= 1.0):
             raise ValueError(f"Точність повинна бути між 0 і 1, отримано: {confidence}")
         
-        # Парсинг дати: 20250303 -> 2025-03-03
+        # Parse date: 20250303 → 2025-03-03.
         parsed_date = datetime.strptime(date_str, '%Y%m%d').date()
         
-        # Парсинг часу: 184602 -> 18:46:02
+        # Parse time: 184602 → 18:46:02.
         parsed_time = datetime.strptime(time_str, '%H%M%S').time()
         
         return {
@@ -62,9 +60,7 @@ def parse_audio_filename(filename):
         raise ValueError(f"Не вдалося розпарсити файл {filename}: {str(e)}")
 
 def validate_species_folder(species_name, conn):
-    """
-    Перевіряє чи існує вид у таблиці species і повертає його ID.
-    """
+    """Check whether the species exists in the species table and return its ID."""
     try:
         result = conn.execute(
             text("SELECT species_id FROM species WHERE scientific_name = :species_name"),
@@ -74,7 +70,7 @@ def validate_species_folder(species_name, conn):
         if result:
             return result[0]  # species_id
         else:
-            # Логування невідомого виду
+            # Log the unknown species.
             current_app.logger.warning(f"Невідомий вид: {species_name}")
             return None
             
@@ -83,9 +79,7 @@ def validate_species_folder(species_name, conn):
         raise
 
 def check_duplicate_segment(filename, conn):
-    """
-    Перевіряє чи вже існує сегмент з таким іменем файлу.
-    """
+    """Check whether a segment with this filename already exists."""
     try:
         result = conn.execute(
             text("SELECT id FROM segments WHERE filename = :filename"),
@@ -99,9 +93,7 @@ def check_duplicate_segment(filename, conn):
         raise
 
 def save_segment_to_db(parsed_data, species_id, file_path, conn):
-    """
-    Зберігає сегмент у базу даних.
-    """
+    """Save a segment to the database."""
     try:
         conn.execute(text("""
             INSERT INTO segments 
@@ -129,30 +121,30 @@ def save_segment_to_db(parsed_data, species_id, file_path, conn):
 
 def ensure_system_user(conn):
     """
-    Перевіряє чи існує системний користувач з ID 0 для локально верифікованих файлів.
-    Якщо не існує - створює його.
-    
+    Ensure the system user (ID 0) exists for locally-verified files.
+    Creates the user if absent.
+
     Returns:
-        int: ID системного користувача (завжди 0)
+        int: System user ID (always 0).
     """
     try:
-        # Перевіряємо чи існує користувач з ID 0
-        # Використовуємо основну базу даних для таблиці users
+        # Check whether the user with ID 0 exists.
+        # Use the main database for the users table.
         from flask import current_app
         from sqlalchemy import create_engine, text as sql_text
         
-        # Отримуємо з'єднання до основної бази даних
+        # Open a connection to the main database.
         main_engine = create_engine(current_app.config['SQLALCHEMY_DATABASE_URI'])
         main_conn = main_engine.connect()
         
         try:
-            # Перевіряємо чи існує користувач
+            # Check whether the user exists.
             result = main_conn.execute(sql_text("""
                 SELECT id FROM users WHERE id = 0
             """)).fetchone()
             
             if not result:
-                # Створюємо системного користувача
+                # Create the system user.
                 current_app.logger.info("Creating system user with ID 0 for local verifications")
                 main_conn.execute(sql_text("""
                     INSERT INTO users (id, username, email, password_hash, active, created_at)
@@ -169,22 +161,22 @@ def ensure_system_user(conn):
         
     except Exception as e:
         current_app.logger.error(f"Error ensuring system user: {e}")
-        return 0  # Повертаємо 0 навіть у разі помилки
+        return 0  # Return 0 even on error.
 
 def save_segment_with_verification(parsed_data, species_id, file_path, conn, verification_result=None, system_user_id=0):
     """
-    Зберігає сегмент у базу даних разом з верифікацією (якщо є).
-    
+    Save a segment to the database together with its verification result (if any).
+
     Args:
-        parsed_data: Розпарсені дані файлу
-        species_id: ID виду
-        file_path: Шлях до файлу
-        conn: З'єднання з PAM базою даних
-        verification_result: None (не верифіковано), 0 (negative), 1 (positive)
-        system_user_id: ID користувача для верифікації (0 для системного)
+        parsed_data: Parsed file data.
+        species_id: Species ID.
+        file_path: Path to the audio file.
+        conn: PAM database connection.
+        verification_result: None (unverified), 0 (negative), 1 (positive).
+        system_user_id: User ID for the verification (0 for the system user).
     """
     try:
-        # Спочатку зберігаємо сегмент
+        # First save the segment.
         conn.execute(text("""
             INSERT INTO segments 
             (species_id, filename, confidence_level, location_name, 
@@ -203,9 +195,9 @@ def save_segment_with_verification(parsed_data, species_id, file_path, conn, ver
             "status": 'completed' if verification_result is not None else 'pending'
         })
         
-        # Якщо є результат верифікації, зберігаємо його
+        # Save the verification result if one is provided.
         if verification_result is not None:
-            # Отримуємо ID щойно створеного сегмента
+            # Get the ID of the newly created segment.
             segment_result = conn.execute(text("""
                 SELECT id FROM segments 
                 WHERE filename = :filename AND species_id = :species_id 
@@ -218,7 +210,7 @@ def save_segment_with_verification(parsed_data, species_id, file_path, conn, ver
             if segment_result:
                 segment_id = segment_result[0]
                 
-                # Зберігаємо верифікацію
+                # Save the verification.
                 conn.execute(text("""
                     INSERT INTO segment_verifications 
                     (segment_id, user_id, verification_result, verified_at)
@@ -241,8 +233,8 @@ def save_segment_with_verification(parsed_data, species_id, file_path, conn, ver
 
 def process_species_folder(species_folder_path, species_name, species_id, upload_directory, system_user_id, stats):
     """
-    Обробляє папку одного виду, враховуючи можливі підпапки Positive/Negative.
-    ОНОВЛЕНО: Тепер не приймає об'єкт з'єднання, а керує ним самостійно.
+    Process a single species folder, handling optional Positive/Negative subfolders.
+    Each file is processed with its own connection (no connection argument accepted).
     """
     processed_any = False
     
@@ -253,7 +245,7 @@ def process_species_folder(species_folder_path, species_name, species_id, upload
         has_positive = 'Positive' in items_in_folder
         has_negative = 'Negative' in items_in_folder
         
-        # Обробка позитивних верифікацій
+        # Process positive verifications.
         if has_positive:
             positive_path = os.path.join(species_folder_path, 'Positive')
             if os.path.isdir(positive_path):
@@ -263,7 +255,7 @@ def process_species_folder(species_folder_path, species_name, species_id, upload
                 )
                 if processed_count > 0: processed_any = True
 
-        # Обробка негативних верифікацій
+        # Process negative verifications.
         if has_negative:
             negative_path = os.path.join(species_folder_path, 'Negative')
             if os.path.isdir(negative_path):
@@ -273,7 +265,7 @@ def process_species_folder(species_folder_path, species_name, species_id, upload
                 )
                 if processed_count > 0: processed_any = True
         
-        # Обробка неверифікованих файлів у корені папки виду
+        # Process unverified files in the root of the species folder.
         processed_count = process_audio_files_in_folder(
             species_folder_path, species_name, species_id, upload_directory,
             system_user_id, stats, verification_result=None, 
@@ -290,8 +282,8 @@ def process_species_folder(species_folder_path, species_name, species_id, upload
 def process_audio_files_in_folder(folder_path, species_name, species_id, upload_directory, 
                                 system_user_id, stats, verification_result=None, exclude_dirs=None):
     """
-    Обробляє аудіофайли в конкретній папці, використовуючи атомарні транзакції 
-    та збираючи інформацію про помилки для кожного файлу.
+    Process audio files in a specific folder using atomic transactions,
+    collecting per-file error details.
     """
     if exclude_dirs is None:
         exclude_dirs = []
@@ -316,7 +308,7 @@ def process_audio_files_in_folder(folder_path, species_name, species_id, upload_
                 if check_duplicate_segment(item, conn):
                     is_duplicate = True
                 else:
-                    parsed_data = parse_audio_filename(item) # Використовуйте вашу версію, що підтримує кілька форматів
+                    parsed_data = parse_audio_filename(item)
                     if not parsed_data:
                         raise ValueError("Помилка парсингу імені файлу.")
 
@@ -345,7 +337,6 @@ def process_audio_files_in_folder(folder_path, species_name, species_id, upload_
             
         except Exception as e:
             stats['parse_errors'] += 1
-            # Ключова зміна: додаємо деталі помилки в список
             error_details = {
                 'species': species_name,
                 'filename': item,
@@ -362,15 +353,14 @@ def process_audio_files_in_folder(folder_path, species_name, species_id, upload_
 
 def process_zip_archive(zip_file, upload_directory):
     """
-    Основна функція обробки ZIP архіву з аудіосегментами.
-    ОНОВЛЕНО: Збирає деталізовану інформацію про помилки для фронтенду.
-    
+    Main function for processing a ZIP archive of audio segments.
+
     Args:
-        zip_file: werkzeug FileStorage об'єкт
-        upload_directory: папка для збереження файлів
-        
+        zip_file: werkzeug FileStorage object.
+        upload_directory: Directory for saving files.
+
     Returns:
-        dict: статистика обробки, включаючи список файлів з помилками
+        dict: Processing statistics, including a list of files with errors.
     """
     conn = None
     temp_extract_dir = None
@@ -400,7 +390,7 @@ def process_zip_archive(zip_file, upload_directory):
             current_app.logger.error(f"Failed to save or validate ZIP file: {e}")
             raise ValueError(f"Не вдалося зберегти або перевірити ZIP файл: {str(e)}")
 
-        # Статистика обробки (ОНОВЛЕНО)
+        # Processing statistics.
         stats = {
             'total_files': 0,
             'processed_files': 0,
@@ -411,7 +401,7 @@ def process_zip_archive(zip_file, upload_directory):
             'positive_verifications': 0,
             'negative_verifications': 0,
             'unverified_files': 0,
-            'error_files': []  # <-- Ініціалізація списку для помилок
+            'error_files': []  # Error list initialisation.
         }
         
         extract_target_dir = os.path.join(temp_extract_dir, 'extracted')
@@ -439,12 +429,12 @@ def process_zip_archive(zip_file, upload_directory):
             if not species_id:
                 stats['unknown_species'] += 1
                 
-                try: # Безпечно підраховуємо файли для звіту
+                try:  # Count files safely for the report.
                     num_files = len([f for f in os.listdir(species_folder_path) if os.path.isfile(os.path.join(species_folder_path, f))])
                 except Exception:
                     num_files = 'N/A'
                 
-                # Додаємо інформацію про помилку "невідомий вид"
+                # Add "unknown species" error details.
                 error_details = {
                     'species': species_name,
                     'filename': f'Вся папка ({num_files} файлів)',
@@ -484,18 +474,15 @@ def process_zip_archive(zip_file, upload_directory):
                 current_app.logger.error(f"Error cleaning up temp directory: {e}")
 
 def get_upload_statistics():
-    """
-    Повертає загальну статистику завантажених сегментів.
-    ОНОВЛЕНО: Коректно рахує загальну кількість видів із сегментами.
-    """
+    """Return overall statistics for uploaded segments."""
     conn = None
     try:
         conn = get_pam_db_connection()
         
-        # Загальна кількість сегментів
+        # Total segment count.
         total_segments = conn.execute(text("SELECT COUNT(*) FROM segments")).fetchone()[0]
         
-        # Кількість по статусах
+        # Count by status.
         status_results = conn.execute(text("""
             SELECT status, COUNT(*) 
             FROM segments 
@@ -503,12 +490,12 @@ def get_upload_statistics():
         """)).fetchall()
         status_counts = dict(status_results)
         
-        # НОВИЙ ЗАПИТ: Рахуємо реальну кількість унікальних видів, що мають сегменти
+        # Count the real number of unique species that have segments.
         total_species_with_segments = conn.execute(text(
             "SELECT COUNT(DISTINCT species_id) FROM segments"
         )).fetchone()[0]
         
-        # Кількість по видах (залишаємо ТОП-10 для списку на сторінці)
+        # Count by species (top 10 for the page list).
         species_top10_results = conn.execute(text("""
             SELECT s.scientific_name, COUNT(seg.id)
             FROM segments seg
@@ -522,8 +509,8 @@ def get_upload_statistics():
         return {
             'total_segments': total_segments,
             'status_counts': status_counts,
-            'total_species_with_segments': total_species_with_segments, # Нове поле
-            'species_counts': species_top10_counts # Старе поле для списку
+            'total_species_with_segments': total_species_with_segments,
+            'species_counts': species_top10_counts
         }
         
     except Exception as e:
