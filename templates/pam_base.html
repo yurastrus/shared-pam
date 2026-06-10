@@ -5,8 +5,8 @@
 {% block pam_head_extra %}{% endblock %}
 {% endblock %}
 
-{# Загальний layout для PAM-сторінок: кнопка повернення до хабу + контент. #}
-{# Дочірні шаблони використовують {% block pam_content %} замість {% block content %}. #}
+{# Common layout for PAM pages: hub back-link + page content. #}
+{# Child templates use {% block pam_content %} instead of {% block content %}. #}
 {% block content %}
     {% if request.endpoint != 'pam.pam_home' %}
     <a href="{{ url_for('pam.pam_home', lang_code=g.lang_code) }}" class="pam-back-link">

@@ -14,13 +14,13 @@
            class="btn btn-secondary btn-sm">&larr; {{ _('До локацій') }}</a>
     </div>
 
-    {# ── Режим відображення ── #}
+    {# ── Display mode ── #}
     <div class="coverage-modes">
         <a href="?mode=all" class="btn btn-sm {{ 'btn-primary' if coverage.mode != 'aggregated' else 'btn-outline-secondary' }}">{{ _('Усі роки') }}</a>
         <a href="?mode=aggregated" class="btn btn-sm {{ 'btn-primary' if coverage.mode == 'aggregated' else 'btn-outline-secondary' }}">{{ _('Зведено за рік') }}</a>
     </div>
 
-    {# ── Зведення ── #}
+    {# ── Summary ── #}
     <div class="coverage-summary">
         <div class="coverage-stat">
             <div class="coverage-stat__num">{{ '{:,}'.format(coverage.total_recordings).replace(',', ' ') }}</div>
@@ -42,7 +42,7 @@
         {% endif %}
     </div>
 
-    {# ── Легенда (градієнт інтенсивності) ── #}
+    {# ── Legend (intensity gradient) ── #}
     <div class="coverage-legend">
         <span>{{ _('менше') }}</span>
         <i class="coverage-gradient-bar"></i>

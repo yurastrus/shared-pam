@@ -240,9 +240,9 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(function() {
-    // Coord inputs: дозволяємо як крапку, так і кому як десятковий
-    // розділювач (Ukrainian Excel використовує кому). На input — одразу
-    // нормалізуємо до крапки, щоб parseFloat коректно прочитав.
+    // Coord inputs: allow both period and comma as decimal separator
+    // (Ukrainian Excel uses comma). On input, normalise to period
+    // so parseFloat reads correctly.
     document.querySelectorAll('input[inputmode="decimal"]').forEach(el => {
         el.addEventListener('input', e => {
             if (e.target.value.includes(',')) {
@@ -292,7 +292,7 @@ $(function() {
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
         ]);
-        osmLayer.addTo(map);  // #44: OSM — дефолт скрізь
+        osmLayer.addTo(map);  // #44: OSM — default everywhere
 
         const overlayMaps = {};
         if (geoserverUrl) {

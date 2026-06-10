@@ -42,8 +42,7 @@
                             <label for="visit-datetime" class="form-label">{{ _('Дата та час візиту') }}</label>
                             <input type="datetime-local" class="form-control" id="visit-datetime" required>
                         </div>
-                        <!-- *** НОВЕ ПОЛЕ: Мета візиту *** -->
-                        <div class="col-md-6 mb-3">
+                                        <div class="col-md-6 mb-3">
                             <label for="visit-purpose" class="form-label">{{ _('Результат візиту') }}</label>
                             <select id="visit-purpose" class="form-control" required>
                                 <option value="">{{ _('-- Виберіть --') }}</option>
@@ -120,7 +119,6 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-    // *** ОНОВЛЕНО: Додано новий селектор ***
     $('#sd-card-status, #battery-type, #visit-purpose').select2({ theme: 'bootstrap-5' });
     const form = $('#service-log-form');
     const formPlaceholder = $('#form-placeholder');
@@ -154,7 +152,7 @@ $(document).ready(function() {
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
         ]);
         map = L.map('map').setView([49.9, 23.7], 11);
-        osmLayer.addTo(map);  // #44: OSM — дефолт
+        osmLayer.addTo(map);  // #44: OSM — default
         L.control.layers({ "{{ _('OSM') }}": osmLayer, "{{ _('Супутник') }}": satelliteLayer }).addTo(map);
         loadLocations();
     }
@@ -257,7 +255,6 @@ $(document).ready(function() {
                         ? '<span class="badge bg-danger">{{ _("Ні") }}</span>'
                         : '<span class="badge bg-secondary">{{ _("Невідомо") }}</span>';
                     
-                    // *** ОНОВЛЕНО: Відображення мети візиту ***
                     const item = `
                         <div class="history-item">
                             <div class="d-flex justify-content-between">
@@ -286,7 +283,6 @@ $(document).ready(function() {
         const originalButtonText = submitButton.html();
         submitButton.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> {{ _("Збереження...") }}');
         
-        // *** ОНОВЛЕНО: Додано нове поле до відправки ***
         const formData = {
             location_id: $('#location-id').val(),
             visit_datetime: $('#visit-datetime').val(),
@@ -308,7 +304,6 @@ $(document).ready(function() {
             if (ok) {
                 alert(data.message);
                 
-                // *** ОНОВЛЕНО: Очищення нового поля ***
                 $('#visit-purpose').val('').trigger('change');
                 $('#sd-card-status').val('').trigger('change');
                 $('#battery-type').val('').trigger('change');
@@ -317,7 +312,7 @@ $(document).ready(function() {
                 $('#comments').val('');
 
                 loadHistory(formData.location_id);
-                loadLocations(); // Просто перезавантажуємо всі локації
+                loadLocations(); // Reload all locations.
             } else {
                 throw new Error(data.error || '{{ _("Невідома помилка") }}');
             }
