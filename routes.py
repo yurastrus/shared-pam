@@ -1095,7 +1095,7 @@ def api_next_verification_segment(lang_code):
         
     except Exception as e:
         current_app.logger.error(f"Error getting next verification segment: {e}")
-        # Додамо трасування помилки в лог для кращої діагностики
+        # Log the full traceback for better diagnostics.
         current_app.logger.error(traceback.format_exc())
         return jsonify({'error': 'Помилка отримання сегменту'}), 500
     finally:
@@ -1106,7 +1106,7 @@ def api_next_verification_segment(lang_code):
 @login_required  
 @role_required('pam_verifier')
 def api_submit_verification(lang_code):
-    """API для збереження результатів верифікації."""
+    """API endpoint to save verification results."""
     conn = None
     try:
         data = request.json
@@ -1114,7 +1114,7 @@ def api_submit_verification(lang_code):
             return jsonify({'success': False, 'error': 'Немає даних для обробки'}), 400
             
         segment_id = data.get('segment_id')
-        verification_result = data.get('verification_result')  # 1, 0, або None
+        verification_result = data.get('verification_result')  # 1, 0, or None
         
         current_app.logger.info(f"Received verification: segment_id={segment_id}, result={verification_result}")
         
@@ -1129,7 +1129,7 @@ def api_submit_verification(lang_code):
         
         conn = get_pam_db_connection()
         
-        # Перевіряємо чи існує сегмент
+        # Check the segment exists.
         segment_check = conn.execute(
             text("SELECT id, status FROM segments WHERE id = :segment_id"),
             {"segment_id": segment_id}
@@ -1144,7 +1144,7 @@ def api_submit_verification(lang_code):
                 'error': 'Сегмент вже не потребує верифікації'
             }), 400
         
-        # Перевіряємо чи користувач вже верифікував цей сегмент
+        # Check whether the user has already verified this segment.
         existing = conn.execute(text("""
             SELECT id FROM segment_verifications 
             WHERE segment_id = :segment_id AND user_id = :user_id
@@ -1154,7 +1154,7 @@ def api_submit_verification(lang_code):
         }).fetchone()
         
         if existing:
-            # Оновлюємо існуючу верифікацію
+            # Update existing verification.
             conn.execute(text("""
                 UPDATE segment_verifications 
                 SET verification_result = :verification_result, verified_at = CURRENT_TIMESTAMP
@@ -1166,7 +1166,7 @@ def api_submit_verification(lang_code):
             })
             action = 'updated'
         else:
-            # Створюємо нову верифікацію
+            # Create new verification.
             conn.execute(text("""
                 INSERT INTO segment_verifications (segment_id, user_id, verification_result)
                 VALUES (:segment_id, :user_id, :verification_result)
@@ -1202,21 +1202,18 @@ def api_submit_verification(lang_code):
 @pam_bp.route('/<lang_code>/api/verification/stats')
 @login_required
 def api_verification_stats(lang_code):
-    """
-    API для отримання статистики верифікацій користувача.
-    Підтримує фільтрацію за видом (species_id).
-    """
+    """API endpoint to fetch the current user's verification statistics (filterable by species_id)."""
     conn = None
     try:
         conn = get_pam_db_connection()
         species_id = request.args.get('species_id', type=int)
 
-        # --- Підготовка умов та параметрів для запитів ---
+        # --- Prepare query conditions and parameters ---
         params = {'user_id': current_user.id}
         
-        # Умови для статистики користувача (верифіковані сегменти)
+        # Conditions for user verification statistics (verified segments).
         user_stats_conditions = ["sv.user_id = :user_id"]
-        # Умови для підрахунку сегментів, що залишились (не верифіковані)
+        # Conditions for counting remaining (unverified) segments.
         remaining_conditions = ["seg.status = 'pending'"]
         
         if species_id:
@@ -1227,7 +1224,7 @@ def api_verification_stats(lang_code):
         user_stats_where = " AND ".join(user_stats_conditions)
         remaining_where = " AND ".join(remaining_conditions)
         
-        # --- Запит 1: Отримати статистику верифікованих сегментів ---
+        # --- Query 1: Verified segment statistics ---
         user_stats_query = text(f"""
             SELECT 
                 COUNT(*) as total_verifications,
@@ -1240,7 +1237,7 @@ def api_verification_stats(lang_code):
         """)
         user_stats = conn.execute(user_stats_query, params).fetchone()
         
-        # --- Запит 2: Отримати кількість сегментів, що залишились для верифікації ---
+        # --- Query 2: Count remaining segments for verification ---
         remaining_query = text(f"""
             SELECT COUNT(DISTINCT seg.id)
             FROM segments seg
@@ -1253,7 +1250,7 @@ def api_verification_stats(lang_code):
         """)
         remaining_count = conn.execute(remaining_query, params).scalar()
 
-        # --- Запит 3: Статистика по видах (для іншого функціоналу, але теж оновлена) ---
+        # --- Query 3: Per-species statistics ---
         species_stats_query = text(f"""
             SELECT s.scientific_name, s.common_name_uk, s.common_name_en,
                    COUNT(*) as verifications_count,
@@ -1301,12 +1298,12 @@ def api_verification_stats(lang_code):
             conn.close()
 
 def _confine_to_pam_base(path):
-    """#26 (SEC-013): дозволяє лише шляхи всередині PAM_UPLOAD_PATH.
+    """#26 (SEC-013): only allow paths inside PAM_UPLOAD_PATH.
 
-    Повертає realpath, якщо він у межах бази; інакше abort(403). Захист від
-    підміненого в БД file_path (інсайдер / майбутній SQLi / зламаний адмін),
-    який інакше повернув би довільний файл сервера. Якщо PAM_UPLOAD_PATH не
-    налаштовано — лог-помилка і пропуск (щоб не давати регресії наявної поведінки).
+    Returns realpath if it is within the base; otherwise abort(403). Guards against
+    a tampered file_path in the DB (insider / future SQLi / compromised admin)
+    that would otherwise serve arbitrary server files. If PAM_UPLOAD_PATH is not
+    configured, logs an error and passes through to avoid regressing existing behaviour.
     """
     base = current_app.config.get('PAM_UPLOAD_PATH')
     if not base:
@@ -1326,7 +1323,7 @@ def _confine_to_pam_base(path):
 @login_required
 @role_required('pam_verifier')
 def serve_verification_audio(lang_code, segment_id):
-    """Сервіс для віддачі аудіофайлів верифікації."""
+    """Serve audio files for segment verification."""
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -1342,8 +1339,8 @@ def serve_verification_audio(lang_code, segment_id):
         
         file_path, filename = result
 
-        # #26 (SEC-013): підтвердити, що шлях лежить усередині PAM_UPLOAD_PATH —
-        # інакше підмінений у БД file_path міг би віддати довільний файл сервера.
+        # #26 (SEC-013): confirm the path is inside PAM_UPLOAD_PATH;
+        # a tampered DB file_path could otherwise serve arbitrary server files.
         _confine_to_pam_base(file_path)
 
         current_app.logger.info(f"Serving audio file: {file_path}")
@@ -1366,18 +1363,18 @@ def serve_verification_audio(lang_code, segment_id):
 
 @pam_bp.route('/<lang_code>/api/evaluation/detailed-results')
 def api_detailed_evaluation_results(lang_code):
-    """API для отримання детальних результатів оцінки з пагінацією."""
+    """API endpoint to fetch detailed evaluation results with pagination."""
     from .utils import get_pam_db_connection
     
     conn = None
     try:
-        # Отримуємо параметри
+        # Fetch request parameters.
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
         sort_by = request.args.get('sort_by', 'precision_score')
         order = request.args.get('order', 'desc')
         
-        # Валідація сортування
+        # Validate sort parameters.
         sort_field_mapping = {
             'precision_score': 'e.precision_score',
             'total_samples': 'e.total_samples',
@@ -1398,14 +1395,13 @@ def api_detailed_evaluation_results(lang_code):
         
         offset = (page - 1) * per_page
         
-        # === ОНОВЛЕНИЙ SQL ЗАПИТ ===
-        # Ми явно перераховуємо всі колонки, включаючи нові інтервали для порогів
-        # Індекси:
-        # 0-3: інфо про вид
-        # 4-7: основна статистика
-        # 8-10: пороги (значення)
+        # Explicit column list including new threshold confidence intervals.
+        # Column index reference:
+        # 0-3:   species info
+        # 4-7:   main statistics
+        # 8-10:  threshold values
         # 11-12: precision CI
-        # 13-18: threshold CIs (НОВІ)
+        # 13-18: threshold CIs
         query = f"""
             SELECT e.species_id, s.scientific_name, s.common_name_uk, s.common_name_en,
                 e.precision_score, e.total_samples, e.calculated_at,
@@ -1427,12 +1423,12 @@ def api_detailed_evaluation_results(lang_code):
             'offset': offset
         }).fetchall()
         
-        # Отримуємо загальну кількість
+        # Fetch total row count.
         total_count = conn.execute(text("""
             SELECT COUNT(*) FROM evaluation WHERE is_current = TRUE
         """)).fetchone()[0]
         
-        # Формуємо результат
+        # Build result list.
         detailed_results = []
         for i, row in enumerate(results):
             
@@ -1447,7 +1443,7 @@ def api_detailed_evaluation_results(lang_code):
                 'species_name': species_name,
                 'scientific_name': row[1],
                 
-                # Основні метрики
+                # Core metrics.
                 'precision': round(row[4], 3) if row[4] is not None else 0,
                 'precision_lower': round(row[11], 3) if row[11] is not None else None,
                 'precision_upper': round(row[12], 3) if row[12] is not None else None,
@@ -1456,17 +1452,17 @@ def api_detailed_evaluation_results(lang_code):
                 'calculated_at': row[6].strftime('%d.%m.%Y %H:%M') if row[6] else None,
                 'logistic_r_squared': round(row[7], 3) if row[7] is not None else None,
                 
-                # Поріг 90%
+                # 90% threshold.
                 'p0_9_threshold': round(row[8], 3) if row[8] is not None else None,
                 'p0_9_lower': round(row[13], 3) if row[13] is not None else None,
                 'p0_9_upper': round(row[14], 3) if row[14] is not None else None,
                 
-                # Поріг 95%
+                # 95% threshold.
                 'p0_95_threshold': round(row[9], 3) if row[9] is not None else None,
                 'p0_95_lower': round(row[15], 3) if row[15] is not None else None,
                 'p0_95_upper': round(row[16], 3) if row[16] is not None else None,
                 
-                # Поріг 99%
+                # 99% threshold.
                 'p0_99_threshold': round(row[10], 3) if row[10] is not None else None,
                 'p0_99_lower': round(row[17], 3) if row[17] is not None else None,
                 'p0_99_upper': round(row[18], 3) if row[18] is not None else None
@@ -1499,7 +1495,7 @@ def api_detailed_evaluation_results(lang_code):
 @login_required
 @role_required('manager')
 def admin_recalculate_metrics(lang_code):
-    """Адміністраторський роут для перерахунку всіх метрик."""
+    """Admin route to recalculate all evaluation metrics."""
     from .pam_evaluation_utils import recalculate_all_metrics
     
     try:
@@ -1512,7 +1508,7 @@ def admin_recalculate_metrics(lang_code):
             try:
                 target_species_id = int(species_choice)
             except ValueError:
-                pass # Якщо прийшло сміття, буде None (тобто 'all')
+                pass  # Garbage input falls back to None (i.e., 'all').
         
         if min_verifications < 1 or min_verifications > 10:
             flash('Мінімальна кількість верифікацій має бути між 1 та 10.', 'warning')
@@ -1527,9 +1523,9 @@ def admin_recalculate_metrics(lang_code):
             fail_count = result['failed_count']
             mode = result.get('mode')
 
-            # 1. Підсумок верхнього рівня
+            # 1. Top-level summary.
             if calc_count == 0:
-                # Нічого не пораховано — це не помилка, але й не success
+                # Nothing calculated — not an error, but not success either.
                 if mode == 'single':
                     flash('Для цього виду метрики не пораховано (недостатньо даних).', 'warning')
                 else:
@@ -1543,7 +1539,7 @@ def admin_recalculate_metrics(lang_code):
                     'success' if fail_count == 0 else 'info'
                 )
 
-            # 2. Деталі по пропущених — конкретні причини
+            # 2. Skipped-species details — specific reasons.
             for detail in result.get('failed_species_detail', [])[:5]:
                 flash(detail['message'], 'info')
             extra = len(result.get('failed_species_detail', [])) - 5
@@ -1551,7 +1547,7 @@ def admin_recalculate_metrics(lang_code):
                 flash(f'... та ще {extra} вид(ів) з недостатніми даними.', 'info')
 
         else:
-            # Структуровані помилки — різний рівень залежно від причини
+            # Structured error — severity level depends on reason.
             reason = result.get('reason')
             msg = result.get('error', 'Невідома помилка')
             if reason in ('insufficient_data', 'no_eligible_species'):
@@ -1569,7 +1565,7 @@ def admin_recalculate_metrics(lang_code):
 @login_required
 @role_required('manager')
 def admin_cleanup_verifications(lang_code):
-    """Адміністраторський роут для видалення файлів завершених верифікацій."""
+    """Admin route to delete files for completed verifications."""
     from .pam_evaluation_utils import cleanup_completed_verifications
     
     try:
@@ -1601,7 +1597,7 @@ def admin_cleanup_verifications(lang_code):
 @login_required
 @role_required('manager')
 def api_consensus_status(lang_code):
-    """API для отримання статистики консенсусу верифікацій."""
+    """API endpoint to fetch verification consensus statistics."""
     from .utils import get_pam_db_connection
     
     conn = None
@@ -1673,7 +1669,7 @@ def api_consensus_status(lang_code):
 @login_required
 @role_required('pam_verifier')
 def serve_spectrogram_image(lang_code, segment_id):
-    """Сервіс для віддачі зображень спектрограм."""
+    """Serve spectrogram images for segments."""
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -1689,19 +1685,19 @@ def serve_spectrogram_image(lang_code, segment_id):
         
         audio_path = result[0]
 
-        # #26 (SEC-013): підтвердити, що шлях лежить усередині PAM_UPLOAD_PATH
-        # (захист і генерації спектрограми, і віддачі картинки з тієї ж теки).
+        # #26 (SEC-013): confirm the path is inside PAM_UPLOAD_PATH
+        # (guards both spectrogram generation and serving the image from that directory).
         _confine_to_pam_base(audio_path)
 
         base_path, _ = os.path.splitext(audio_path)
         spectrogram_path = f"{base_path}.png"
 
-        # Якщо зображення не існує, спробуємо його згенерувати "на льоту"
+        # If the image is missing, generate it on the fly.
         if not os.path.exists(spectrogram_path):
             current_app.logger.info(f"Generating on-the-fly spectrogram for segment {segment_id}")
             generate_spectrogram_image(audio_path)
 
-        # Перевіряємо ще раз, чи існує файл після генерації
+        # Check again that the file exists after generation.
         if not os.path.exists(spectrogram_path):
             current_app.logger.error(f"Failed to generate or find spectrogram for: {spectrogram_path}")
             abort(404)
@@ -1719,7 +1715,7 @@ def serve_spectrogram_image(lang_code, segment_id):
             conn.close()
 
 def process_spectrograms_background(app, segments, force_regenerate):
-    # Потрібен контекст додатку для доступу до logger та конфігів, якщо треба
+    # App context needed for logger and config access.
     with app.app_context():
         processed_count = 0
         failed_count = 0
@@ -1727,41 +1723,39 @@ def process_spectrograms_background(app, segments, force_regenerate):
         print(f"--- Початок фонової генерації: {len(segments)} файлів ---")
         
         for segment_id, audio_path in segments:
-            # Викликаємо функцію генерації
-            # Вона сама перевіряє наявність файлу та потребу перезапису
+            # Call the generation function.
+            # It handles existence check and overwrite logic internally.
             if generate_spectrogram_image(audio_path, force_regenerate=force_regenerate):
                 processed_count += 1
             else:
                 failed_count += 1
                 
         print(f"--- Фонова генерація завершена. Оброблено: {processed_count}, Помилок: {failed_count} ---")
-        # Тут можна додати запис у лог або відправку email адміну
+        # Optional: write to log or send an admin email notification.
 
 @pam_bp.route('/<lang_code>/admin/evaluation/build-spectrograms', methods=['POST'])
 @login_required
 @role_required('admin')
 def admin_build_spectrograms(lang_code):
-    """
-    Асинхронний запуск генерації спектрограм.
-    """
+    """Admin route to trigger asynchronous spectrogram generation."""
     conn = None
     try:
         mode = request.form.get('mode', 'missing')
         force_regenerate = (mode == 'all')
         
         conn = get_pam_db_connection()
-        # Беремо всі шляхи
+        # Fetch all segment file paths.
         segments = conn.execute(text(
             "SELECT id, file_path FROM segments WHERE status != 'archived'"
         )).fetchall()
         
-        # Перетворюємо RowProxy на список кортежів або словників, 
-        # щоб безпечно передати в потік (закриття conn не вплинуло на дані)
+        # Convert RowProxy to plain tuples so they are safe to pass to the thread
+        # (connection close has no effect on the copied data).
         segments_data = [(row[0], row[1]) for row in segments]
         
-        # --- ЗАПУСК У ФОНІ ---
-        # Використовуємо threading, щоб віддати відповідь браузеру миттєво
-        # Передаємо current_app._get_current_object(), щоб потік мав доступ до реального app
+        # --- START IN BACKGROUND ---
+        # Use threading to return a response immediately.
+        # Pass current_app._get_current_object() so the thread has access to the real app.
         thread = threading.Thread(
             target=process_spectrograms_background,
             args=(current_app._get_current_object(), segments_data, force_regenerate)
@@ -1787,19 +1781,17 @@ def admin_build_spectrograms(lang_code):
 @pam_bp.route('/<lang_code>/api/pam/evaluation/thresholds')
 def api_get_evaluation_thresholds(lang_code):
     """
-    API для отримання словника з пороговими значеннями p0.95 для видів.
-    Враховує тільки розрахунки з total_samples > 200.
-    Повертає об'єкт: { "scientific_name": threshold_value, ... }
+    API endpoint to fetch a dict of p0.95 threshold values for species.
+    Only includes calculations with total_samples > 200.
+    Returns: { "scientific_name": threshold_value, ... }
     """
     conn = None
     try:
         conn = get_pam_db_connection()
         
-        # ОНОВЛЕНИЙ ЗАПИТ:
-        # 1. Не використовує is_current.
-        # 2. Фільтрує за total_samples > 200.
-        # 3. Гарантує, що для кожного виду береться НАЙНОВІШИЙ розрахунок,
-        #    який відповідає умовам, щоб уникнути дублікатів.
+        # 1. Does not use is_current.
+        # 2. Filters by total_samples > 200.
+        # 3. Takes the LATEST qualifying calculation per species to avoid duplicates.
         query = text("""
             WITH RankedEvaluations AS (
                 SELECT
@@ -1822,7 +1814,7 @@ def api_get_evaluation_thresholds(lang_code):
         
         db_result = conn.execute(query).mappings().fetchall()
         
-        # Створюємо словник {назва_виду: поріг}
+        # Build {species_name: threshold} dict.
         thresholds = {
             row['scientific_name']: round(row['p0_95_threshold'], 2) 
             for row in db_result
@@ -1847,13 +1839,13 @@ def manage_pam_locations(lang_code):
         conn = get_pam_db_connection()
         is_admin = current_user.has_role('admin')
 
-        # 1. Беремо УСІ установи з Основної БД 
+        # 1. Fetch ALL institutions from the main DB. 
         if is_admin:
             all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
         else:
             all_inst_objects = current_user.institutions
         
-        # ДВОМОВНІСТЬ УСТАНОВ: Формуємо словник залежно від поточної мови
+        # Institution bilingual names: build a name map for the current language.
         if lang_code == 'uk':
             inst_names_map = {i.id: i.name_uk for i in all_inst_objects}
         else:
@@ -1861,7 +1853,7 @@ def manage_pam_locations(lang_code):
             
         all_assignable_list =[{'id': i.id, 'name': inst_names_map[i.id]} for i in all_inst_objects]
 
-        # 2. Отримуємо локації (з обома назвами) з ПАМ БД
+        # 2. Fetch locations (with both name variants) from the PAM DB.
         loc_query = text("""
             SELECT l.location_id, l.location_name, l.location_name_en, l.lat, l.lon, li.institution_id
             FROM locations l
@@ -1876,7 +1868,7 @@ def manage_pam_locations(lang_code):
         for row in raw_rows:
             lid = row.location_id
             if lid not in locations_dict:
-                # ДВОМОВНІСТЬ ЛОКАЦІЙ
+                # Location bilingual names.
                 loc_name = row.location_name
                 if lang_code == 'en' and row.location_name_en:
                     loc_name = row.location_name_en
@@ -1894,7 +1886,7 @@ def manage_pam_locations(lang_code):
                 locations_dict[lid]['inst_ids'].append(row.institution_id)
                 used_inst_ids.add(row.institution_id)
 
-        # 3. Підтягуємо зв'язки локацій з біотопами
+        # 3. Fetch location–biotope links.
         biotope_links = conn.execute(text("SELECT location_id, biotope_id FROM location_biotopes")).fetchall()
         loc_biotope_map = {}
         for bl in biotope_links:
@@ -1902,22 +1894,22 @@ def manage_pam_locations(lang_code):
         for lid, loc in locations_dict.items():
             loc['biotope_ids'] = loc_biotope_map.get(lid, [])
 
-        # 4. Фільтруємо те, що бачить менеджер
+        # 4. Filter to what the manager can see.
         user_inst_ids =[i.id for i in current_user.institutions]
         if is_admin:
             final_locations = list(locations_dict.values())
         else:
             final_locations =[loc for loc in locations_dict.values() if any(i in user_inst_ids for i in loc['inst_ids'])]
 
-        # 5. Список для верхнього фільтра
+        # 5. Institution list for the top filter.
         filter_institutions = [{'id': i_id, 'name': inst_names_map[i_id]}
                                for i_id in used_inst_ids if i_id in inst_names_map]
 
-        # 6. Список біотопів для форми
+        # 6. Biotopes list for the form.
         biotopes_result = conn.execute(text("SELECT id, name_ua, name_en FROM biotopes ORDER BY name_ua")).fetchall()
         biotopes = [dict(row._mapping) for row in biotopes_result]
 
-        # 7. Довідники для журналу обслуговування
+        # 7. Reference data for the service log.
         battery_types = conn.execute(text("SELECT id, name_ua, name_en FROM battery_types ORDER BY name_ua")).fetchall()
         sd_card_statuses = conn.execute(text("SELECT id, name_ua, name_en FROM sd_card_status ORDER BY id")).fetchall()
         visit_purposes = conn.execute(text("SELECT id, name_ua, name_en FROM visit_purposes ORDER BY id")).fetchall()
@@ -1941,7 +1933,7 @@ def manage_pam_locations(lang_code):
 @login_required
 @role_required('manager')
 def get_pam_location_details(lang_code, location_id):
-    """API для отримання деталей конкретної локації ПАМ."""
+    """API endpoint to fetch details for a specific PAM location."""
     g.lang_code = lang_code
     conn = None
     try:
@@ -1955,10 +1947,10 @@ def get_pam_location_details(lang_code, location_id):
         if not location:
             return jsonify({'error': 'Локацію не знайдено.'}), 404
         
-        # Біотопи
+        # Biotopes.
         b_ids = conn.execute(text("SELECT biotope_id FROM location_biotopes WHERE location_id = :id"), {'id': location_id}).fetchall()
         
-        # Установи
+        # Institutions.
         i_ids = conn.execute(text("SELECT institution_id FROM location_institutions WHERE location_id = :id"), {'id': location_id}).fetchall()
         
         return jsonify({
@@ -1980,10 +1972,10 @@ def get_pam_location_details(lang_code, location_id):
 @login_required
 @role_required('pam_verifier')
 def pam_location_coverage(lang_code, location_id):
-    """Календар покриття локації записами по днях (Idea 10).
+    """Location recording-coverage calendar by day (Idea 10).
 
-    Покриття дня = к-сть різних годин доби (0..24) з ≥1 записом. Чесна оцінка
-    без припущень про тривалість запису (recordings не зберігає duration).
+    Day coverage = number of distinct hours (0..24) with ≥1 recording. Honest estimate
+    without assumptions about recording duration (recordings does not store a duration field).
     """
     g.lang_code = lang_code
     conn = None
@@ -1997,7 +1989,7 @@ def pam_location_coverage(lang_code, location_id):
             flash('Локацію не знайдено.', 'danger')
             return redirect(url_for('pam.manage_pam_locations', lang_code=lang_code))
 
-        # Доступ: admin бачить усе; інакше локація має належати установі юзера
+        # Access: admin sees everything; otherwise the location must belong to the user's institution.
         if not current_user.has_role('admin'):
             user_inst_ids = [i.id for i in current_user.institutions]
             allowed = False
@@ -2049,7 +2041,7 @@ def pam_location_coverage(lang_code, location_id):
 @login_required
 @role_required('admin', 'manager')
 def api_create_pam_location(lang_code):
-    """API для ручного створення нової локації ПАМ."""
+    """API endpoint to manually create a new PAM location."""
     g.lang_code = lang_code
     conn = None
     try:
@@ -2140,11 +2132,11 @@ def update_pam_location(lang_code, location_id):
             return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
 
         with conn.begin(): 
-            # Оновлюємо назви
+            # Update location names.
             conn.execute(text("UPDATE locations SET location_name = :n, location_name_en = :ne WHERE location_id = :id"),
                          {'n': data.get('name'), 'ne': data.get('name_en'), 'id': location_id})
             
-            # Оновлюємо зв'язки в ПАМ БД (просто записуємо ID)
+            # Update institution links in the PAM DB (overwrite IDs).
             if is_admin:
                 conn.execute(text("DELETE FROM location_institutions WHERE location_id = :id"), {'id': location_id})
             else:
@@ -2163,7 +2155,7 @@ def update_pam_location(lang_code, location_id):
 @login_required
 @role_required('admin')
 def admin_convert_to_flac(lang_code):
-    """Адміністраторський роут для конвертації WAV сегментів у FLAC."""
+    """Admin route to convert WAV segments to FLAC."""
     from .pam_evaluation_utils import convert_wav_to_flac
     
     try:
@@ -2193,18 +2185,16 @@ def admin_convert_to_flac(lang_code):
 @pam_bp.route('/<lang_code>/api/pam/verification/top-verifiers')
 @login_required
 def api_top_verifiers(lang_code):
-    """
-    API для отримання рейтингу верифікаторів на основі фільтрів.
-    """
+    """API endpoint to fetch the top verifiers ranking based on active filters."""
     conn = None
     try:
         conn = get_pam_db_connection()
         
-        # Отримуємо ті ж самі фільтри, що й для сегментів
+        # Apply the same filters as for segments.
         species_id = request.args.get('species_id', type=int)
         status = request.args.get('status', 'all')
         
-        # Базовий запит
+        # Base query.
         base_query = """
             SELECT 
                 sv.user_id,
@@ -2228,7 +2218,7 @@ def api_top_verifiers(lang_code):
         if conditions:
             where_clause = "WHERE " + " AND ".join(conditions)
             
-        # Формуємо кінцевий запит
+        # Assemble the final query.
         query = text(f"""
             {base_query}
             {where_clause}
@@ -2237,22 +2227,22 @@ def api_top_verifiers(lang_code):
             LIMIT 20
         """)
         
-        # Виконуємо запит до PAM_DB
+        # Execute query against PAM_DB.
         db_results = conn.execute(query, params).fetchall()
         
         if not db_results:
             return jsonify({'verifiers': []})
 
-        # Двоетапний процес: 
-        # 1. Отримали ID користувачів та їх статистику з PAM_DB.
-        # 2. Тепер отримаємо їхні імена з основної бази даних.
+        # Two-step process:
+        # 1. Fetched user IDs and statistics from PAM_DB.
+        # 2. Now fetch usernames from the main database.
         user_ids = [row[0] for row in db_results]
         
-        # Запит до основної бази даних через модель User
+        # Query the main database for usernames via the User model.
         users = User.query.filter(User.id.in_(user_ids)).all()
         user_map = {u.id: u.username for u in users}
 
-        # Формуємо фінальний результат
+        # Build the final result.
         verifiers_data = []
         for user_id, count in db_results:
             verifiers_data.append({
@@ -2271,15 +2261,13 @@ def api_top_verifiers(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/trends')
 def pam_trends(lang_code):
-    """
-    Сторінка для візуалізації багаторічних трендів видів.
-    """
+    """Render the multi-year species trend visualisation page."""
     g.lang_code = lang_code
     conn = None
     try:
         conn = get_pam_db_connection()
         
-        # Отримуємо список видів, для яких є розраховані тренди
+        # Fetch species that have calculated trends.
         species_query = text("""
             SELECT DISTINCT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
             FROM species s
@@ -2297,7 +2285,7 @@ def pam_trends(lang_code):
                 display_name = f"{row.common_name_en} ({row.scientific_name})"
             available_species.append({'id': row.species_id, 'text': display_name})
 
-        # Отримуємо список доступних років
+        # Fetch available years.
         years_query = text("SELECT DISTINCT year FROM species_yearly_trends ORDER BY year DESC")
         available_years = [row[0] for row in conn.execute(years_query).fetchall()]
         
@@ -2320,9 +2308,7 @@ def pam_trends(lang_code):
 
 @pam_bp.route('/<lang_code>/api/pam/yearly-trends')
 def api_pam_yearly_trends(lang_code):
-    """
-    API для отримання даних для графіка багаторічної динаміки.
-    """
+    """API endpoint to fetch data for the multi-year dynamics chart."""
     g.lang_code = lang_code
     conn = None
     try:
@@ -2349,7 +2335,7 @@ def api_pam_yearly_trends(lang_code):
             'end_year': end_year
         }).mappings().fetchall()
         
-        # Конвертуємо результат в список словників, готовий для JSON
+        # Convert result rows to a list of dicts for JSON serialisation.
         trend_data = [dict(row) for row in result]
         
         return jsonify(trend_data)
@@ -2363,15 +2349,13 @@ def api_pam_yearly_trends(lang_code):
 
 @pam_bp.route('/<lang_code>/pam/species-dashboard')
 def pam_species_dashboard(lang_code):
-    """
-    Сторінка детального аналізу по видах для даних ПАМ (сезонна + річна динаміка).
-    """
+    """Render the PAM species detailed analysis page (seasonal + annual dynamics)."""
     g.lang_code = lang_code
     conn = None
     try:
         conn = get_pam_db_connection()
         
-        # Отримуємо види, для яких є розраховані дані в обох таблицях
+        # Fetch species that have calculated data in both tables.
         species_query = text("""
             SELECT DISTINCT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
             FROM species s
@@ -2390,14 +2374,14 @@ def pam_species_dashboard(lang_code):
                 display_name = f"{row.common_name_en} ({row.scientific_name})"
             available_species.append({'id': row.species_id, 'text': display_name})
 
-        # Отримуємо список доступних років з трендів
+        # Fetch available years from trends.
         years_query = text("SELECT DISTINCT year FROM species_yearly_trends ORDER BY year ASC")
         available_years = [row[0] for row in conn.execute(years_query).fetchall()]
         
         start_year = available_years[0] if available_years else datetime.now().year - 5
         end_year = available_years[-1] if available_years else datetime.now().year
 
-        # ВАЖЛИВО: рендеримо новий шаблон pam_species_dashboard.html
+        # IMPORTANT: render pam_species_dashboard.html.
         return render_template('pam_species_dashboard.html',
                                available_species=available_species,
                                available_years=available_years,
