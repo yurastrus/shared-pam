@@ -1,5 +1,3 @@
-# myproject/app/pam/pam_evaluation_utils.py
-
 from flask import current_app
 from .utils import get_pam_db_connection
 from sqlalchemy import text
@@ -13,9 +11,7 @@ import shutil
 from datetime import datetime
 
 def convert_numpy_types(obj):
-    """
-    Рекурсивно конвертує numpy типи в стандартні Python типи для збереження в БД.
-    """
+    """Recursively convert numpy types to standard Python types for DB storage."""
     import numpy as np
     
     if isinstance(obj, np.integer):
@@ -33,14 +29,14 @@ def convert_numpy_types(obj):
 
 def get_species_for_dropdown():
     """
-    Отримує список видів, які мають хоча б одну верифікацію,
-    для відображення у випадаючому списку адмінки.
+    Fetch species that have at least one verification,
+    for the admin dropdown.
 
-    Додатково повертає для кожного виду:
-      • verified_segments — кількість сегментів виду, які мають ≥1 верифікацію
-      • total_verifications — загальна кількість верифікацій по сегментах виду
-    Це дозволяє користувачу одразу бачити, чи варто запускати перерахунок
-    (поріг — мінімум 5 сегментів з верифікаціями).
+    Additionally returns per species:
+      • verified_segments   — number of segments with ≥1 verification
+      • total_verifications — total verification count across the species' segments
+    Lets the user immediately see whether recalculation is worthwhile
+    (threshold: at least 5 verified segments).
     """
     conn = None
     try:
@@ -66,18 +62,17 @@ def get_species_for_dropdown():
 
 def _get_species_diagnostic(conn, species_id, min_verifications):
     """
-    Повертає діагностичну інформацію про чому конкретний вид міг бути
-    пропущений під час перерахунку. Використовується для побудови
-    зрозумілих повідомлень для користувача.
+    Return diagnostic information explaining why a specific species may have been
+    skipped during recalculation. Used to build user-friendly messages.
 
-    Повертає dict:
-      species_name           — наукова назва
-      total_segments         — усі сегменти виду (з верифікаціями чи без)
-      verified_segments      — сегменти, що мають хоч одну верифікацію
-      segments_meeting_min   — сегменти з ≥ min_verifications верифікаціями
-      total_verifications    — загальна кількість верифікацій
-      min_verifications      — поточний поріг
-      required_segments      — мінімальна кількість сегментів (5)
+    Returns a dict:
+      species_name           — scientific name
+      total_segments         — all segments for the species (verified or not)
+      verified_segments      — segments that have at least one verification
+      segments_meeting_min   — segments with ≥ min_verifications verifications
+      total_verifications    — total verification count
+      min_verifications      — current threshold
+      required_segments      — minimum required segments (5)
     """
     row = conn.execute(text("""
         SELECT
@@ -117,7 +112,7 @@ def _get_species_diagnostic(conn, species_id, min_verifications):
 
 
 def _build_insufficient_data_message(diag):
-    """Будує читабельне повідомлення на основі діагностики виду."""
+    """Build a human-readable message from species diagnostic data."""
     name = diag['species_name']
     if diag['total_segments'] == 0:
         return f"{name}: у виду немає жодного сегмента."
@@ -131,15 +126,15 @@ def _build_insufficient_data_message(diag):
                 f"{diag['total_verifications']} верифікацій). "
                 f"Потрібно мінімум {diag['required_segments']} — "
                 f"додайте верифікацій або зменште поріг.")
-    # Безпечний fallback
+    # Safe fallback.
     return (f"{name}: недостатньо даних "
             f"(сегменти ≥{diag['min_verifications']} вериф.: "
             f"{diag['segments_meeting_min']}, потрібно ≥{diag['required_segments']}).")
 
 def calculate_species_metrics(species_id, min_verifications=2, consensus_threshold=2.0/3.0):
     """
-    Розраховує Precision та логістичну регресію для конкретного виду.
-    Додано: Бутстреп для розрахунку 95% довірчого інтервалу Precision.
+    Calculate precision and logistic regression for a specific species.
+    Includes bootstrap estimation of the 95% confidence interval for precision.
     """
     conn = None
     try:
@@ -164,7 +159,7 @@ def calculate_species_metrics(species_id, min_verifications=2, consensus_thresho
         if len(results) < 5:
             return None
         
-        # 1. Формуємо масив бінарних результатів (1 - правильно, 0 - помилка)
+        # 1. Build the binary outcome array (1 = correct, 0 = incorrect).
         binary_outcomes = []
         
         for result in results:
@@ -179,31 +174,31 @@ def calculate_species_metrics(species_id, min_verifications=2, consensus_thresho
         if total_n == 0:
             return None
             
-        # 2. Розрахунок Precision (середнє значення масиву)
+        # 2. Calculate precision (mean of the outcome array).
         outcomes_np = np.array(binary_outcomes)
         precision = float(outcomes_np.mean())
         
-        # 3. Бутстреп для CI (95%)
+        # 3. Bootstrap CI (95%)
         n_bootstraps = 10000
-        # Генеруємо індекси для вибірки з поверненням
-        # Це швидше, ніж np.random.choice для самого масиву в циклі
+        # Generate indices for sampling with replacement.
+        # This is faster than np.random.choice on the array itself in a loop.
         boot_means = []
         
-        # Якщо вибірка дуже мала, бутстреп може бути нестабільним, але це краще ніж нічого
+        # Very small samples make bootstrap unstable, but it is still better than nothing.
         if total_n >= 3:
             for _ in range(n_bootstraps):
-                # Вибірка з поверненням
+                # Sample with replacement.
                 sample = np.random.choice(outcomes_np, size=total_n, replace=True)
                 boot_means.append(sample.mean())
             
             lower_ci = float(np.percentile(boot_means, 2.5))
             upper_ci = float(np.percentile(boot_means, 97.5))
         else:
-            # Якщо даних критично мало, інтервал = precision
+            # Critically few data points — set interval equal to precision.
             lower_ci = precision
             upper_ci = precision
 
-        # 4. Логістична регресія (без змін)
+        # 4. Logistic regression (unchanged).
         logistic_results = calculate_logistic_regression(species_id, min_verifications, consensus_threshold)
         
         result_dict = {
@@ -213,14 +208,14 @@ def calculate_species_metrics(species_id, min_verifications=2, consensus_thresho
             'precision_upper_ci': upper_ci,
             'total_samples': total_n,
             
-            # Логістичні параметри (обов'язково!)
+            # Logistic parameters (required).
             'logistic_beta0': logistic_results.get('beta0'),
             'logistic_beta1': logistic_results.get('beta1'),
             'logistic_r_squared': logistic_results.get('r_squared'),
             'logistic_n_samples': logistic_results.get('n_samples'),
             'logistic_status': logistic_results.get('status'),
             
-            # Пороги
+            # Thresholds.
             'p0_9_threshold': logistic_results.get('p0_9_threshold'),
             'p0_9_lower_ci': logistic_results.get('p0_9_lower_ci'),
             'p0_9_upper_ci': logistic_results.get('p0_9_upper_ci'),
@@ -244,15 +239,15 @@ def calculate_species_metrics(species_id, min_verifications=2, consensus_thresho
 
 def find_optimal_threshold(confidences, true_labels, step=0.05):
     """
-    Знаходить оптимальний поріг confidence для максимізації F1-score.
-    
+    Find the optimal confidence threshold to maximise F1-score.
+
     Args:
-        confidences: список значень confidence
-        true_labels: список істинних позначок
-        step: крок для перебору порогів
-        
+        confidences: list of confidence values
+        true_labels: list of true labels
+        step: step size for threshold search
+
     Returns:
-        float: оптимальний поріг confidence
+        float: optimal confidence threshold
     """
     try:
         current_app.logger.info(f"Finding optimal threshold for {len(confidences)} samples")
@@ -275,12 +270,10 @@ def find_optimal_threshold(confidences, true_labels, step=0.05):
         
     except Exception as e:
         current_app.logger.error(f"Error in find_optimal_threshold: {e}")
-        return 0.5  # Fallback значення
+        return 0.5  # Fallback value.
 
 def convert_numpy_types(obj):
-    """
-    Рекурсивно конвертує numpy типи в стандартні Python типи для збереження в БД.
-    """
+    """Recursively convert numpy types to standard Python types for DB storage."""
     import numpy as np
     
     if isinstance(obj, np.integer):
@@ -298,15 +291,15 @@ def convert_numpy_types(obj):
 
 def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.0/3.0, target_species_id=None):
     """
-    Перераховує метрики.
-    Якщо передано target_species_id - рахує тільки для нього.
-    Якщо None - рахує для всіх (як раніше).
+    Recalculate evaluation metrics.
+    When target_species_id is provided, recalculates for that species only;
+    otherwise recalculates for all species.
     """
     conn = None
     try:
         conn = get_pam_db_connection()
         
-        # 1. Формуємо запит на вибірку видів
+        # 1. Build the species selection query.
         base_query = """
             SELECT DISTINCT seg.species_id, s.scientific_name
             FROM segments seg
@@ -317,7 +310,7 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
         
         params = {}
         
-        # Якщо вибрано конкретний вид, додаємо фільтр
+        # Add a filter if a specific species was selected.
         if target_species_id is not None:
             base_query += " AND seg.species_id = :target_id"
             params['target_id'] = target_species_id
@@ -348,8 +341,8 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
                           'які мають хоча б одну верифікацію.'),
             }
         
-        # 2. Позначаємо попередні розрахунки як неактуальні
-        # ВАЖЛИВО: Якщо рахуємо один вид, скидаємо is_current тільки для нього!
+        # 2. Mark previous calculations as no longer current.
+        # IMPORTANT: when recalculating a single species, reset only that species' flag.
         if target_species_id is not None:
             conn.execute(text("UPDATE evaluation SET is_current = FALSE WHERE species_id = :sid"), 
                          {'sid': target_species_id})
@@ -362,19 +355,11 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
         logistic_stats = {'calculated': 0, 'insufficient_data': 0, 'error': 0}
         
         for species_id, scientific_name in species_list:
-            # ... (Тут код залишається без змін, він вже використовує species_id з циклу) ...
-            # ... ВИКЛИК calculate_species_metrics ...
-            # ... INSERT INTO evaluation ...
-            
-            # КОПІЮЄМО ВАШ ІСНУЮЧИЙ КОД ЦИКЛУ ТУТ
-            # Просто переконайтеся, що змінні всередині циклу не змінилися
-            
             current_app.logger.info(f"Calculating metrics for species {scientific_name} (ID: {species_id})")
             metrics = calculate_species_metrics(species_id, min_verifications, consensus_threshold)
             
             if metrics:
                 metrics = convert_numpy_types(metrics)
-                # ... (Ваш великий INSERT запит тут) ...
                 conn.execute(text("""
                     INSERT INTO evaluation (
                         species_id, precision_score, 
@@ -398,7 +383,6 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
                         :p0_99_threshold, :p0_99_lower_ci, :p0_99_upper_ci
                     )
                 """), {
-                    # ... (Ваші параметри) ...
                     'species_id': metrics['species_id'], 
                     'precision_score': metrics['precision_score'], 
                     'precision_lower_ci': metrics.get('precision_lower_ci'),
@@ -438,7 +422,6 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
 
         conn.commit()
         
-        # ... (Формування результату) ...
         result = {
             'success': True,
             'calculated_count': len(calculated_species),
@@ -462,15 +445,12 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
         if conn: conn.close()
 
 def get_evaluation_summary():
-    """
-    Повертає тільки загальну статистику для карток на сторінці.
-    СПРОЩЕНО: тепер без топ-видів, тільки загальні цифри.
-    """
+    """Return overall statistics for the summary cards on the page (no per-species breakdown)."""
     conn = None
     try:
         conn = get_pam_db_connection()
         
-        # Загальна статистика по поточних метриках
+        # Overall statistics for current metrics.
         summary_query = """
             SELECT 
                 COUNT(*) as total_species,
@@ -482,7 +462,7 @@ def get_evaluation_summary():
         
         summary = conn.execute(text(summary_query)).fetchone()
         
-        # Перевіряємо чи є взагалі дані
+        # Check whether any data exists.
         if not summary or summary[0] == 0:
             current_app.logger.warning("No evaluation data found")
             return {
@@ -498,7 +478,7 @@ def get_evaluation_summary():
                 }
             }
         
-        # Статистика логістичної регресії
+        # Logistic regression statistics.
         logistic_stats_query = """
             SELECT 
                 COUNT(CASE WHEN logistic_status = 'calculated' THEN 1 END) as logistic_calculated,
@@ -544,11 +524,11 @@ def get_evaluation_summary():
 
 def cleanup_completed_verifications():
     """
-    Видаляє файли завершених верифікацій (для адмінів).
-    ОНОВЛЕНО: Тепер також видаляє відповідні файли спектрограм (.png).
-    
+    Delete audio files for completed verification segments (admin use).
+    Also removes the corresponding spectrogram (.png) files.
+
     Returns:
-        dict: Статистика видалення
+        dict: Deletion statistics.
     """
     conn = None
     try:
@@ -561,21 +541,20 @@ def cleanup_completed_verifications():
         """)).fetchall()
         
         deleted_files = 0
-        deleted_spectrograms = 0 # <--- Додано для статистики
+        deleted_spectrograms = 0
         deleted_size = 0
         errors = []
         
         for segment_id, file_path, filename in completed_segments:
             try:
-                # Видалення аудіофайлу
+                # Delete the audio file.
                 if os.path.exists(file_path):
                     file_size = os.path.getsize(file_path)
                     os.remove(file_path)
                     deleted_files += 1
                     deleted_size += file_size
                     
-                    # ##### ПОЧАТОК НОВОГО БЛОКУ #####
-                    # Спробуємо видалити відповідну спектрограму
+                    # Try to delete the corresponding spectrogram.
                     try:
                         base_path, _ = os.path.splitext(file_path)
                         spectrogram_path = f"{base_path}.png"
@@ -586,9 +565,8 @@ def cleanup_completed_verifications():
                         error_msg = f"Помилка видалення спектрограми для {filename}: {str(spec_e)}"
                         errors.append(error_msg)
                         current_app.logger.error(error_msg)
-                    # ##### КІНЕЦЬ НОВОГО БЛОКУ #####
 
-                    # Оновлюємо статус сегменту
+                    # Update the segment status.
                     conn.execute(text(
                         "UPDATE segments SET status = 'archived' WHERE id = :segment_id"
                     ), {'segment_id': segment_id})
@@ -599,11 +577,11 @@ def cleanup_completed_verifications():
         
         conn.commit()
         
-        # Оновлюємо словник результатів
+        # Build the result dict.
         return {
             'success': True,
             'deleted_files': deleted_files,
-            'deleted_spectrograms': deleted_spectrograms, # <--- Додано
+            'deleted_spectrograms': deleted_spectrograms,
             'deleted_size_mb': round(deleted_size / (1024 * 1024), 2),
             'errors': errors
         }
@@ -625,7 +603,7 @@ def calculate_logistic_regression(species_id, min_verifications=2, consensus_thr
     try:
         conn = get_pam_db_connection()
         
-        # Отримуємо дані
+        # Fetch data.
         query = """
             SELECT seg.confidence_level,
                    AVG(CASE WHEN sv.verification_result = 1 THEN 1.0 ELSE 0.0 END) as avg_verification
@@ -642,7 +620,7 @@ def calculate_logistic_regression(species_id, min_verifications=2, consensus_thr
             'min_verifications': min_verifications
         }).fetchall()
         
-        # Підготовка даних
+        # Prepare data.
         X_data = []
         y_data = []
         
@@ -657,25 +635,25 @@ def calculate_logistic_regression(species_id, min_verifications=2, consensus_thr
                 X_data.append(confidence_level)
                 y_data.append(0) 
         
-        # Перевірки на достатність даних
+        # Check for sufficient data.
         if len(X_data) < 10 or len(set(y_data)) < 2:
             return get_empty_logistic_result(len(X_data), 'insufficient_data')
 
         X = np.array(X_data).reshape(-1, 1)
         y = np.array(y_data)
         
-        # --- ДОПОМІЖНА ФУНКЦІЯ: Розрахунок порогів для моделі ---
+        # --- Helper: calculate thresholds from a fitted model. ---
         def get_thresholds_from_model(model, X_input, y_input):
             try:
                 beta0 = float(model.intercept_[0])
                 beta1 = float(model.coef_[0][0])
                 
-                # Функція розрахунку одного порогу
+                # Calculate a single threshold.
                 def calc_single(target_p):
                     if beta1 == 0: return None
                     threshold_raw = (math.log(target_p / (1 - target_p)) - beta0) / beta1
                     if threshold_raw > 1.0: return None
-                    if threshold_raw < 0.1: return 0.1 # Технічний мінімум
+                    if threshold_raw < 0.1: return 0.1  # Technical minimum.
                     return float(threshold_raw)
 
                 return {
@@ -687,7 +665,7 @@ def calculate_logistic_regression(species_id, min_verifications=2, consensus_thr
             except:
                 return None
 
-        # 1. ОСНОВНА МОДЕЛЬ
+        # 1. MAIN MODEL.
         main_model = LogisticRegression(fit_intercept=True, random_state=42)
         main_model.fit(X, y)
         
@@ -695,7 +673,7 @@ def calculate_logistic_regression(species_id, min_verifications=2, consensus_thr
         if not main_metrics:
              return get_empty_logistic_result(len(X_data), 'error')
 
-        # Псевдо R² для основної моделі
+        # Pseudo R² for the main model.
         y_pred_proba = main_model.predict_proba(X)[:, 1]
         try:
             null_deviance = -2 * np.sum(y * np.log(y.mean()) + (1-y) * np.log(1-y.mean()))
@@ -704,21 +682,21 @@ def calculate_logistic_regression(species_id, min_verifications=2, consensus_thr
         except:
             r_squared = 0.0
 
-        # 2. БУТСТРЕП (Bootstrap) для інтервалів
-        n_iterations = 1000 # Менше ітерацій для швидкості
+        # 2. BOOTSTRAP for confidence intervals.
+        n_iterations = 1000  # Fewer iterations for speed.
         boot_p0_9 = []
         boot_p0_95 = []
         boot_p0_99 = []
         
-        # Пропускаємо бутстреп, якщо даних дуже мало, бо буде багато помилок
+        # Skip bootstrap when the sample is very small — too many errors.
         if len(X) >= 15:
             for _ in range(n_iterations):
-                # Випадкові індекси з поверненням
+                # Random indices with replacement.
                 indices = np.random.choice(len(y), len(y), replace=True)
                 X_boot = X[indices]
                 y_boot = y[indices]
                 
-                # Пропускаємо, якщо у вибірці лише один клас (тільки 0 або тільки 1)
+                # Skip if the bootstrap sample contains only one class.
                 if len(np.unique(y_boot)) < 2:
                     continue
                     
@@ -734,17 +712,17 @@ def calculate_logistic_regression(species_id, min_verifications=2, consensus_thr
                 except:
                     continue
         
-        # Розрахунок перцентилів (2.5% і 97.5%)
+        # Calculate percentiles (2.5 % and 97.5 %).
         def get_ci(values):
-            if len(values) < 10: return None, None # Мало успішних ітерацій
+            if len(values) < 10: return None, None  # Too few successful iterations.
             return float(np.percentile(values, 2.5)), float(np.percentile(values, 97.5))
 
         p0_9_lower, p0_9_upper = get_ci(boot_p0_9)
         p0_95_lower, p0_95_upper = get_ci(boot_p0_95)
         p0_99_lower, p0_99_upper = get_ci(boot_p0_99)
 
-        # "Запобіжник" для Квакші (High Precision / Low R²)
-        # Якщо ми перезаписуємо основні пороги на 0.1, то інтервали втрачають сенс (або теж стають 0.1)
+        # Safety guard for High Precision / Low R² cases.
+        # If we override main thresholds to 0.1, the CIs also lose meaning (or also become 0.1).
         positive_rate = y.mean()
         if r_squared < 0.05:
             if positive_rate >= 0.90: 
@@ -796,12 +774,9 @@ def get_empty_logistic_result(n, status):
 
 def convert_wav_to_flac():
     """
-    Знаходить всі сегменти у форматі .wav і конвертує їх у .flac.
-    Оновлює шляхи в базі даних та видаляє оригінальні .wav файли.
-    Вимагає наявності FFmpeg в системі.
-    
-    ОНОВЛЕНО: Повністю перероблено для використання короткоживучих транзакцій
-    для кожного файлу, щоб гарантувати атомарність та уникнути помилок блокування транзакцій.
+    Find all .wav segments, convert them to .flac, update DB paths, and delete
+    the original .wav files. Requires FFmpeg to be installed.
+    Uses short-lived per-file transactions to ensure atomicity and avoid lock errors.
     """
     FFMPEG_PATH = "/usr/bin/ffmpeg"
     if not os.path.exists(FFMPEG_PATH):
@@ -813,7 +788,7 @@ def convert_wav_to_flac():
     wav_segments = []
     conn = None
 
-    # КРОК 1: Отримати список файлів для обробки та закрити з'єднання.
+    # Step 1: Fetch the list of files to process, then close the connection.
     try:
         conn = get_pam_db_connection()
         wav_segments = conn.execute(text(
@@ -841,7 +816,7 @@ def convert_wav_to_flac():
     total_to_process = len(wav_segments)
     current_app.logger.info(f"Знайдено {total_to_process} .wav файлів для конвертації.")
 
-    # КРОК 2: Обробити кожен файл в окремій транзакції.
+    # Step 2: Process each file in its own transaction.
     for index, (segment_id, wav_path, wav_filename) in enumerate(wav_segments):
         current_app.logger.info(f"Обробка файлу {index + 1}/{total_to_process}: ID {segment_id}, шлях {wav_path}")
 
@@ -860,18 +835,18 @@ def convert_wav_to_flac():
         
         conn_item = None
         try:
-            # Для кожного файлу отримуємо нове з'єднання з пулу
+            # Get a fresh connection from the pool for each file.
             conn_item = get_pam_db_connection()
-            # Використовуємо 'with conn.begin()' для автоматичного commit/rollback
+            # 'with conn.begin()' ensures automatic commit/rollback.
             with conn_item.begin():
-                # 1. Конвертація
+                # 1. Convert.
                 command = [
                     FFMPEG_PATH, "-i", wav_path, "-y",
                     "-hide_banner", "-loglevel", "error", flac_path
                 ]
                 subprocess.run(command, check=True, text=True, capture_output=True)
                 
-                # 2. Оновлення запису в БД (в рамках транзакції)
+                # 2. Update the DB record (within the transaction).
                 conn_item.execute(text(
                     "UPDATE segments SET file_path = :flac_path, filename = :flac_filename WHERE id = :segment_id"
                 ), {
@@ -879,9 +854,9 @@ def convert_wav_to_flac():
                     'flac_filename': flac_filename,
                     'segment_id': segment_id
                 })
-            # Тут транзакція автоматично комітиться, якщо не було помилок
+            # Transaction commits automatically here if no exception was raised.
 
-            # 3. Видалення файлу ТІЛЬКИ ПІСЛЯ успішного commit
+            # 3. Delete the .wav file ONLY after a successful commit.
             os.remove(wav_path)
             converted_count += 1
             current_app.logger.info(f"   -> Успішно: ID {segment_id} конвертовано та оновлено в БД.")
@@ -909,17 +884,13 @@ def convert_wav_to_flac():
         'errors': errors
     }
 
-# app/pam/pam_evaluation_utils.py
-
 def get_species_logistic_data(species_id):
-    """
-    Отримує параметри моделі та ВСІ точки верифікації для виду.
-    """
+    """Fetch model parameters and ALL verification data points for a species."""
     conn = None
     try:
         conn = get_pam_db_connection()
         
-        # 1. Отримуємо параметри
+        # 1. Fetch model parameters.
         query = text("""
             SELECT 
                 s.scientific_name, s.common_name_uk, s.common_name_en,
@@ -935,15 +906,15 @@ def get_species_logistic_data(species_id):
         if not row:
             return None
 
-        # Перетворюємо на словник і ЯВНО кастимо Decimal -> float
-        # Це критично для коректної роботи JSON і математики в JS
+        # Convert to dict and EXPLICITLY cast Decimal → float.
+        # This is critical for correct JSON serialisation and JS arithmetic.
         params = dict(row)
         for key in ['logistic_beta0', 'logistic_beta1', 'logistic_r_squared', 
                     'p0_9_threshold', 'p0_95_threshold', 'p0_99_threshold']:
             if params.get(key) is not None:
                 params[key] = float(params[key])
 
-        # 2. Отримуємо точки
+        # 2. Fetch data points.
         points_query = text("""
             SELECT 
                 seg.id as segment_id,
