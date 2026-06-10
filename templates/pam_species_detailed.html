@@ -14,7 +14,7 @@
 
         {% if available_species %}
             <form id="pam-filters-form" class="filters-panel">
-                <!-- Рядок 1: Вибір виду та діапазон дат -->
+                <!-- Row 1: Species selection and date range -->
                 <div class="filter-group">
                     <label for="species-select">{{ _('Виберіть вид:') }}</label>
                     <select class="form-control" id="species-select" name="species">
@@ -32,7 +32,7 @@
                     </div>
                 </div>
                 
-                <!-- Рядок 2: Установи, проекти, біотопи та локації -->
+                <!-- Row 2: Institutions, projects, biotopes and locations -->
                 <div class="filter-group">
                     <label for="institution-select">{{ _('Установа/проект:') }}</label>
                     <select id="institution-select" class="form-control" multiple></select>
@@ -46,7 +46,7 @@
                     <select id="locations-select" class="form-control" multiple></select>
                 </div>
                 
-                <!-- Рядок 3: Повзунки -->
+                <!-- Row 3: Sliders -->
                 <div class="filter-group">
                     <label for="confidence-slider">{{ _('Впевненість:') }} <span id="confidence-value">0.95</span></label>
                     <input type="range" class="form-control-range" id="confidence-slider" min="0.7" max="1" step="0.01" value="0.95">
@@ -57,7 +57,7 @@
                     <input type="range" class="form-control-range" id="min-obs-slider" min="1" max="100" step="1" value="5">
                 </div>
                 
-                <!-- Рядок 4: Кнопки дій -->
+                <!-- Row 4: Action buttons -->
                 <div class="filter-group full-width action-group">
                     <button type="button" id="apply-filters-btn" class="btn">{{ _('Застосувати') }}</button>
                     <button type="button" id="set-threshold-btn" class="btn btn-secondary" disabled title="{{ _('Спочатку виберіть вид.') }}">
@@ -85,7 +85,7 @@
                     <div class="dashboard-main">
                         <h3 class="dashboard-section-title">{{ _('Візуалізація даних') }}</h3>
                         
-                        <!-- Легенда кольорів -->
+                        <!-- Colour legend -->
                         <div id="color-legend" style="margin-bottom: 15px; text-align: center; font-size: 14px;">
                             <span style="margin-right: 20px;">
                                 <span style="display: inline-block; width: 12px; height: 12px; background-color: green; vertical-align: middle; margin-right: 5px; border: 1px solid #555;"></span>
@@ -104,7 +104,7 @@
                         <div id="charts-container">
                             <div id="time-scatter-plot-container" class="chart-container"></div>
 
-                            <!-- Панель керування погодою -->
+                            <!-- Weather controls panel -->
                             <div class="weather-controls-panel">
                                 <strong>{{ _('Накласти погоду:') }}</strong>
                                 
@@ -142,7 +142,7 @@
                                     <label for="show-pressure">{{ _('Тиск') }}</label>
                                 </div>
                             </div>
-                            <!-- Кінець панелі керування погодою -->
+                            <!-- End of weather controls panel -->
 
                             <div id="barchart-plot-container" class="chart-container"></div>
                             <div id="scatter-plot-container" class="chart-container"></div>
@@ -168,7 +168,7 @@
     
     <script>
     $(document).ready(function() {
-        // --- Ініціалізація змінних UI ---
+        // --- UI variable initialisation ---
         const speciesSelect = $('#species-select');
         const startDateInput = $('#start-date-select');
         const endDateInput = $('#end-date-select');
@@ -193,7 +193,7 @@
         let map, markersLayer, speciesThresholdsMap = {}, greenIcon;
         const DEFAULT_MIN_CONFIDENCE = 0.7;
 
-        // --- Глобальні змінні для кешування даних графіків ---
+        // --- Global variables for chart data caching ---
         let cachedBirdData = null;
         let cachedWeatherData = null;
 
@@ -205,14 +205,14 @@
             const date = new Date(dateStr);
             date.setDate(date.getDate() + days);
             
-            // Форматуємо назад у YYYY-MM-DD вручну, щоб уникнути проблем з часовими поясами
+            // Format back to YYYY-MM-DD manually to avoid timezone issues.
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
         };
 
-        // --- Ініціалізація сторінки ---
+        // --- Page initialisation ---
         (function setupInitialValues() {
             const urlParams = new URLSearchParams(window.location.search);
             const today = new Date();
@@ -253,7 +253,7 @@
             loadAllThresholds();
         })();
 
-        // --- Обробники подій ---
+        // --- Event handlers ---
         applyButton.on('click', runDashboardUpdate);
         exportButton.on('click', function() {
             const params = getApiParams();
@@ -267,31 +267,31 @@
         speciesSelect.on('change', handleSpeciesChange);
         setThresholdButton.on('click', applyThreshold);
         institutionSelect.on('change', function() {
-            // Коли міняється установа -> оновлюємо списки локацій/біотопів
+            // Institution changed — refresh locations/biotopes lists.
             updateDynamicFilters(); 
         });
 
 
-        // Обробка кліку на чекбокси погоди (МИТТЄВЕ ОНОВЛЕННЯ)
+        // Handle weather checkbox clicks (IMMEDIATE UPDATE).
         $('.weather-toggle').on('change', function() {
-            // Якщо дані вже є в кеші, просто перемальовуємо графік локально
+            // If data is already cached, just redraw the chart locally.
             if (cachedBirdData && cachedWeatherData) {
                 renderBarchart(); 
             } else if (dashboardContainer.is(':visible')) {
-                // Якщо даних немає, але дашборд активний (рідкісний випадок)
+                // No cache but dashboard visible (rare case).
                 updateAllCharts();
             }
         });
         
         function updateDynamicFilters(callback) {
-            const currentInst = institutionSelect.val(); // масив при multiple
+            const currentInst = institutionSelect.val(); // array when multiple is set.
             
             const params = new URLSearchParams({ 
                 start_date: startDateInput.val(), 
                 end_date: endDateInput.val() 
             });
             
-            // Передаємо ВСІ вибрані установи через кому
+            // Pass all selected institutions as a comma-separated string.
             if (currentInst && currentInst.length > 0) {
                 const instArray = Array.isArray(currentInst) ? currentInst : [currentInst];
                 params.append('institution_id', instArray.join(','));
@@ -303,12 +303,12 @@
                     const currentLocs = locationsSelect.val();
                     const currentBios = biotopesSelect.val();
 
-                    // Оновлюємо список Установ (зберігаючи вибір, якщо він ще валидний)
-                    // Важливо: не перемальовувати, якщо ми самі ініціювали зміну (щоб не скинути селект)
-                    // Але для спрощення поки перемалюємо, Select2 збереже значення якщо ID співпадає
+                    // Update institution list (preserve selection if still valid).
+                    // Do not redraw if we triggered the change ourselves (would reset the select).
+                    // For simplicity, we redraw — Select2 restores the value if the id matches.
                     updateSelectOptions(institutionSelect, data.institutions, currentInst);
 
-                    // Оновлюємо залежні списки
+                    // Update dependent lists.
                     updateSelectOptions(biotopesSelect, data.biotopes, currentBios);
                     updateSelectOptions(locationsSelect, data.locations, currentLocs);
                     
@@ -317,10 +317,10 @@
                 .catch(error => console.error('Error loading dynamic filters:', error));
         }
 
-        // Допоміжна функція для оновлення Select2 (щоб не дублювати код)
+        // Helper: update a Select2 element without duplicating code.
         function updateSelectOptions(element, items, currentValue) {
             element.empty();
-            // Додаємо пустий опшн для плейсхолдера
+            // Add an empty option for the placeholder.
             element.append(new Option('', '', false, false));
             
             items.forEach(item => {
@@ -328,11 +328,11 @@
                 element.append(option);
             });
             
-            // Відновлюємо значення, якщо воно є в новому списку
+            // Restore the value if it is present in the new list.
             if (currentValue) {
                 element.val(currentValue).trigger('change.select2');
             } else {
-                element.trigger('change.select2'); // Оновити UI
+                element.trigger('change.select2'); // Refresh UI.
             }
         }
 
@@ -375,7 +375,7 @@
                     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
                     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
                 ]);
-                osm.addTo(map);  // #44: OSM — дефолт
+                osm.addTo(map);  // #44: OSM — default
                 L.control.layers({ "{{ _('OSM') }}": osm, "{{ _('Супутник') }}": satellite }).addTo(map);
                 markersLayer = L.featureGroup().addTo(map);
                 greenIcon = new L.Icon({
@@ -389,7 +389,7 @@
             }
         }
         
-        // Головна функція оновлення (натискання "Застосувати")
+        // Main update function ("Apply" button).
         function runDashboardUpdate() {
             if (!speciesSelect.val()) {
                 alert('{{ _("Будь ласка, виберіть вид.") }}');
@@ -410,7 +410,7 @@
             updateSummary();
             updateMap();
             
-            // Скидаємо кеш перед новим завантаженням
+            // Clear cache before fetching new data.
             cachedBirdData = null;
             cachedWeatherData = null;
             
@@ -426,7 +426,7 @@
             if (startDateInput.val()) params.append('start_date', startDateInput.val());
             if (endDateInput.val()) params.append('end_date', endDateInput.val());
             
-            // Додаємо установу
+            // Append institution.
             const instVal = institutionSelect.val();
                 if (instVal && instVal.length > 0) {
                     const instArray = Array.isArray(instVal) ? instVal : [instVal];
@@ -482,7 +482,7 @@
                 }).catch((err) => console.error("Could not load map points.", err));
         }
 
-        // --- ФУНКЦІЇ МАЛЮВАННЯ ГРАФІКІВ ---
+        // --- Chart rendering functions ---
 
         function updateAllCharts() {
             const apiParams = getApiParams();
@@ -490,25 +490,25 @@
             unfilteredApiParams.delete('min_detections');
             const unfilteredApiParamsStr = unfilteredApiParams.toString();
 
-            // Ставимо спінери
+            // Set spinners.
             [timeScatterPlotContainer, barchartPlotContainer, scatterPlotContainer].forEach(c => c.innerHTML = getSpinnerHtml());
             
-            // 1. Добовий розподіл
+            // 1. Daily distribution.
             fetch(`/{{ g.lang_code }}/api/pam/get-time-scatter-data?${unfilteredApiParamsStr}`)
                 .then(r => r.ok ? r.json() : Promise.reject(r))
                 .then(data => renderTimeScatterChart(data))
                 .catch(() => timeScatterPlotContainer.innerHTML = getErrorHtml('{{ _("Помилка завантаження даних.") }}'));
 
-            // 2. Кількість за день + ПОГОДА (Кешування)
+            // 2. Daily count + WEATHER (cached).
             const barchartPromise = fetch(`/{{ g.lang_code }}/api/pam/get-barchart-data?${apiParams.toString()}`).then(r => r.json());
             const weatherPromise = fetch(`/{{ g.lang_code }}/api/pam/get-weather-overlay?${apiParams.toString()}`).then(r => r.json());
 
             Promise.all([barchartPromise, weatherPromise])
                 .then(([birdData, weatherData]) => {
-                    // Зберігаємо в глобальні змінні
+                    // Store in global variables.
                     cachedBirdData = birdData;
                     cachedWeatherData = weatherData;
-                    // Малюємо
+                    // Render.
                     renderBarchart();
                 })
                 .catch(err => {
@@ -524,7 +524,7 @@
         }
 
 
-        // --- Функція малювання Combo Chart (Птахи + Погода) ---
+        // --- Render combo chart (detections + weather). ---
         function renderBarchart() {
             if (!cachedBirdData || !cachedBirdData.dates || cachedBirdData.dates.length === 0) {
                 barchartPlotContainer.innerHTML = getErrorHtml('{{ _("Дані не знайдено.") }}');
@@ -534,7 +534,7 @@
             const birdData = cachedBirdData;
             const weatherData = cachedWeatherData;
                         
-            // Основний трейс (птахи)
+            // Main trace (detections).
             const birdTrace = {
                 x: birdData.dates,
                 y: birdData.counts,
@@ -546,7 +546,7 @@
             
             const plotTraces = [birdTrace];
             
-            // Додаткові трейси (погода) - додаються тільки якщо вибрані чекбокси
+            // Additional weather traces — added only when checkboxes are selected.
             if (weatherData && weatherData.dates && weatherData.dates.length > 0) {
                 
                 if ($('#show-temp-mean').is(':checked')) {
@@ -616,7 +616,7 @@
                         name: '{{ _("Вологість (%%)") }}',
                         line: { color: '#4caf50', width: 1 },
                         yaxis: 'y2'
-                        // visible: 'legendonly' прибрано, щоб лінія була видима одразу
+                        // 'visible: legendonly' removed so the line is visible immediately.
                     });
                 }
 
@@ -627,7 +627,7 @@
                         type: 'scatter', 
                         mode: 'lines',
                         name: '{{ _("Тиск (гПа)") }}', 
-                        // Коричневий колір, пунктир
+                        // Brown, dashed.
                         line: { color: '#795548', width: 1, dash: 'dot' }, 
                         yaxis: 'y2'
                     });
@@ -638,14 +638,14 @@
             const maxY_Birds = birdData.counts.length > 0 ? Math.max(...birdData.counts, minObs) : 10;
             
             const layout = {
-                margin: { l: 50, r: 80, b: 75, t: 50 }, // r: 80 - відступ для правої осі
+                margin: { l: 50, r: 80, b: 75, t: 50 }, // r: 80 — right-axis padding.
                 paper_bgcolor: 'rgba(0,0,0,0)', 
                 plot_bgcolor: 'rgba(0,0,0,0)', 
                 autosize: true,
                 title: { 
                     text: `{{ _('Кількість детекцій за день') }}`, 
                     font: {size: 16},
-                    y: 0.97, // Позиція заголовка відносно висоти контейнера
+                    y: 0.97, // Title position relative to container height.
                     x: 0.5,
                     xanchor: 'center'
                 },
@@ -653,20 +653,20 @@
                 legend: { 
                     orientation: "h", 
                     yanchor: "bottom", 
-                    y: 1, // Піднімаємо легенду
+                    y: 1, // Raise the legend.
                     xanchor: "center", 
-                    x: 0.5   // Центруємо легенду
+                    x: 0.5   // Centre the legend.
                 },
                 xaxis: { title: '{{ _("Дата") }}', tickformat: '%d.%m', range: [graphRangeStart, graphRangeEnd] },
                 
-                // Ліва вісь (Птахи)
+                // Left axis (detections).
                 yaxis: { 
                     title: '{{ _("Кількість детекцій") }}', 
                     range: [0, maxY_Birds * 1.1],
                     side: 'left'
                 },
                 
-                // Права вісь (Погода)
+                // Right axis (weather).
                 yaxis2: {
                     title: '{{ _("Погодні показники") }}',
                     titlefont: {color: '#444'},
@@ -674,7 +674,7 @@
                     overlaying: 'y', 
                     side: 'right',
                     showgrid: false,
-                    automargin: true // Автоматичне налаштування відступу тексту
+                    automargin: true // Auto-adjust text margin.
                 },
                 
                 shapes: [{ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: minObs, y1: minObs, line: { color: 'red', width: 1, dash: 'dash' }}]
@@ -682,7 +682,7 @@
             
             const plotlyConfig = { responsive: true, displayModeBar: 'hover', displaylogo:false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] };
 
-            // Використовуємо newPlot для чистого малювання
+            // Use newPlot for a clean render.
             Plotly.newPlot(document.getElementById('barchart-plot-container'), plotTraces, layout, plotlyConfig);
         }
 

@@ -9,12 +9,12 @@
 {% block pam_content %}
 <div class="container mt-4">
     <div class="verification-container">
-        <!-- Основний інтерфейс верифікації -->
+        <!-- Main verification interface -->
         <div id="verification-interface" style="display: none;">
             <div class="verification-layout">
-                <!-- Ліва панель з інформацією, фільтрами та статистикою -->
+                <!-- Left panel with segment info, filters, and stats -->
                 <div class="left-panel">
-                    <!-- Фільтри -->
+                    <!-- Filters -->
                     <div class="filters-panel">
                         <div class="filters-row-flex">
                             <div class="species-select-group">
@@ -34,7 +34,7 @@
                         </div>
                     </div>
                     
-                    <!-- Статистика користувача -->
+                    <!-- User statistics -->
                     <div class="stats-panel">
                         <h4>{{ _('Моя статистика') }}</h4>
                         <div class="stats-grid" id="user-stats">
@@ -64,7 +64,7 @@
                         </div>
                     </div>
 
-                    <!-- Інформація про сегмент -->
+                    <!-- Segment info -->
                     <div class="segment-info">
                         <h4 id="segment-species">Назва виду</h4>
                         <div class="info-grid">
@@ -84,29 +84,29 @@
                     </div>
                 </div>
 
-                <!-- Права панель з сонограмою та контролами -->
+                <!-- Right panel with spectrogram and controls -->
                 <div class="right-panel">
-                    <!-- Сонограма -->
+                    <!-- Spectrogram -->
                     <div class="spectrogram-section" style="text-align: center;">
                         <div class="spectrogram-wrapper">
                             <img id="spectrogram-image" src="" alt="{{ _('Сонограма аудіосегменту') }}">
                             <div id="playback-line" role="slider" tabindex="0"
                                  aria-label="{{ _('Позиція відтворення') }}"></div>
                             
-                            <!-- Лінії для виділення центральної частини (для довгих файлів) -->
+                            <!-- Boundary lines for the central region (long files only) -->
                             <div id="region-start-line" class="region-line"></div>
                             <div id="region-end-line" class="region-line"></div>
                         </div>
                     </div>
 
-                    <!-- Аудіо плеєр -->
+                    <!-- Audio player -->
                     <div class="audio-player-section">
                         <audio id="audio-player" controls preload="auto">
                             {{ _('Ваш браузер не підтримує аудіо плеєр.') }}
                         </audio>
                     </div>
 
-                    <!-- Кнопки верифікації -->
+                    <!-- Verification buttons -->
                     <div class="verification-buttons">
                         <button id="verify-yes" class="btn btn-success">
                             <i class="fas fa-check"></i> {{ _('ТАК - правильно') }}
@@ -119,19 +119,19 @@
                         </button>
                     </div>
 
-                    <!-- Повідомлення про результат верифікації -->
+                    <!-- Verification result message -->
                     <div id="verification-message" class="verification-message"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Повідомлення про відсутність сегментів -->
+        <!-- No-segments message -->
         <div id="no-segment-message" class="no-segment-message" style="display: none;">
             <h4>{{ _('Сегменти для верифікації відсутні') }}</h4>
             <p>{{ _('Немає сегментів для верифікації за вибраними критеріями, або ви вже верифікували всі доступні сегменти.') }}</p>
         </div>
 
-        <!-- Індикатор завантаження -->
+        <!-- Loading spinner -->
         <div id="loading-spinner" class="loading-spinner">
             <div class="spinner-border" role="status">
                 <span class="sr-only">{{ _('Завантаження...') }}</span>
@@ -143,7 +143,7 @@
 
 {% block scripts %}
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<!-- Підключення скриптів Select2 та локалізації (якщо доступна) -->
+<!-- Load Select2 and localisation scripts (if available) -->
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 {% if g.lang_code == 'uk' %}
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/i18n/uk.js"></script>
@@ -152,7 +152,7 @@
 $(document).ready(function() {
     let currentSegment = null;
 
-    // --- КОНФІГУРАЦІЯ ВІДСТУПІВ СОНОГРАМИ (підбирається під matplotlib) ---
+    // --- Spectrogram padding config (matched to matplotlib axes). ---
     const SPECTROGRAM_PADDING_LEFT_PERCENT = 12.0;
     const SPECTROGRAM_PADDING_RIGHT_PERCENT = 1.6;
     
@@ -166,13 +166,13 @@ $(document).ready(function() {
     const playbackLine = $('#playback-line');
     const spectrogramWrapper = document.querySelector('.spectrogram-wrapper');
 
-    // Стан плавного руху лінії + перетягування
-    let rafId = null;            // id requestAnimationFrame-циклу (null = не йде)
-    let isDragging = false;      // чи зараз тягнемо лінію
-    let wasPlaying = false;      // чи грало аудіо до початку drag (щоб відновити)
-    let suppressNextClick = false; // не дати mouseup-after-drag спрацювати як seek
+    // Playback line animation state + drag.
+    let rafId = null;            // requestAnimationFrame id (null = not running).
+    let isDragging = false;      // true while the line is being dragged.
+    let wasPlaying = false;      // true if audio was playing before drag started (for resume).
+    let suppressNextClick = false; // prevent mouseup-after-drag from triggering a seek.
 
-    // Ініціалізація Select2 для фільтра видів
+    // Initialise Select2 for the species filter.
     speciesFilter.select2({
         language: "{{ g.lang_code }}",
         placeholder: "{{ _('-- Всі види --') }}",
@@ -180,45 +180,45 @@ $(document).ready(function() {
         width: '100%'
     });
     
-    // Завантаження першого сегменту та відповідної статистики
+    // Load the first segment and matching stats.
     loadNextSegment();
     
-    // --- Обробники подій ---
+    // --- Event handlers ---
     loadSegmentBtn.on('click', loadNextSegment);
     
     $('#verify-yes').on('click', () => submitVerification(1));
     $('#verify-no').on('click', () => submitVerification(0));  
     $('#verify-skip').on('click', () => loadNextSegment()); // submitVerification(null)
     
-    // --- ЛОГІКА ДЛЯ ВІДОБРАЖЕННЯ ЖОВТИХ ЛІНІЙ (для 10с файлів) ---
+    // --- Yellow boundary line logic (10-second files). ---
     audioPlayer.addEventListener('loadedmetadata', function() {
         const duration = audioPlayer.duration;
         const startLine = $('#region-start-line');
         const endLine = $('#region-end-line');
 
-        // Якщо аудіо довше 4 секунд (тобто це 10-секундний файл)
+        // Audio longer than 4 s means this is a 10-second file.
         if (duration > 4) {
-            // Центральні 3 секунди
-            const centerStart = (duration - 3) / 2; // Наприклад (10-3)/2 = 3.5
+            // Central 3 seconds.
+            const centerStart = (duration - 3) / 2; // e.g. (10-3)/2 = 3.5
             const centerEnd = centerStart + 3;      // 3.5 + 3 = 6.5
 
-            // Ширина корисної області графіку (без відступів осей)
+            // Width of the plot area (excluding axis padding).
             const plotAreaWidth = 100 - SPECTROGRAM_PADDING_LEFT_PERCENT - SPECTROGRAM_PADDING_RIGHT_PERCENT;
 
-            // Розрахунок позиції ліній у відсотках
+            // Calculate line positions as percentages.
             const startPosPercent = SPECTROGRAM_PADDING_LEFT_PERCENT + (centerStart / duration) * plotAreaWidth;
             const endPosPercent = SPECTROGRAM_PADDING_LEFT_PERCENT + (centerEnd / duration) * plotAreaWidth;
 
             startLine.css('left', startPosPercent + '%').show();
             endLine.css('left', endPosPercent + '%').show();
         } else {
-            // Для стандартних 3-секундних файлів лінії не потрібні
+            // For standard 3-second files, no boundary lines needed.
             startLine.hide();
             endLine.hide();
         }
     });
 
-    // --- Синхронізація лінії відтворення з аудіо ---
+    // --- Sync playback line with audio. ---
 
     function updatePlaybackLine() {
         if (audioPlayer.duration > 0) {
@@ -229,8 +229,8 @@ $(document).ready(function() {
         }
     }
 
-    // Інверсія формули updatePlaybackLine: clientX (px) → currentTime (сек),
-    // clamp до [0, duration]. null якщо ще нема геометрії/тривалості.
+    // Inverse of updatePlaybackLine: clientX (px) → currentTime (s),
+    // clamped to [0, duration]. Returns null if geometry or duration not yet available.
     function clientXToTime(clientX) {
         if (!spectrogramWrapper || !(audioPlayer.duration > 0)) return null;
         const rect = spectrogramWrapper.getBoundingClientRect();
@@ -241,9 +241,9 @@ $(document).ready(function() {
         return Math.max(0, Math.min(audioPlayer.duration, t));
     }
 
-    // RAF-цикл: під час play оновлюємо лінію кожен кадр (~60fps) — плавно,
-    // на відміну від timeupdate (~4 рази/сек). timeupdate лишається як
-    // fallback (фонова вкладка, де RAF призупиняється браузером).
+    // RAF loop: updates the line every frame (~60 fps) during playback — smoother
+    // than timeupdate (~4 times/s). timeupdate stays as a fallback
+    // (background tab, where the browser pauses RAF).
     function rafTick() {
         updatePlaybackLine();
         if (!audioPlayer.paused && !audioPlayer.ended) {
@@ -272,14 +272,14 @@ $(document).ready(function() {
         playbackLine.css('left', SPECTROGRAM_PADDING_LEFT_PERCENT + '%');
     });
 
-    // --- Click-to-seek: клік по сонограмі перематує аудіо в цю точку ---
+    // --- Click-to-seek: clicking the spectrogram seeks to that position. ---
     if (spectrogramWrapper) {
         spectrogramWrapper.addEventListener('click', function(e) {
             if (suppressNextClick) { suppressNextClick = false; return; }
-            if (e.target.id === 'playback-line') return; // це був drag, не seek
+            if (e.target.id === 'playback-line') return; // this was a drag, not a seek
             const rect = spectrogramWrapper.getBoundingClientRect();
             const percent = ((e.clientX - rect.left) / rect.width) * 100;
-            // Ігноруємо кліки в зонах осей matplotlib (зліва/справа)
+            // Ignore clicks in the matplotlib axis zones (left/right edges).
             if (percent < SPECTROGRAM_PADDING_LEFT_PERCENT ||
                 percent > 100 - SPECTROGRAM_PADDING_RIGHT_PERCENT) return;
             const t = clientXToTime(e.clientX);
@@ -287,7 +287,7 @@ $(document).ready(function() {
         });
     }
 
-    // --- Drag лінії (миша + touch) ---
+    // --- Line drag (mouse + touch). ---
     function startDrag(clientX) {
         wasPlaying = !audioPlayer.paused;
         if (wasPlaying) audioPlayer.pause();
@@ -303,12 +303,12 @@ $(document).ready(function() {
     function endDrag() {
         if (!isDragging) return;
         isDragging = false;
-        suppressNextClick = true; // mouseup після drag не має тригерити seek
+        suppressNextClick = true; // mouseup after drag must not trigger a seek.
         if (wasPlaying) audioPlayer.play();
         wasPlaying = false;
     }
 
-    // Миша
+    // Mouse.
     playbackLine[0].addEventListener('mousedown', function(e) {
         e.preventDefault();
         startDrag(e.clientX);
@@ -326,7 +326,7 @@ $(document).ready(function() {
     }, { passive: true });
     document.addEventListener('touchmove', function(e) {
         if (isDragging && e.touches.length) {
-            e.preventDefault(); // не скролити сторінку під час drag
+            e.preventDefault(); // do not scroll the page while dragging.
             moveDrag(e.touches[0].clientX);
         }
     }, { passive: false });
@@ -334,7 +334,7 @@ $(document).ready(function() {
         if (isDragging) endDrag();
     });
     /**
-    // --- Клавіатурні скорочення ---
+    // --- Keyboard shortcuts ---
     $(document).on('keydown', function(e) {
         if (currentSegment && verificationInterface.is(':visible')) {
             switch(e.key.toLowerCase()) {
@@ -344,17 +344,17 @@ $(document).ready(function() {
                     else audioPlayer.pause();
                     break;
                 case 'y': // Yes
-                case 't': // Так
+                case 't': // Yes (UK)
                     e.preventDefault();
                     submitVerification(1);
                     break;
                 case 'n': // No
-                case 'h': // Ні
+                case 'h': // No (UK)
                     e.preventDefault();
                     submitVerification(0);
                     break;
                 case 's': // Skip
-                case 'g': // Пропустити
+                case 'g': // Skip (UK)
                     e.preventDefault();
                     loadNextSegment(); // submitVerification(null)
                     break;
@@ -363,10 +363,10 @@ $(document).ready(function() {
     });
     **/
     /**
-     * Завантажує наступний сегмент з сервера та оновлює статистику.
+     * Load the next segment from the server and refresh stats.
      */
     function loadNextSegment() {
-        loadUserStats(); // Оновлюємо статистику згідно з поточним фільтром
+        loadUserStats(); // Refresh stats for the current filter.
         showLoading();
         
         const speciesId = speciesFilter.val();
@@ -405,11 +405,11 @@ $(document).ready(function() {
     }
     
     /**
-     * Відображає дані отриманого сегменту в інтерфейсі.
-     * @param {object} segment - Об'єкт сегменту з API.
+     * Render the received segment data in the UI.
+     * @param {object} segment - Segment object from the API.
      */
     function displaySegment(segment) {
-        // Скидаємо жовті лінії перед завантаженням нового сегменту
+        // Reset boundary lines before loading a new segment.
         $('#region-start-line, #region-end-line').hide();
 
         $('#segment-species').text(segment.species_display_name);
@@ -427,8 +427,8 @@ $(document).ready(function() {
     }
     
     /**
-     * Відправляє результат верифікації на сервер.
-     * @param {number|null} result - 1 (так), 0 (ні), null (пропустити).
+     * Submit a verification result to the server.
+     * @param {number|null} result - 1 (yes), 0 (no), null (skip).
      */
     function submitVerification(result) {
         if (!currentSegment) {
@@ -470,8 +470,8 @@ $(document).ready(function() {
     }
     
     /**
-     * Завантажує та оновлює статистику верифікацій користувача.
-     * Враховує обраний у фільтрі вид.
+     * Load and refresh user verification stats.
+     * Takes the active species filter into account.
      */
     function loadUserStats() {
         const speciesId = speciesFilter.val();
