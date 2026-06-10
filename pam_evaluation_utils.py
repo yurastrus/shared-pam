@@ -862,13 +862,13 @@ def convert_wav_to_flac():
             current_app.logger.info(f"   -> Успішно: ID {segment_id} конвертовано та оновлено в БД.")
 
         except subprocess.CalledProcessError as e:
-            # Транзакція автоматично відкотиться завдяки 'with'
+            # Transaction rolls back automatically via 'with'.
             msg = f"Помилка конвертації FFmpeg для ID {segment_id}: {e.stderr}"
             errors.append(msg)
             failed_count += 1
             current_app.logger.error(f"   -> Помилка: {msg}")
         except Exception as e:
-            # Транзакція автоматично відкотиться завдяки 'with'
+            # Transaction rolls back automatically via 'with'.
             msg = f"Неочікувана помилка при обробці ID {segment_id}: {str(e)}"
             errors.append(msg)
             failed_count += 1
