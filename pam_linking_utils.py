@@ -8,9 +8,10 @@ import time
 
 def link_verifications_to_detections(full_resync=False):
     """
-    ФІНАЛЬНА РОБОЧА ВЕРСІЯ 3.0. Повністю перероблено управління з'єднаннями.
-    Кожен пакет обробляється на своєму власному, свіжому з'єднанні,
-    що гарантує відсутність помилок транзакцій.
+    Link verification segments to PAM detections.
+
+    Connection management fully redesigned: each batch is processed on its own
+    fresh connection, guaranteeing the absence of transaction errors.
     """
     BATCH_SIZE = 200
     segments_to_process = []
@@ -18,8 +19,8 @@ def link_verifications_to_detections(full_resync=False):
     conn_setup = None
 
     try:
-        # === КРОК 1: Підготовчий. Отримуємо дані поза циклом ===
-        # Використовуємо окреме з'єднання, яке відразу закриваємо.
+        # === STEP 1: Setup — fetch data outside the loop. ===
+        # A separate connection is used and closed immediately.
         current_app.logger.info("Step 1: Fetching initial data...")
         conn_setup = get_pam_db_connection()
         if full_resync:
@@ -46,7 +47,7 @@ def link_verifications_to_detections(full_resync=False):
     if not segments_to_process:
         return "No new segments to link."
 
-    # === КРОК 2: Пакетна обробка з короткими транзакціями ===
+    # === STEP 2: Batch processing with short transactions. ===
     total_segments = len(segments_to_process)
     total_linked = 0
     total_batches = math.ceil(total_segments / BATCH_SIZE)
@@ -58,15 +59,15 @@ def link_verifications_to_detections(full_resync=False):
         conn_batch = None
         
         try:
-            # === ДЛЯ КОЖНОГО ПАКЕТУ - НОВЕ З'ЄДНАННЯ І НОВА ТРАНЗАКЦІЯ ===
+            # === PER-BATCH: new connection and new transaction. ===
             conn_batch = get_pam_db_connection()
             with conn_batch.begin():
                 start_time = time.time()
                 current_app.logger.info(f"--- Processing Batch {batch_num}/{total_batches} ---")
                 
-                # Логіка обробки пакету (без змін)
+                # Batch processing logic (unchanged).
                 data_to_insert = []
-                # ... (вся логіка парсингу, пошуку ключів, і т.д.)
+                # ... (all parsing, key-lookup logic, etc.)
                 detection_keys, parsed_batch = set(), []
                 for segment in batch:
                     match = re.match(r'^(\d+\.\d+)_([A-Za-z0-9\-]+)_(\d{8})_(\d{6})_sec(\d+)_part(\d+)\.(wav|flac)$', segment.filename, re.IGNORECASE)
@@ -117,7 +118,7 @@ def link_verifications_to_detections(full_resync=False):
             current_app.logger.error(f"Failed to process batch {batch_num}. Skipping. Error: {e}")
             current_app.logger.error(traceback.format_exc())
         finally:
-            # Гарантовано закриваємо з'єднання для цього пакету
+            # Guarantee the connection for this batch is closed.
             if conn_batch:
                 conn_batch.close()
     

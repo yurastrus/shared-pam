@@ -1,8 +1,6 @@
-# myproject/app/pam/__init__.py
-
 from flask import Blueprint
 
-# Створюємо Blueprint для нашого дашборду.
+# Create the Blueprint for the PAM module.
 pam_bp = Blueprint('pam', __name__, template_folder='templates')
 
 from . import routes

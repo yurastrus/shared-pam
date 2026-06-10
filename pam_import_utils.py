@@ -161,8 +161,8 @@ class PAMImportProcessor:
         self.engine = engine
         self.location_id = location_id
         self.importer = importer
-        # Тривалість одного аудіофайлу (хв) — однакова для всього batchʼа імпорту,
-        # задається у формі pam/import (default 5). Іде в recordings.duration_minutes.
+        # Duration of a single audio file (min) — uniform for the entire import batch,
+        # set in the pam/import form (default 5). Stored in recordings.duration_minutes.
         self.duration_minutes = duration_minutes
         self.stats = {
             'files_processed': 0,
