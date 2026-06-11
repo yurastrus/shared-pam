@@ -107,6 +107,39 @@ All page routes are prefixed with `/<lang_code>` (e.g. `/en` or `/uk`). API rout
 
 ---
 
+## Translations / i18n
+
+The module ships an autonomous Babel domain — `pam` — independent of the host application's `messages` domain.
+
+| Item | Value |
+|---|---|
+| Domain name | `pam` |
+| Catalog files | `translations/<locale>/LC_MESSAGES/pam.po/.mo` |
+| Extraction config | `babel.cfg` (covers this directory only) |
+| Runtime lookup | `domain.py` — `flask_babel.Domain`; falls back to the host `messages` domain when a string is not found |
+
+The blueprint's `__init__.py` injects `_` / `gettext` / `ngettext` into every template via a context processor, so templates use the standard `{{ _('…') }}` syntax without changes.
+
+To update translations (run from the **biomon repo root**):
+
+```bash
+# 1. Extract
+venv/Scripts/pybabel extract -F app/pam/babel.cfg -k _l -k lazy_gettext -D pam -o app/pam/messages.pot .
+
+# 2. Merge
+venv/Scripts/pybabel update -i app/pam/messages.pot -d app/pam/translations -D pam
+
+# 3. Translate new msgstr in translations/en/LC_MESSAGES/pam.po and remove #, fuzzy markers.
+#    The uk catalog needs no changes (msgids are already in Ukrainian).
+
+# 4. Compile (-f required)
+venv/Scripts/pybabel compile -f -d app/pam/translations -D pam
+```
+
+Replace `venv/Scripts/` with `venv/bin/` on Linux.
+
+---
+
 ## Integration
 
 This package is registered in biomon's `create_app()` factory as the `pam_bp` blueprint. It connects to a dedicated PostgreSQL database (`PAM_DATABASE_URL`) and uses institution-based access control inherited from the main app's `User` / `Institution` models.
