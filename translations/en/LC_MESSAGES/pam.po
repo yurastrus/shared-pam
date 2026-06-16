@@ -36,7 +36,7 @@ msgstr "Institution:"
 #: app/pam/templates/manage_pam_locations.html:27
 #: app/pam/templates/pam_service_log.html:23
 msgid "Всі доступні мені"
-msgstr "All available to me"
+msgstr "Available to me"
 
 #: app/pam/templates/manage_pam_locations.html:35
 msgid "Показати стан заповненості даних"
@@ -160,7 +160,7 @@ msgstr "New entry"
 
 #: app/pam/templates/manage_pam_locations.html:152
 msgid "Виберіть локацію, щоб додати запис."
-msgstr "Select a location to add an entry."
+msgstr "Select a location to add a record."
 
 #: app/pam/templates/manage_pam_locations.html:159
 msgid "Дата і час"
@@ -186,7 +186,7 @@ msgstr "Battery replacement"
 #: app/pam/templates/manage_pam_locations.html:176
 #: app/pam/templates/pam_service_log.html:59
 msgid "-- Без заміни --"
-msgstr "-- No replacement --"
+msgstr "-- Not replaced --"
 
 #: app/pam/templates/manage_pam_locations.html:183
 msgid "Статус SD"
@@ -340,7 +340,7 @@ msgstr "Satellite"
 #: app/pam/templates/manage_pam_locations.html:410
 #: app/pam/templates/pam_import.html:325
 msgid "Території ПЗФ"
-msgstr "Protected area territories"
+msgstr "Protected natural areas"
 
 #: app/pam/templates/manage_pam_locations.html:581
 msgid "Редагування:"
@@ -394,7 +394,7 @@ msgstr "SD:"
 
 #: app/pam/templates/manage_pam_locations.html:739
 msgid "Помилка завантаження."
-msgstr "Loading error."
+msgstr "Error loading."
 
 #: app/pam/templates/manage_pam_locations.html:746
 msgid "Редагування запису"
@@ -521,7 +521,7 @@ msgstr "Institution code:"
 
 #: app/pam/templates/pam_data_export.html:57
 msgid "За замовчуванням: RSNR"
-msgstr "By default: RSNR"
+msgstr "Default: RSNR"
 
 #: app/pam/templates/pam_data_export.html:58
 msgid "Назва класифікатора:"
@@ -590,7 +590,7 @@ msgstr "Error"
 
 #: app/pam/templates/pam_data_export.html:326
 msgid "Помилка завантаження даних:"
-msgstr "Data loading error:"
+msgstr "Error loading data:"
 
 #: app/pam/templates/pam_data_export.html:335
 msgid "Будь ласка, оберіть хоча б один таксон."
@@ -1170,7 +1170,7 @@ msgstr "Coverage calendar"
 
 #: app/pam/templates/pam_location_coverage.html:14
 msgid "До локацій"
-msgstr "Back to locations"
+msgstr "To locations"
 
 #: app/pam/templates/pam_location_coverage.html:19
 msgid "Усі роки"
@@ -1178,7 +1178,7 @@ msgstr "All years"
 
 #: app/pam/templates/pam_location_coverage.html:20
 msgid "Зведено за рік"
-msgstr "Summarized by year"
+msgstr "Collapsed by year"
 
 #: app/pam/templates/pam_location_coverage.html:27
 msgid "Усього записів"
@@ -1202,7 +1202,7 @@ msgstr "Range"
 
 #: app/pam/templates/pam_location_coverage.html:47
 msgid "менше"
-msgstr "less than"
+msgstr "fewer"
 
 #: app/pam/templates/pam_location_coverage.html:49
 msgid "більше годин запису"
@@ -1317,7 +1317,7 @@ msgstr "Analysis of multiyear trends"
 #: app/pam/templates/pam_overview.html:84
 #: app/pam/templates/pam_species_detailed.html:80
 msgid "Загальна статистика"
-msgstr "General statistics"
+msgstr "Overall statistics"
 
 #: app/pam/templates/pam_overview.html:87
 msgid ""
@@ -1401,7 +1401,7 @@ msgstr "Days"
 
 #: app/pam/templates/pam_overview.html:351
 msgid "Помилка завантаження статистики."
-msgstr "Statistics loading error."
+msgstr "Error loading statistics."
 
 #: app/pam/templates/pam_overview.html:365
 msgid "Помилка завантаження карти."
@@ -1439,7 +1439,7 @@ msgstr "No data found. Try changing the filters."
 #: app/pam/templates/pam_species_detailed.html:516
 #: app/pam/templates/pam_species_detailed.html:523
 msgid "Помилка завантаження даних."
-msgstr "Data loading error."
+msgstr "Error loading data."
 
 #: app/pam/templates/pam_service_log.html:3
 #: app/pam/templates/pam_service_log.html:13
@@ -1468,7 +1468,7 @@ msgstr "Visit date and time"
 
 #: app/pam/templates/pam_service_log.html:57
 msgid "Заміна елементів живлення"
-msgstr "Power source replacement"
+msgstr "Battery replacement"
 
 #: app/pam/templates/pam_service_log.html:66
 msgid "Статус SD-карти"
@@ -1528,7 +1528,7 @@ msgstr "SD-card:"
 
 #: app/pam/templates/pam_service_log.html:276
 msgid "Помилка завантаження історії."
-msgstr "History loading error."
+msgstr "Error loading history."
 
 #: app/pam/templates/pam_species_dashboard.html:13
 msgid ""
