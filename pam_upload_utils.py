@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 import os
 import re
 import zipfile
@@ -56,7 +57,7 @@ def parse_audio_filename(filename):
         }
         
     except Exception as e:
-        current_app.logger.error(f"Помилка парсингу файлу {filename}: {e}")
+        current_app.logger.error(f"Error parsing file {filename}: {e}")
         raise ValueError(f"Не вдалося розпарсити файл {filename}: {str(e)}")
 
 def validate_species_folder(species_name, conn):
@@ -71,11 +72,11 @@ def validate_species_folder(species_name, conn):
             return result[0]  # species_id
         else:
             # Log the unknown species.
-            current_app.logger.warning(f"Невідомий вид: {species_name}")
+            current_app.logger.warning(f"Unknown species: {species_name}")
             return None
             
     except Exception as e:
-        current_app.logger.error(f"Помилка перевірки виду {species_name}: {e}")
+        current_app.logger.error(f"Error checking species {species_name}: {e}")
         raise
 
 def check_duplicate_segment(filename, conn):
@@ -89,7 +90,7 @@ def check_duplicate_segment(filename, conn):
         return result is not None
         
     except Exception as e:
-        current_app.logger.error(f"Помилка перевірки дублікату {filename}: {e}")
+        current_app.logger.error(f"Error checking duplicate {filename}: {e}")
         raise
 
 def save_segment_to_db(parsed_data, species_id, file_path, conn):
@@ -113,10 +114,10 @@ def save_segment_to_db(parsed_data, species_id, file_path, conn):
             "status": 'pending'
         })
         
-        current_app.logger.info(f"Збережено сегмент: {parsed_data['original_filename']}")
+        current_app.logger.info(f"Segment saved: {parsed_data['original_filename']}")
         
     except Exception as e:
-        current_app.logger.error(f"Помилка збереження сегменту {parsed_data['original_filename']}: {e}")
+        current_app.logger.error(f"Error saving segment {parsed_data['original_filename']}: {e}")
         raise
 
 def ensure_system_user(conn):
@@ -221,14 +222,14 @@ def save_segment_with_verification(parsed_data, species_id, file_path, conn, ver
                     "verification_result": verification_result
                 })
                 
-                current_app.logger.info(f"Збережено сегмент з верифікацією: {parsed_data['original_filename']} -> {verification_result}")
+                current_app.logger.info(f"Saved segment with verification: {parsed_data['original_filename']} -> {verification_result}")
             else:
-                current_app.logger.error(f"Не вдалося знайти створений сегмент: {parsed_data['original_filename']}")
+                current_app.logger.error(f"Could not find the created segment: {parsed_data['original_filename']}")
         else:
-            current_app.logger.info(f"Збережено сегмент без верифікації: {parsed_data['original_filename']}")
+            current_app.logger.info(f"Saved segment without verification: {parsed_data['original_filename']}")
         
     except Exception as e:
-        current_app.logger.error(f"Помилка збереження сегменту з верифікацією {parsed_data['original_filename']}: {e}")
+        current_app.logger.error(f"Error saving segment with verification {parsed_data['original_filename']}: {e}")
         raise
 
 def process_species_folder(species_folder_path, species_name, species_id, upload_directory, system_user_id, stats):
@@ -276,7 +277,7 @@ def process_species_folder(species_folder_path, species_name, species_id, upload
         return processed_any
         
     except Exception as e:
-        current_app.logger.error(f"Критична помилка при обробці папки виду {species_name}: {e}")
+        current_app.logger.error(f"Critical error processing species folder {species_name}: {e}")
         return False
 
 def process_audio_files_in_folder(folder_path, species_name, species_id, upload_directory, 
@@ -343,7 +344,7 @@ def process_audio_files_in_folder(folder_path, species_name, species_id, upload_
                 'error': str(e)
             }
             stats['error_files'].append(error_details)
-            current_app.logger.error(f"Помилка обробки файлу {item} для виду {species_name}: {e}")
+            current_app.logger.error(f"Error processing file {item} for species {species_name}: {e}")
             continue
         finally:
             if conn:
@@ -514,7 +515,7 @@ def get_upload_statistics():
         }
         
     except Exception as e:
-        current_app.logger.error(f"Помилка отримання статистики: {e}")
+        current_app.logger.error(f"Error retrieving statistics: {e}")
         return {}
     finally:
         if conn:

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 import logging
 import pandas as pd
 import numpy as np
@@ -614,7 +615,7 @@ if __name__ == '__main__':
     biotopes_only_run = '--biotopes-only' in sys.argv
 
     if sum([force_run, trends_only_run, biotopes_only_run]) > 1:
-        logging.error("Помилка: Прапорці --force, --trends-only, та --biotopes-only є взаємовиключними. Використовуйте тільки один.")
+        logging.error("Error: the --force, --trends-only, and --biotopes-only flags are mutually exclusive. Use only one.")
         sys.exit(1)
 
     try:

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 from flask import current_app
 from .utils import get_pam_db_connection
 from sqlalchemy import text
@@ -795,7 +796,7 @@ def convert_wav_to_flac():
             "SELECT id, file_path, filename FROM segments WHERE file_path LIKE '%.wav' AND status != 'archived'"
         )).fetchall()
     except Exception as e:
-        current_app.logger.error(f"Помилка отримання списку WAV файлів з БД: {e}")
+        current_app.logger.error(f"Error retrieving the list of WAV files from the DB: {e}")
         return {'success': False, 'error': f"Помилка отримання списку файлів: {e}"}
     finally:
         if conn:
@@ -814,11 +815,11 @@ def convert_wav_to_flac():
     failed_count = 0
     errors = []
     total_to_process = len(wav_segments)
-    current_app.logger.info(f"Знайдено {total_to_process} .wav файлів для конвертації.")
+    current_app.logger.info(f"Found {total_to_process} .wav files to convert.")
 
     # Step 2: Process each file in its own transaction.
     for index, (segment_id, wav_path, wav_filename) in enumerate(wav_segments):
-        current_app.logger.info(f"Обробка файлу {index + 1}/{total_to_process}: ID {segment_id}, шлях {wav_path}")
+        current_app.logger.info(f"Processing file {index + 1}/{total_to_process}: ID {segment_id}, path {wav_path}")
 
         if not os.path.exists(wav_path):
             msg = f"Файл .wav для сегмента ID {segment_id} вже відсутній. Пропускаю."
@@ -859,20 +860,20 @@ def convert_wav_to_flac():
             # 3. Delete the .wav file ONLY after a successful commit.
             os.remove(wav_path)
             converted_count += 1
-            current_app.logger.info(f"   -> Успішно: ID {segment_id} конвертовано та оновлено в БД.")
+            current_app.logger.info(f"   -> Success: ID {segment_id} converted and updated in the DB.")
 
         except subprocess.CalledProcessError as e:
             # Transaction rolls back automatically via 'with'.
             msg = f"Помилка конвертації FFmpeg для ID {segment_id}: {e.stderr}"
             errors.append(msg)
             failed_count += 1
-            current_app.logger.error(f"   -> Помилка: {msg}")
+            current_app.logger.error(f"   -> Error: {msg}")
         except Exception as e:
             # Transaction rolls back automatically via 'with'.
             msg = f"Неочікувана помилка при обробці ID {segment_id}: {str(e)}"
             errors.append(msg)
             failed_count += 1
-            current_app.logger.error(f"   -> Помилка: {msg}")
+            current_app.logger.error(f"   -> Error: {msg}")
         finally:
             if conn_item:
                 conn_item.close()

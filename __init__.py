@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 from flask import Blueprint
 
 pam_bp = Blueprint('pam', __name__, template_folder='templates')

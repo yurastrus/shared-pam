@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 from flask import render_template, request, jsonify, current_app, g, flash, redirect, url_for, send_from_directory, abort, Response, send_file
 from flask_login import login_required, current_user
 import traceback
@@ -1308,13 +1309,13 @@ def _confine_to_pam_base(path):
     base = current_app.config.get('PAM_UPLOAD_PATH')
     if not base:
         current_app.logger.error(
-            "PAM_UPLOAD_PATH не налаштовано — path confinement пропущено (#26).")
+            "PAM_UPLOAD_PATH not configured — path confinement skipped (#26).")
         return path
     allowed_base = os.path.realpath(base)
     target = os.path.realpath(path)
     if target != allowed_base and not target.startswith(allowed_base + os.sep):
         current_app.logger.warning(
-            f"PAM path confinement (#26): '{path}' поза дозволеною базою — 403.")
+            f"PAM path confinement (#26): '{path}' outside the allowed base — 403.")
         abort(403)
     return target
 
@@ -1720,7 +1721,7 @@ def process_spectrograms_background(app, segments, force_regenerate):
         processed_count = 0
         failed_count = 0
         
-        print(f"--- Початок фонової генерації: {len(segments)} файлів ---")
+        print(f"--- Background generation started: {len(segments)} files ---")
         
         for segment_id, audio_path in segments:
             # Call the generation function.
@@ -1730,7 +1731,7 @@ def process_spectrograms_background(app, segments, force_regenerate):
             else:
                 failed_count += 1
                 
-        print(f"--- Фонова генерація завершена. Оброблено: {processed_count}, Помилок: {failed_count} ---")
+        print(f"--- Background generation finished. Processed: {processed_count}, Errors: {failed_count} ---")
         # Optional: write to log or send an admin email notification.
 
 @pam_bp.route('/<lang_code>/admin/evaluation/build-spectrograms', methods=['POST'])
@@ -2399,7 +2400,7 @@ def pam_species_dashboard(lang_code):
 @pam_bp.route('/<lang_code>/api/pam/species-dynamics')
 def api_pam_species_dynamics(lang_code):
     """
-    API для отримання даних трендів з урахуванням інституції.
+    API for retrieving trend data scoped by institution.
     """
     g.lang_code = lang_code
     conn = None
@@ -2886,7 +2887,7 @@ def api_yearly_trends_table(lang_code):
         det_conditions = [
             "d.confidence >= :confidence",
             "EXTRACT(YEAR FROM r.datetime_start) BETWEEN :start_year AND :end_year",
-            inst_where.replace("AND", "") # прибираємо перший AND для списку
+            inst_where.replace("AND", "") # strip the leading AND for the list
         ]
         if location_ids: det_conditions.append("l.location_id = ANY(:location_ids)")
         if biotope_ids:   det_conditions.append("lb.biotope_id = ANY(:biotope_ids)")

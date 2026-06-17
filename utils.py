@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 import calendar
 import csv
 import io
@@ -1070,7 +1071,7 @@ def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=
                 l.location_name_en,
                 l.lat,
                 l.lon,
-                COUNT(d.detection_id) as detection_count, -- Змінено з r.recording_id для точності
+                COUNT(d.detection_id) as detection_count, -- Changed from r.recording_id for accuracy
                 COUNT(DISTINCT s.species_id) as species_count
             FROM detections d
             JOIN recordings r ON d.recording_id = r.recording_id
@@ -1084,7 +1085,7 @@ def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=
             AND {inst_condition}
             {condition_sql}
             GROUP BY l.location_id, l.location_name, l.location_name_en, l.lat, l.lon
-            HAVING COUNT(d.detection_id) >= :min_detections -- <-- ЗМІНЕНО
+            HAVING COUNT(d.detection_id) >= :min_detections -- <-- CHANGED
             ORDER BY detection_count DESC
         """
         
@@ -1131,7 +1132,7 @@ def generate_spectrogram_image(audio_path, spectrogram_type='linear', force_rege
             return True
 
         if not os.path.exists(audio_path):
-            print(f"Не знайдено аудіофайл: {audio_path}")
+            print(f"Audio file not found: {audio_path}")
             return False
 
         # 1. Load audio.
@@ -1303,8 +1304,8 @@ def get_occurrence_data(filters, limit=None):
                 LEFT JOIN evaluation eval ON s.species_id = eval.species_id AND eval.is_current = TRUE
                 WHERE 
                     r.datetime_start BETWEEN :start_ts AND :end_ts
-                    AND (dvm.verification_result = 1 OR dvm.positive_votes >= 1) -- Позитивна верифікація
-                    AND (dvm.verification_result IS NULL OR dvm.verification_result != 0) -- Не відхилені
+                    AND (dvm.verification_result = 1 OR dvm.positive_votes >= 1) -- Positive verification
+                    AND (dvm.verification_result IS NULL OR dvm.verification_result != 0) -- Not rejected
                     AND {inst_condition}
                     {taxo_where}
             """
@@ -1323,15 +1324,15 @@ def get_occurrence_data(filters, limit=None):
                     r.datetime_start BETWEEN :start_ts AND :end_ts
                     AND {inst_condition}
                     {taxo_where}
-                    -- Умови Розумного фільтра:
+                    -- Smart filter conditions:
                     AND eval.total_samples >= 200
                     AND d.confidence >= eval.p0_95_threshold
-                    -- Виключаємо записи, які мають хоч якусь історію верифікації (вони або в Частині 1, або відхилені)
+                    -- Exclude rows that have any verification history (they are either in Part 1 or rejected)
                     AND (dvm.detection_id IS NULL OR (
                         (dvm.verification_result IS NULL OR dvm.verification_result = 0)
                         AND (dvm.positive_votes IS NULL OR dvm.positive_votes = 0)
                     ))
-                    -- Страховка: не показувати явно відхилені
+                    -- Safeguard: do not show explicitly rejected ones
                     AND (dvm.verification_result IS NULL OR dvm.verification_result != 0)
             """
 
@@ -1391,8 +1392,8 @@ def get_occurrence_data(filters, limit=None):
                         ROW_NUMBER() OVER(
                             PARTITION BY scientific_name, location_id, {partition_expr}
                             ORDER BY 
-                                CASE WHEN verifier_user_ids IS NOT NULL THEN 0 ELSE 1 END ASC, -- Спочатку верифіковані
-                                confidence DESC -- Потім найвищий confidence
+                                CASE WHEN verifier_user_ids IS NOT NULL THEN 0 ELSE 1 END ASC, -- Verified first
+                                confidence DESC -- Then highest confidence
                         ) as rn
                     FROM RawData
                 )

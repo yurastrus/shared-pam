@@ -145,3 +145,19 @@ Replace `venv/Scripts/` with `venv/bin/` on Linux.
 This package is registered in biomon's `create_app()` factory as the `pam_bp` blueprint. It connects to a dedicated PostgreSQL database (`PAM_DATABASE_URL`) and uses institution-based access control inherited from the main app's `User` / `Institution` models.
 
 For environment setup, deployment, and the full role hierarchy see the **[biomon README](https://github.com/yurastrus/biomon#readme)**.
+
+---
+
+## License: GNU AGPL-3.0
+
+Copyright (C) 2025–2026 Iurii Strus.
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the **GNU Affero General Public License, version 3** as published
+by the Free Software Foundation. See the [LICENSE](LICENSE) file for the full
+text (`SPDX-License-Identifier: AGPL-3.0-only`).
+
+Because this is an AGPL-licensed network application: if you run a modified
+version of this module on a server and let users interact with it over a
+network, you must also make the complete corresponding source code of your
+modified version available to those users (AGPL §13).
