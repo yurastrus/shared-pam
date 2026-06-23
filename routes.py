@@ -3754,11 +3754,23 @@ def pam_import(lang_code):
         )).fetchall()
         biotopes = [dict(row._mapping) for row in biotopes_result]
 
+        # Classifier models (for the "Model" dropdown). The display label is
+        # "<name> <version>" (version omitted when blank).
+        model_rows = conn.execute(text(
+            "SELECT model_id, name, version FROM models ORDER BY model_id"
+        )).fetchall()
+        models = [
+            {'model_id': r.model_id,
+             'label': (f"{r.name} {r.version}".strip() if r.version else r.name)}
+            for r in model_rows
+        ]
+
         return render_template(
             'pam_import.html',
             institutions=institutions,
             locations_data=final_locations,
             importers=importers_list,
+            models=models,
             biotopes=biotopes,
             geoserver_url=current_app.config.get('GEOSERVER_URL', ''),
         )
@@ -3776,12 +3788,15 @@ def pam_import(lang_code):
 @role_required('manager')
 def api_pam_import(lang_code):
     """
-    Process a batch of uploaded BirdNET CSV files for a given location.
+    Process a batch of uploaded detection files for a given location.
 
     Form fields:
         location_id  – integer
-        classifier   – importer key (default: 'birdnet')
-        files        – one or more CSV file uploads
+        format       – parser key ('birdnet' = BirdNET CSV, 'raven' = Raven
+                       Selection Table). Falls back to legacy 'classifier'.
+        model_id     – integer, references the models table (which classifier
+                       model produced these detections)
+        files        – one or more file uploads
     """
     g.lang_code = lang_code
     try:
@@ -3789,10 +3804,13 @@ def api_pam_import(lang_code):
         if not location_id:
             return jsonify({'success': False, 'error': 'location_id is required'}), 400
 
-        classifier = request.form.get('classifier', 'birdnet')
-        importer = IMPORTERS.get(classifier)
+        # 'format' is the new field; 'classifier' kept for backward compatibility.
+        fmt = request.form.get('format') or request.form.get('classifier', 'birdnet')
+        importer = IMPORTERS.get(fmt)
         if not importer:
-            return jsonify({'success': False, 'error': f'Unknown classifier: {classifier}'}), 400
+            return jsonify({'success': False, 'error': f'Unknown format: {fmt}'}), 400
+
+        model_id = request.form.get('model_id', type=int)
 
         files = request.files.getlist('files')
         if not files:
@@ -3803,11 +3821,25 @@ def api_pam_import(lang_code):
         if not duration_minutes or duration_minutes <= 0:
             duration_minutes = 5
 
-        # Verify user has access to this location
         is_admin = current_user.has_role('admin')
-        if not is_admin:
-            conn = get_pam_db_connection()
-            try:
+
+        # Validate model_id against the models table, resolve the reference
+        # model (BirdNET 2.4), and — for non-admins — verify location access.
+        conn = get_pam_db_connection()
+        try:
+            model_rows = conn.execute(text(
+                "SELECT model_id, name, version FROM models"
+            )).fetchall()
+            valid_model_ids = {r.model_id for r in model_rows}
+            reference_model_id = next(
+                (r.model_id for r in model_rows
+                 if r.name == 'BirdNET' and (r.version or '') == '2.4'),
+                None
+            )
+            if model_id is None or model_id not in valid_model_ids:
+                return jsonify({'success': False, 'error': 'Invalid or missing model_id'}), 400
+
+            if not is_admin:
                 user_inst_ids = [i.id for i in current_user.institutions]
                 row = conn.execute(text("""
                     SELECT 1 FROM location_institutions
@@ -3816,17 +3848,19 @@ def api_pam_import(lang_code):
                 """), {'loc': location_id, 'insts': user_inst_ids}).fetchone()
                 if not row:
                     return jsonify({'success': False, 'error': 'Access denied to this location'}), 403
-            finally:
-                conn.close()
+        finally:
+            conn.close()
 
         engine = get_pam_engine()
         processor = PAMImportProcessor(engine, location_id, importer,
-                                       duration_minutes=duration_minutes)
+                                       duration_minutes=duration_minutes,
+                                       model_id=model_id,
+                                       reference_model_id=reference_model_id)
         stats = processor.process_batch(files)
 
         current_app.logger.info(
             f"PAM import: user={current_user.id}, location={location_id}, "
-            f"classifier={classifier}, stats={stats}"
+            f"format={fmt}, model_id={model_id}, stats={stats}"
         )
         return jsonify({'success': True, 'stats': stats})
 

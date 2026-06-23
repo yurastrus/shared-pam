@@ -108,21 +108,36 @@
                 </div>
             </div>
 
-            <!-- STEP 2: Classifier -->
+            <!-- STEP 2: Format + Model -->
             <div class="step-card">
                 <div class="step-title">
-                    <span class="step-num">2</span>{{ _('Алгоритм класифікації') }}
+                    <span class="step-num">2</span>{{ _('Формат і модель') }}
                 </div>
-                <select id="classifier-select" class="form-select form-select-sm">
+
+                <label class="form-label form-label-sm">{{ _('Формат') }}</label>
+                <select id="format-select" class="form-select form-select-sm">
                     {% for imp in importers %}
                     <option value="{{ imp.key }}">{{ imp.name }}</option>
                     {% endfor %}
                 </select>
                 <div style="margin-top:6px;">
-                    <small style="color:#6c757d;" id="classifier-hint">
+                    <small style="color:#6c757d;" id="format-hint">
                         {{ _('BirdNET Analyzer: виберіть CSV-файли, що генеруються BirdNET (один файл = один запис).') }}
                     </small>
                 </div>
+
+                <label class="form-label form-label-sm" style="margin-top:10px;">{{ _('Модель') }}</label>
+                <select id="model-select" class="form-select form-select-sm">
+                    {% for m in models %}
+                    <option value="{{ m.model_id }}">{{ m.label }}</option>
+                    {% endfor %}
+                </select>
+                <div style="margin-top:6px;">
+                    <small style="color:#6c757d;">
+                        {{ _('Модель-класифікатор, що згенерувала ці детекції.') }}
+                    </small>
+                </div>
+
                 <div style="margin-top:10px;">
                     <label class="form-label form-label-sm" for="duration-minutes">{{ _('Тривалість файлу, хв') }}</label>
                     <input type="number" id="duration-minutes" class="form-control form-control-sm"
@@ -145,7 +160,7 @@
                             <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5z"/>
                         </svg>
                         {{ _('Файли') }}
-                        <input type="file" id="file-input" multiple accept=".csv" style="display:none;">
+                        <input type="file" id="file-input" multiple accept=".csv,.txt" style="display:none;">
                     </label>
                     <label>
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
@@ -207,12 +222,17 @@
                             <tr><td style="padding:3px 0;">{{ _('Нових recordings') }}</td><td id="r-rec-new" style="text-align:right;font-weight:700;color:#198754;">—</td></tr>
                             <tr><td style="padding:3px 0;color:#6c757d;">{{ _('Вже існувало') }}</td><td id="r-rec-exist" style="text-align:right;font-weight:600;">—</td></tr>
                             <tr><td colspan="2" style="height:6px;"></td></tr>
-                            <tr><td style="padding:3px 0;">{{ _('Детекцій імпортовано') }}</td><td id="r-det-inserted" style="text-align:right;font-weight:700;color:#198754;">—</td></tr>
-                            <tr><td style="padding:3px 0;color:#6c757d;">{{ _('Дублікатів (пропущено)') }}</td><td id="r-det-dup" style="text-align:right;font-weight:600;color:#fd7e14;">—</td></tr>
+                            <tr><td style="padding:3px 0;">{{ _('Нових детекцій-подій') }}</td><td id="r-det-inserted" style="text-align:right;font-weight:700;color:#198754;">—</td></tr>
+                            <tr><td style="padding:3px 0;color:#6c757d;">{{ _('Подій уже існувало') }}</td><td id="r-det-dup" style="text-align:right;font-weight:600;color:#fd7e14;">—</td></tr>
+                            <tr><td colspan="2" style="height:6px;"></td></tr>
+                            <tr><td style="padding:3px 0;">{{ _('Нових зв’язків з моделлю') }}</td><td id="r-links-new" style="text-align:right;font-weight:700;color:#198754;">—</td></tr>
+                            <tr><td style="padding:3px 0;color:#6c757d;">{{ _('Зв’язків оновлено') }}</td><td id="r-links-exist" style="text-align:right;font-weight:600;">—</td></tr>
                             <tr><td colspan="2" style="height:6px;"></td></tr>
                             <tr><td style="padding:3px 0;">{{ _('Унікальних видів') }}</td><td id="r-species" style="text-align:right;font-weight:700;color:#198754;">—</td></tr>
+                            <tr id="r-skipped-row" style="display:none;"><td style="padding:3px 0;color:#dc3545;">{{ _('Рядків пропущено (невідомий вид)') }}</td><td id="r-skipped" style="text-align:right;font-weight:600;color:#dc3545;">—</td></tr>
                         </tbody>
                     </table>
+                    <div id="r-skipped-detail" style="display:none;margin-top:6px;font-size:0.78rem;color:#6c757d;max-height:120px;overflow:auto;border:1px solid #f0d0d0;border-radius:4px;padding:6px;"></div>
                     <button id="import-again-btn" type="button"
                             style="width:100%;margin-top:8px;padding:6px;font-size:0.83rem;border:1px solid #0d6efd;background:none;color:#0d6efd;border-radius:4px;cursor:pointer;">
                         ↺ {{ _('Новий імпорт') }}
@@ -499,23 +519,31 @@ $(function() {
     function showCreateError(msg) { $('#create-loc-error').text(msg).show(); }
 
     // ── FILE SELECTION ────────────────────────────────────────────────────────
+    // Accepted extensions depend on the active format: BirdNET CSV → .csv,
+    // Raven Selection Table → .txt (and .csv as a courtesy).
+    function acceptedExts() {
+        return $('#format-select').val() === 'raven' ? ['.txt', '.csv'] : ['.csv'];
+    }
+
     async function handleFiles(rawFiles) {
-        const csvFiles = Array.from(rawFiles).filter(f => f.name.toLowerCase().endsWith('.csv'));
-        if (!csvFiles.length) return;
+        const exts = acceptedExts();
+        const inFiles = Array.from(rawFiles).filter(
+            f => exts.some(ext => f.name.toLowerCase().endsWith(ext)));
+        if (!inFiles.length) return;
 
         $('#scan-progress').show();
         $('#file-summary-row').hide();
         $('#file-list').hide();
         selectedFiles = []; emptyCount = 0;
 
-        const total = csvFiles.length;
+        const total = inFiles.length;
         for (let i = 0; i < total; i++) {
             if (i % 20 === 0) {
                 $('#scan-status').text(`{{ _('Перевірка') }} ${i}/${total}...`);
                 await new Promise(r => setTimeout(r, 0));
             }
-            if (await isEmptyCSV(csvFiles[i])) emptyCount++;
-            else selectedFiles.push(csvFiles[i]);
+            if (await isEmptyCSV(inFiles[i])) emptyCount++;
+            else selectedFiles.push(inFiles[i]);
         }
         $('#scan-progress').hide();
         renderFiles();
@@ -554,10 +582,20 @@ $(function() {
         checkReady();
     });
 
-    // ── CLASSIFIER HINT ───────────────────────────────────────────────────────
-    const hints = { birdnet: '{{ _("BirdNET Analyzer: виберіть CSV-файли, що генеруються BirdNET (один файл = один запис).") }}' };
-    $('#classifier-select').on('change', function() {
-        $('#classifier-hint').text(hints[$(this).val()] || '');
+    // ── FORMAT HINT ───────────────────────────────────────────────────────────
+    const hints = {
+        birdnet: '{{ _("BirdNET Analyzer: виберіть CSV-файли, що генеруються BirdNET (один файл = один запис).") }}',
+        raven:   '{{ _("Raven Selection Table (.txt) з BirdNET Analyzer або Chirpity. Один файл може містити кілька записів; вид визначається за англійською назвою.") }}'
+    };
+    $('#format-select').on('change', function() {
+        $('#format-hint').text(hints[$(this).val()] || '');
+        // Clear any selection so files are re-picked for the new format's extensions.
+        if (selectedFiles.length || emptyCount) {
+            selectedFiles = []; emptyCount = 0;
+            $('#file-input,#folder-input').val('');
+            $('#file-summary-row,#file-list').hide();
+            checkReady();
+        }
     });
 
     // ── IMPORT BUTTON ─────────────────────────────────────────────────────────
@@ -583,12 +621,16 @@ $(function() {
         $('#results-section').hide();
         $('#progress-section').show();
 
-        const classifier   = $('#classifier-select').val();
+        const format       = $('#format-select').val();
+        const modelId      = $('#model-select').val();
         const durationMin  = parseFloat($('#duration-minutes').val()) || 5;
         const totalBatches = Math.ceil(selectedFiles.length / BATCH_SIZE);
         let s = { files_processed:0, files_empty:0, files_failed:0,
                   recordings_new:0, recordings_existing:0,
-                  detections_inserted:0, detections_duplicate:0, species_count:0 };
+                  detections_inserted:0, detections_duplicate:0,
+                  model_links_new:0, model_links_existing:0,
+                  rows_skipped_unknown_species:0, species_count:0,
+                  skipped_species:{} };
 
         for (let b = 0; b < totalBatches; b++) {
             const pct = Math.round(b / totalBatches * 100);
@@ -600,7 +642,8 @@ $(function() {
             );
             const fd = new FormData();
             fd.append('location_id', activeLocId);
-            fd.append('classifier', classifier);
+            fd.append('format', format);
+            fd.append('model_id', modelId);
             fd.append('duration_minutes', durationMin);
             selectedFiles.slice(b*BATCH_SIZE, (b+1)*BATCH_SIZE).forEach(f => fd.append('files', f));
             try {
@@ -615,6 +658,12 @@ $(function() {
                 s.recordings_existing+= r.recordings_existing|| 0;
                 s.detections_inserted+= r.detections_inserted|| 0;
                 s.detections_duplicate+=r.detections_duplicate||0;
+                s.model_links_new    += r.model_links_new    || 0;
+                s.model_links_existing+=r.model_links_existing|| 0;
+                s.rows_skipped_unknown_species += r.rows_skipped_unknown_species || 0;
+                Object.entries(r.skipped_species || {}).forEach(([k,v]) => {
+                    s.skipped_species[k] = (s.skipped_species[k] || 0) + v;
+                });
                 s.species_count = Math.max(s.species_count, r.species_count||0);
             } catch(err) { showError('{{ _("Помилка з\'єднання: ") }}' + err.message); return; }
         }
@@ -635,7 +684,23 @@ $(function() {
         $('#r-rec-exist').text(s.recordings_existing);
         $('#r-det-inserted').text(s.detections_inserted.toLocaleString());
         $('#r-det-dup').text(s.detections_duplicate.toLocaleString());
+        $('#r-links-new').text((s.model_links_new||0).toLocaleString());
+        $('#r-links-exist').text((s.model_links_existing||0).toLocaleString());
         $('#r-species').text(s.species_count);
+
+        const skipped = s.rows_skipped_unknown_species || 0;
+        if (skipped > 0) {
+            $('#r-skipped').text(skipped.toLocaleString());
+            $('#r-skipped-row').show();
+            const detail = Object.entries(s.skipped_species || {})
+                .sort((a,b) => b[1]-a[1])
+                .map(([name,ct]) => `${name}: ${ct}`).join('  •  ');
+            if (detail) $('#r-skipped-detail').text('{{ _("Пропущені назви:") }} ' + detail).show();
+            else $('#r-skipped-detail').hide();
+        } else {
+            $('#r-skipped-row').hide();
+            $('#r-skipped-detail').hide();
+        }
         $('#results-section').show();
     }
 

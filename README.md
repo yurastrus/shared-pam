@@ -17,7 +17,11 @@ The PAM module uses its own PostgreSQL database (`pam_db`, configured via `PAM_D
 | `species` | `species_id`, `scientific_name`, `common_name_en`, `common_name_uk`, `required_role` | Species catalogue; `required_role` gates access per species |
 | `locations` | `location_id`, `name`, `latitude`, `longitude` | Acoustic monitoring stations |
 | `recordings` | `recording_id`, `filename`, `location_id`, `datetime_start`, `duration_minutes` | One row per audio file processed by BirdNET |
-| `detections` | `detection_id`, `recording_id`, `species_id`, `start_s`, `end_s`, `confidence` | Individual BirdNET detections within a recording |
+| `detections` | `detection_id`, `recording_id`, `species_id`, `start_s`, `end_s`, `confidence` | One row per biological event `(recording_id, species_id, start_s, end_s)`; `confidence` holds the **reference model** (BirdNET 2.4) score and is never a cross-model max |
+| `models` | `model_id`, `name`, `version`, `program` | Classifier-model catalogue (BirdNET 2.4, Perch v2, Nocmig, Nocmig V2 Beta); BirdNET 2.4 is the reference model |
+| `detection_models` | `detection_id`, `model_id`, `confidence` | Which model(s) produced each detection, with that model's own confidence; PK `(detection_id, model_id)` lets several models share one event |
+
+> Import supports two formats (see `pam_import_utils.py`): **BirdNET CSV** (species resolved by scientific name) and **Raven Selection Table** (`.txt` from BirdNET Analyzer / Chirpity; species resolved by English common name, using the per-recording **File Offset** for `start_s`). Schema migrations live in [`migrations/`](migrations/).
 
 ### Verification pipeline
 
