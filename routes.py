@@ -43,24 +43,26 @@ def pam_home(lang_code):
 @pam_bp.route('/<lang_code>/pam/pam_detailed')
 def pam_detailed(lang_code):
     """Render the acoustic monitoring dashboard page."""
-    from .utils import get_available_species
-    
+    from .utils import get_available_species, get_models_list
+
     g.lang_code = lang_code
-    
+
     try:
         species_list = get_available_species(lang_code)
         current_app.logger.info(f"Loaded {len(species_list)} species for dashboard")
     except Exception as e:
         current_app.logger.error(f"Error loading species list: {e}")
         species_list = []
-    
-    return render_template('pam_species_detailed.html', available_species=species_list)
+
+    return render_template('pam_species_detailed.html', available_species=species_list,
+                           models=get_models_list())
 
 @pam_bp.route('/<lang_code>/pam/pam_overview')
 def pam_overview(lang_code):
     """Render the overview page with ranked species table."""
+    from .utils import get_models_list
     g.lang_code = lang_code
-    return render_template('pam_overview.html')
+    return render_template('pam_overview.html', models=get_models_list())
 
 @pam_bp.route('/<lang_code>/pam/verification/upload')
 @login_required 
@@ -366,6 +368,24 @@ def evaluation_results(lang_code):
         flash('Помилка завантаження результатів оцінки.', 'danger')
         return redirect(url_for('pam.pam_home', lang_code=lang_code))
 
+
+def _read_model_mode():
+    """Parse the dashboard model-switcher params (Task B) from the query string.
+
+    Returns (mode, model_id) where mode is one of 'birdnet' (reference, default),
+    'model' (a specific model_id), or 'combined' (best across all models). Anything
+    invalid — or 'model' without a model_id — falls back to ('birdnet', None), so
+    the default BirdNET behavior is preserved.
+    """
+    mode = request.args.get('mode', 'birdnet')
+    if mode not in ('birdnet', 'model', 'combined'):
+        mode = 'birdnet'
+    model_id = request.args.get('model_id', type=int)
+    if mode == 'model' and model_id is None:
+        mode = 'birdnet'
+    return mode, model_id
+
+
 @pam_bp.route('/<lang_code>/api/pam/get-plot-data')
 def api_get_plot_data(lang_code):
     """API endpoint to fetch plot data (returns the full detections object)."""
@@ -394,6 +414,8 @@ def api_get_plot_data(lang_code):
         if species_name not in allowed_species_values:
             return jsonify({'error': 'Access denied to this species.'}), 403
         
+        mode, model_id = _read_model_mode()
+
         all_detections = get_filtered_detections(
             species_name=species_name,
             start_date=start_date,
@@ -401,7 +423,8 @@ def api_get_plot_data(lang_code):
             confidence=confidence,
             location_ids=location_ids,
             biotope_ids=biotope_ids,
-            institution_id=institution_id
+            institution_id=institution_id,
+            mode=mode, model_id=model_id
         )
         
         # Return one array of detection objects instead of separate lists.
@@ -443,6 +466,8 @@ def api_get_barchart_data(lang_code):
         if species_name not in allowed_species_values:
             return jsonify({'error': 'Access denied to this species.'}), 403
         
+        mode, model_id = _read_model_mode()
+
         barchart_data = get_daily_detection_counts(
             species_name=species_name,
             start_date=start_date,
@@ -450,7 +475,8 @@ def api_get_barchart_data(lang_code):
             confidence=confidence,
             location_ids=location_ids,
             biotope_ids=biotope_ids,
-            institution_id=institution_id
+            institution_id=institution_id,
+            mode=mode, model_id=model_id
         )
         
         return jsonify(barchart_data)
@@ -490,6 +516,8 @@ def api_get_time_scatter_data(lang_code):
         if species_name not in allowed_species_values:
             return jsonify({'error': 'Access denied to this species.'}), 403
         
+        mode, model_id = _read_model_mode()
+
         plot_data = get_time_scatter_data(
             species_name=species_name,
             start_date=start_date,
@@ -497,7 +525,8 @@ def api_get_time_scatter_data(lang_code):
             confidence=confidence,
             location_ids=location_ids,
             biotope_ids=biotope_ids,
-            institution_id=institution_id
+            institution_id=institution_id,
+            mode=mode, model_id=model_id
         )
         
         current_app.logger.info(f"Returning time scatter data: {len(plot_data.get('detections', []))} detections, {len(plot_data.get('sun_times', []))} sun times")
@@ -543,6 +572,8 @@ def api_get_species_summary(lang_code):
         if species_name not in allowed_species_values:
             return jsonify({'error': 'Access denied to this species.'}), 403
 
+        mode, model_id = _read_model_mode()
+
         summary = get_species_summary(
             species_name=species_name,
             start_date=start_date,
@@ -552,7 +583,8 @@ def api_get_species_summary(lang_code):
             location_ids=location_ids,
             biotope_ids=biotope_ids,
             min_detections=min_detections,
-            institution_id=institution_id
+            institution_id=institution_id,
+            mode=mode, model_id=model_id
         )
 
         return jsonify(summary)
@@ -595,6 +627,8 @@ def api_get_unique_points(lang_code):
         if species_name not in allowed_species_values:
             return jsonify({'error': 'Access denied to this species.'}), 403
 
+        mode, model_id = _read_model_mode()
+
         points = get_unique_detection_points(
             lang_code=lang_code,
             species_name=species_name,
@@ -604,7 +638,8 @@ def api_get_unique_points(lang_code):
             location_ids=location_ids,
             biotope_ids=biotope_ids,
             min_detections=min_detections,
-            institution_id=institution_id
+            institution_id=institution_id,
+            mode=mode, model_id=model_id
         )
 
         return jsonify(points)
@@ -751,6 +786,8 @@ def api_get_species_ranking(lang_code):
         except (ValueError, TypeError):
             min_detections = 5
 
+        mode, model_id = _read_model_mode()
+
         ranking = get_species_ranking(
             lang_code=lang_code,
             start_date=start_date,
@@ -760,7 +797,8 @@ def api_get_species_ranking(lang_code):
             location_ids=location_ids,
             biotope_ids=biotope_ids,
             tax_filters=tax_filters,
-            institution_id=institution_id
+            institution_id=institution_id,
+            mode=mode, model_id=model_id
         )
         
         return jsonify(ranking)
@@ -801,6 +839,8 @@ def api_get_overview_stats(lang_code):
         except (ValueError, TypeError):
             min_detections = 1
             
+        mode, model_id = _read_model_mode()
+
         stats = get_overview_statistics(
             lang_code=lang_code,
             start_date=start_date,
@@ -810,7 +850,8 @@ def api_get_overview_stats(lang_code):
             location_ids=location_ids,
             biotope_ids=biotope_ids,
             tax_filters=tax_filters,
-            institution_id=institution_id
+            institution_id=institution_id,
+            mode=mode, model_id=model_id
         )
         
         return jsonify(stats)
@@ -852,6 +893,8 @@ def api_get_locations_map(lang_code):
         except (ValueError, TypeError):
             min_detections = 1
             
+        mode, model_id = _read_model_mode()
+
         locations = get_locations_for_map(
             lang_code=lang_code,
             start_date=start_date,
@@ -861,7 +904,8 @@ def api_get_locations_map(lang_code):
             biotope_ids=biotope_ids,
             min_detections=min_detections,
             tax_filters=tax_filters,
-            institution_id=institution_id
+            institution_id=institution_id,
+            mode=mode, model_id=model_id
         )
         
         return jsonify(locations)

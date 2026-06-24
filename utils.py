@@ -272,26 +272,112 @@ def get_available_species(lang_code):
             except Exception as close_error:
                 current_app.logger.error(f"Error closing connection: {close_error}")
 
-def get_filtered_detections(species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None, institution_id=None):
+# ──────────────────────────────────────────────────────────────────────────────
+# Dashboard model switcher (Task B): BirdNET 2.4 / a specific model / combined.
+#
+# detections is one row per biological event (recording_id, species_id, start_s,
+# end_s); detections.confidence holds the BirdNET-2.4 reference confidence, and
+# detection_models(detection_id, model_id, confidence) stores every model's own
+# score. The three modes differ ONLY in which confidence is filtered/displayed —
+# all dashboard queries use a flat confidence threshold, so the switch is a
+# swappable WHERE predicate (and SELECT expression) rather than new JOINs.
+#   'birdnet'  – reference model: detections.confidence (DEFAULT; SQL unchanged)
+#   'model'    – a specific model_id: its detection_models.confidence
+#   'combined' – any model: the best (MAX) detection_models.confidence per event
+# EXISTS keeps COUNT()/aggregations correct (no row fan-out from the join).
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _normalize_model_mode(mode, model_id, params=None):
+    """Validate (mode, model_id) and bind :model_id into params when relevant.
+
+    Returns the effective mode, falling back to 'birdnet' for anything invalid
+    or for 'model' without a model_id — so callers always get safe behavior.
+    """
+    if mode == 'combined':
+        return 'combined'
+    if mode == 'model' and model_id is not None:
+        if params is not None:
+            params['model_id'] = model_id
+        return 'model'
+    return 'birdnet'
+
+
+def _confidence_filter_sql(mode='birdnet', model_id=None, alias='d'):
+    """WHERE predicate filtering detections by confidence for the active mode.
+
+    Consumes the already-bound :confidence param; 'model' mode also uses
+    :model_id (bind it via _normalize_model_mode first).
+    """
+    if mode == 'model' and model_id is not None:
+        return (f"EXISTS (SELECT 1 FROM detection_models dm "
+                f"WHERE dm.detection_id = {alias}.detection_id "
+                f"AND dm.model_id = :model_id AND dm.confidence >= :confidence)")
+    if mode == 'combined':
+        return (f"EXISTS (SELECT 1 FROM detection_models dm "
+                f"WHERE dm.detection_id = {alias}.detection_id "
+                f"AND dm.confidence >= :confidence)")
+    return f"{alias}.confidence >= :confidence"
+
+
+def _confidence_value_sql(mode='birdnet', model_id=None, alias='d'):
+    """SELECT expression for the confidence value to DISPLAY in the active mode."""
+    if mode == 'model' and model_id is not None:
+        return (f"(SELECT dm.confidence FROM detection_models dm "
+                f"WHERE dm.detection_id = {alias}.detection_id AND dm.model_id = :model_id)")
+    if mode == 'combined':
+        return (f"(SELECT MAX(dm.confidence) FROM detection_models dm "
+                f"WHERE dm.detection_id = {alias}.detection_id)")
+    return f"{alias}.confidence"
+
+
+def get_models_list():
+    """Return classifier models for the dashboard model switcher (Task B).
+
+    Each item: {'model_id', 'label', 'is_reference'}; is_reference marks the
+    BirdNET 2.4 reference model whose confidence lives in detections.confidence.
+    Returns [] if the models table is empty/absent, so callers can hide the switch.
+    """
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        rows = conn.execute(text(
+            "SELECT model_id, name, version FROM models ORDER BY model_id"
+        )).fetchall()
+        return [
+            {'model_id': r.model_id,
+             'label': (f"{r.name} {r.version}".strip() if r.version else r.name),
+             'is_reference': (r.name == 'BirdNET' and (r.version or '') == '2.4')}
+            for r in rows
+        ]
+    except Exception as e:
+        current_app.logger.error(f"PAM DB Error (get_models_list): {e}")
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def get_filtered_detections(species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None, institution_id=None, mode='birdnet', model_id=None):
     """Return filtered detections, including verification status for each one."""
     conn = None
     try:
         conn = get_pam_db_connection()
         params = {'species_name': species_name, 'confidence': confidence}
+        mode = _normalize_model_mode(mode, model_id, params)
 
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
-        
+
         joins = """
-            JOIN recordings r ON d.recording_id = r.recording_id 
+            JOIN recordings r ON d.recording_id = r.recording_id
             JOIN locations l ON r.location_id = l.location_id
             LEFT JOIN detection_verification_map dvm ON d.detection_id = dvm.detection_id
         """
         conditions = [
                     "s.scientific_name = :species_name",
-                    "d.confidence >= :confidence",
+                    _confidence_filter_sql(mode, model_id),
                     inst_condition
                     ]
 
@@ -312,12 +398,12 @@ def get_filtered_detections(species_name, start_date=None, end_date=None, confid
         where_clause = " AND ".join(conditions)
 
         query_sql = f"""
-            SELECT 
-                r.datetime_start, 
-                d.confidence,
+            SELECT
+                r.datetime_start,
+                {_confidence_value_sql(mode, model_id)} AS confidence,
                 dvm.verification_result
-            FROM detections d 
-            JOIN species s ON d.species_id = s.species_id 
+            FROM detections d
+            JOIN species s ON d.species_id = s.species_id
             {joins}
             WHERE {where_clause}
             ORDER BY r.datetime_start
@@ -340,20 +426,21 @@ def get_filtered_detections(species_name, start_date=None, end_date=None, confid
         if conn is not None:
             conn.close()
 
-def get_daily_detection_counts(species_name, start_date, end_date, confidence, location_ids=None, biotope_ids=None, excel_exp=False, institution_id=None):
+def get_daily_detection_counts(species_name, start_date, end_date, confidence, location_ids=None, biotope_ids=None, excel_exp=False, institution_id=None, mode='birdnet', model_id=None):
     conn = None
     try:
         conn = get_pam_db_connection()
         end_date_obj = date.fromisoformat(end_date) if end_date else date.today()
         start_date_obj = date.fromisoformat(start_date) if start_date else end_date_obj - timedelta(days=365)
-        
+
         params = {
-            'species_name': species_name, 
-            'confidence': confidence, 
-            'start_date': start_date_obj, 
+            'species_name': species_name,
+            'confidence': confidence,
+            'start_date': start_date_obj,
             'end_date': end_date_obj
         }
-        
+        mode = _normalize_model_mode(mode, model_id, params)
+
         user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
@@ -362,7 +449,7 @@ def get_daily_detection_counts(species_name, start_date, end_date, confidence, l
         joins = "JOIN recordings r ON d.recording_id = r.recording_id JOIN locations l ON r.location_id = l.location_id"
         conditions = [
             "s.scientific_name = :species_name",
-            "d.confidence >= :confidence",
+            _confidence_filter_sql(mode, model_id),
             "DATE(r.datetime_start) >= :start_date",
             "DATE(r.datetime_start) <= :end_date",
             inst_condition
@@ -419,7 +506,7 @@ def get_daily_detection_counts(species_name, start_date, end_date, confidence, l
         if conn is not None:
             conn.close()
 
-def get_time_scatter_data(species_name, start_date, end_date, confidence, location_ids=None, biotope_ids=None, excel_exp=False, institution_id=None):
+def get_time_scatter_data(species_name, start_date, end_date, confidence, location_ids=None, biotope_ids=None, excel_exp=False, institution_id=None, mode='birdnet', model_id=None):
     """Return scatter data for daily activity chart, including verification status per point."""
     conn = None
     try:
@@ -440,13 +527,15 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
         
+        mode = _normalize_model_mode(mode, model_id, params)
+
         joins = """
             JOIN locations l ON r.location_id = l.location_id
             LEFT JOIN detection_verification_map dvm ON d.detection_id = dvm.detection_id
         """
         conditions = [
             "s.scientific_name = :species_name",
-            "d.confidence >= :confidence",
+            _confidence_filter_sql(mode, model_id),
             "DATE(r.datetime_start) >= :start_date",
             "DATE(r.datetime_start) <= :end_date",
             inst_condition
@@ -459,7 +548,7 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
             joins += " JOIN location_biotopes lb ON l.location_id = lb.location_id"
             conditions.append("lb.biotope_id = ANY(:biotope_ids)")
             params['biotope_ids'] = biotope_ids
-        
+
         where_clause = " AND ".join(conditions)
 
         # 1. Base fields always required.
@@ -472,7 +561,7 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
 
         # 2. Optional extra fields.
         if excel_exp:
-            select_fields.append("d.confidence")
+            select_fields.append(f"{_confidence_value_sql(mode, model_id)} AS confidence")
 
         # 3. Build the column string.
         columns_str = ", ".join(select_fields)
@@ -528,7 +617,7 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
         if conn is not None:
             conn.close()
 
-def get_species_summary(species_name, start_date=None, end_date=None, confidence=0.0, location_id=None, location_ids=None, biotope_ids=None, min_detections=1, institution_id=None):
+def get_species_summary(species_name, start_date=None, end_date=None, confidence=0.0, location_id=None, location_ids=None, biotope_ids=None, min_detections=1, institution_id=None, mode='birdnet', model_id=None):
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -550,6 +639,8 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
 
+        mode = _normalize_model_mode(mode, model_id, params)
+
         base_joins = """
             FROM detections d
             JOIN recordings r ON d.recording_id = r.recording_id
@@ -558,7 +649,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
         """
         base_conditions = f"""
             WHERE s.scientific_name = :species_name
-              AND d.confidence >= :confidence
+              AND {_confidence_filter_sql(mode, model_id)}
               AND DATE(r.datetime_start) >= :start_date
               AND DATE(r.datetime_start) <= :end_date
               AND {inst_condition}
@@ -634,7 +725,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
             JOIN recordings r ON d.recording_id = r.recording_id
             JOIN locations l ON r.location_id = l.location_id
             {joins}
-            WHERE d.confidence >= :confidence
+            WHERE {_confidence_filter_sql(mode, model_id)}
               AND DATE(r.datetime_start) >= :start_date
               AND DATE(r.datetime_start) <= :end_date
               {condition_sql}
@@ -668,7 +759,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
         if conn is not None:
             conn.close()
 
-def get_unique_detection_points(lang_code, species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None, min_detections=1, institution_id=None):
+def get_unique_detection_points(lang_code, species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None, min_detections=1, institution_id=None, mode='birdnet', model_id=None):
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -693,10 +784,12 @@ def get_unique_detection_points(lang_code, species_name, start_date=None, end_da
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
 
+        mode = _normalize_model_mode(mode, model_id, params)
+
         joins = "LEFT JOIN detection_verification_map dvm ON d.detection_id = dvm.detection_id"
         conditions = [
             "s.scientific_name = :species_name",
-            "d.confidence >= :confidence",
+            _confidence_filter_sql(mode, model_id),
             "DATE(r.datetime_start) >= :start_date",
             "DATE(r.datetime_start) <= :end_date",
             inst_condition
@@ -757,7 +850,7 @@ def get_unique_detection_points(lang_code, species_name, start_date=None, end_da
         if conn is not None:
             conn.close()
 
-def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.0, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None, institution_id=None):
+def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.0, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None, institution_id=None, mode='birdnet', model_id=None):
     """Return a ranked species table with detection counts."""
     conn = None
     try:
@@ -791,8 +884,9 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
             from_clause += " JOIN location_biotopes lb ON l.location_id = lb.location_id"
 
         # Build WHERE conditions.
+        mode = _normalize_model_mode(mode, model_id, params)
         conditions = [
-            "d.confidence >= :confidence",
+            _confidence_filter_sql(mode, model_id),
             "DATE(r.datetime_start) >= :start_date",
             "DATE(r.datetime_start) <= :end_date",
             inst_condition
@@ -873,7 +967,7 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
             except Exception as close_error:
                 current_app.logger.error(f"Error closing connection: {close_error}")
 
-def get_overview_statistics(lang_code, start_date=None, end_date=None, confidence=0.75, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None, institution_id=None):
+def get_overview_statistics(lang_code, start_date=None, end_date=None, confidence=0.75, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None, institution_id=None, mode='birdnet', model_id=None):
     """Return overall statistics for the overview page, filtered by locations and biotopes."""
     conn = None
     try:
@@ -893,7 +987,8 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
-        
+        mode = _normalize_model_mode(mode, model_id, params)
+
         # Build dynamic query parts.
         joins = ""
         conditions = []
@@ -939,7 +1034,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
             JOIN locations l ON r.location_id = l.location_id
             {joins}
             {access_filter}
-            AND d.confidence >= :confidence
+            AND {_confidence_filter_sql(mode, model_id)}
             AND DATE(r.datetime_start) >= :start_date
             AND DATE(r.datetime_start) <= :end_date
             AND {inst_condition}
@@ -957,7 +1052,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
                 JOIN locations l ON r.location_id = l.location_id
                 {joins}
                 {access_filter}
-                AND d.confidence >= :confidence
+                AND {_confidence_filter_sql(mode, model_id)}
                 AND DATE(r.datetime_start) >= :start_date
                 AND DATE(r.datetime_start) <= :end_date
                 AND {inst_condition}
@@ -977,7 +1072,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
             JOIN species s ON d.species_id = s.species_id
             {joins}
             {access_filter}
-            AND d.confidence >= :confidence
+            AND {_confidence_filter_sql(mode, model_id)}
             AND DATE(r.datetime_start) >= :start_date
             AND DATE(r.datetime_start) <= :end_date
             AND {inst_condition}
@@ -1009,7 +1104,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
         if conn:
             conn.close()
 
-def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=0.75, location_ids=None, biotope_ids=None, min_detections=1, tax_filters=None, institution_id=None):
+def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=0.75, location_ids=None, biotope_ids=None, min_detections=1, tax_filters=None, institution_id=None, mode='birdnet', model_id=None):
     """Return location data for the map, filtered by locations, biotopes, and min detections."""
     conn = None
     try:
@@ -1029,7 +1124,8 @@ def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
-        
+        mode = _normalize_model_mode(mode, model_id, params)
+
         joins = ""
         conditions = []
 
@@ -1079,7 +1175,7 @@ def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=
             JOIN species s ON d.species_id = s.species_id
             {joins}
             {access_filter}
-            AND d.confidence >= :confidence
+            AND {_confidence_filter_sql(mode, model_id)}
             AND DATE(r.datetime_start) >= :start_date
             AND DATE(r.datetime_start) <= :end_date
             AND {inst_condition}

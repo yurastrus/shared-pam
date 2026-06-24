@@ -53,6 +53,22 @@
             </div>
             
             <!-- Row 4: Sliders -->
+            {% if models and models|length > 1 %}
+            <div class="filter-group full-width">
+                <label for="model-select">{{ _('Модель:') }}</label>
+                <select id="model-select" class="form-control">
+                    {% for m in models %}
+                      {% if m.is_reference %}
+                    <option value="birdnet" data-mode="birdnet" selected>{{ m.label }} — {{ _('калібрований') }}</option>
+                      {% else %}
+                    <option value="model:{{ m.model_id }}" data-mode="model">{{ m.label }} — {{ _('сирий') }}</option>
+                      {% endif %}
+                    {% endfor %}
+                    <option value="combined" data-mode="combined">{{ _('Комбінований (усі моделі)') }}</option>
+                </select>
+                <small id="model-mode-hint" style="display:none;color:#fd7e14;">{{ _('Сирий confidence вибраної моделі (некалібрований).') }}</small>
+            </div>
+            {% endif %}
             <div class="filter-group full-width" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 100%; margin: 0 auto;">
                 <div class="filter-group">
                     <label for="confidence-slider">{{ _('Впевненість:') }} <span id="confidence-value">0.95</span></label>
@@ -191,6 +207,14 @@
             applyButton.on('click', updateAllContent);
             confidenceSlider.on('input', () => confidenceValueSpan.text(parseFloat(confidenceSlider.val()).toFixed(2)));
             minDetectionsSlider.on('input', () => minDetectionsValueSpan.text(minDetectionsSlider.val()));
+
+            // Model switcher (Task B): non-BirdNET modes filter raw, uncalibrated
+            // confidence, so widen the slider range and flag it in the UI.
+            $('#model-select').on('change', function() {
+                const isReference = (this.value === 'birdnet');
+                $('#model-mode-hint').toggle(!isReference);
+                confidenceSlider.attr('min', isReference ? '0.7' : '0');
+            });
             taxFilters.on('change', function() {
                 // Taxonomic level changed — update available options for all other levels.
                 updateDynamicFilters();
@@ -322,7 +346,19 @@
                 if (orderSelect.val()) params.append('order', orderSelect.val());
                 if (familySelect.val()) params.append('family', familySelect.val());
                 if (genusSelect.val()) params.append('genus', genusSelect.val());
-                
+
+                // Model switcher (Task B): 'birdnet' (default) sends nothing →
+                // unchanged reference behavior; 'model:<id>' and 'combined' switch.
+                const modelSel = document.getElementById('model-select');
+                if (modelSel && modelSel.value && modelSel.value !== 'birdnet') {
+                    if (modelSel.value === 'combined') {
+                        params.append('mode', 'combined');
+                    } else if (modelSel.value.startsWith('model:')) {
+                        params.append('mode', 'model');
+                        params.append('model_id', modelSel.value.split(':')[1]);
+                    }
+                }
+
                 return params;
             }
 
