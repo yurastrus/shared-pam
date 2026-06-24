@@ -291,7 +291,8 @@ class PAMImportProcessor:
 
     def __init__(self, engine, location_id: int, importer: BaseDetectionImporter,
                  duration_minutes=5, model_id: Optional[int] = None,
-                 reference_model_id: Optional[int] = None):
+                 reference_model_id: Optional[int] = None,
+                 confidence_threshold: float = 0.0):
         self.engine = engine
         self.location_id = location_id
         self.importer = importer
@@ -303,6 +304,11 @@ class PAMImportProcessor:
         # reference (BirdNET 2.4) that owns detections.confidence.
         self.model_id = model_id
         self.reference_model_id = reference_model_id
+        # Minimum confidence to import; rows below it are dropped before
+        # insertion (set in the pam/import form, default 0.1 at the route layer).
+        # Filtering uses each row's own confidence, regardless of model. Rows
+        # with NULL confidence are always kept (no value to compare).
+        self.confidence_threshold = confidence_threshold
         self.stats = {
             'files_processed': 0,
             'files_empty': 0,
@@ -311,6 +317,7 @@ class PAMImportProcessor:
             'recordings_existing': 0,
             'detections_inserted': 0,      # new biological events (rows in detections)
             'detections_duplicate': 0,     # events that already existed
+            'detections_filtered': 0,      # rows dropped below the confidence threshold
             'model_links_new': 0,          # new rows in detection_models
             'model_links_existing': 0,     # detection_models rows already present (refreshed)
             'species_count': 0,
@@ -469,6 +476,11 @@ class PAMImportProcessor:
             if sp is None:
                 self.stats['rows_skipped_unknown_species'] += 1
                 self._skipped_species[(r.common_name_en or r.scientific_name or '').strip()] += 1
+                continue
+            # Drop low-confidence detections before insertion. NULL confidence is
+            # kept (no value to compare against the threshold).
+            if r.confidence is not None and r.confidence < self.confidence_threshold:
+                self.stats['detections_filtered'] += 1
                 continue
             detections.append({'rec': recording_id, 'sp': sp,
                                'start': r.start_s, 'end': r.end_s, 'conf': r.confidence})

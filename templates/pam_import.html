@@ -146,6 +146,18 @@
                         {{ _('Однакова для всіх файлів цього імпорту. Використовується для розрахунку покриття.') }}
                     </small>
                 </div>
+
+                <div style="margin-top:10px;">
+                    <label class="form-label form-label-sm" for="confidence-threshold">
+                        {{ _('Мінімальний рівень впевненості') }}:
+                        <span id="confidence-value" style="font-weight:600;color:#0d6efd;">0.10</span>
+                    </label>
+                    <input type="range" id="confidence-threshold" class="form-range"
+                           min="0" max="1" step="0.05" value="0.1" style="width:100%;">
+                    <small style="color:#6c757d;display:block;margin-top:2px;">
+                        {{ _('Детекції з впевненістю нижче порогу не імпортуються. Щоб додати раніше відсіяні — повторіть імпорт із нижчим порогом.') }}
+                    </small>
+                </div>
             </div>
 
             <!-- STEP 3: Files -->
@@ -224,6 +236,7 @@
                             <tr><td colspan="2" style="height:6px;"></td></tr>
                             <tr><td style="padding:3px 0;">{{ _('Нових детекцій-подій') }}</td><td id="r-det-inserted" style="text-align:right;font-weight:700;color:#198754;">—</td></tr>
                             <tr><td style="padding:3px 0;color:#6c757d;">{{ _('Подій уже існувало') }}</td><td id="r-det-dup" style="text-align:right;font-weight:600;color:#fd7e14;">—</td></tr>
+                            <tr><td style="padding:3px 0;color:#6c757d;">{{ _('Відсіяно за впевненістю') }}</td><td id="r-det-filtered" style="text-align:right;font-weight:600;color:#fd7e14;">—</td></tr>
                             <tr><td colspan="2" style="height:6px;"></td></tr>
                             <tr><td style="padding:3px 0;">{{ _('Нових зв’язків з моделлю') }}</td><td id="r-links-new" style="text-align:right;font-weight:700;color:#198754;">—</td></tr>
                             <tr><td style="padding:3px 0;color:#6c757d;">{{ _('Зв’язків оновлено') }}</td><td id="r-links-exist" style="text-align:right;font-weight:600;">—</td></tr>
@@ -598,6 +611,10 @@ $(function() {
         }
     });
 
+    $('#confidence-threshold').on('input', function() {
+        $('#confidence-value').text(parseFloat(this.value).toFixed(2));
+    });
+
     // ── IMPORT BUTTON ─────────────────────────────────────────────────────────
     function checkReady() {
         const ready = activeLocId && selectedFiles.length > 0;
@@ -624,10 +641,12 @@ $(function() {
         const format       = $('#format-select').val();
         const modelId      = $('#model-select').val();
         const durationMin  = parseFloat($('#duration-minutes').val()) || 5;
+        const confThreshold= parseFloat($('#confidence-threshold').val()) || 0;
         const totalBatches = Math.ceil(selectedFiles.length / BATCH_SIZE);
         let s = { files_processed:0, files_empty:0, files_failed:0,
                   recordings_new:0, recordings_existing:0,
                   detections_inserted:0, detections_duplicate:0,
+                  detections_filtered:0,
                   model_links_new:0, model_links_existing:0,
                   rows_skipped_unknown_species:0, species_count:0,
                   skipped_species:{} };
@@ -645,6 +664,7 @@ $(function() {
             fd.append('format', format);
             fd.append('model_id', modelId);
             fd.append('duration_minutes', durationMin);
+            fd.append('confidence_threshold', confThreshold);
             selectedFiles.slice(b*BATCH_SIZE, (b+1)*BATCH_SIZE).forEach(f => fd.append('files', f));
             try {
                 const resp = await fetch(importApiUrl, { method:'POST', body:fd, headers:{'X-CSRFToken': CSRF_TOKEN} });
@@ -658,6 +678,7 @@ $(function() {
                 s.recordings_existing+= r.recordings_existing|| 0;
                 s.detections_inserted+= r.detections_inserted|| 0;
                 s.detections_duplicate+=r.detections_duplicate||0;
+                s.detections_filtered+= r.detections_filtered|| 0;
                 s.model_links_new    += r.model_links_new    || 0;
                 s.model_links_existing+=r.model_links_existing|| 0;
                 s.rows_skipped_unknown_species += r.rows_skipped_unknown_species || 0;
@@ -684,6 +705,7 @@ $(function() {
         $('#r-rec-exist').text(s.recordings_existing);
         $('#r-det-inserted').text(s.detections_inserted.toLocaleString());
         $('#r-det-dup').text(s.detections_duplicate.toLocaleString());
+        $('#r-det-filtered').text((s.detections_filtered||0).toLocaleString());
         $('#r-links-new').text((s.model_links_new||0).toLocaleString());
         $('#r-links-exist').text((s.model_links_existing||0).toLocaleString());
         $('#r-species').text(s.species_count);

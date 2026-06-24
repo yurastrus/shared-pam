@@ -3796,6 +3796,8 @@ def api_pam_import(lang_code):
                        Selection Table). Falls back to legacy 'classifier'.
         model_id     – integer, references the models table (which classifier
                        model produced these detections)
+        confidence_threshold – float in [0, 1] (default 0.1); detections below
+                       it are dropped before insertion (NULL confidence kept)
         files        – one or more file uploads
     """
     g.lang_code = lang_code
@@ -3820,6 +3822,13 @@ def api_pam_import(lang_code):
         duration_minutes = request.form.get('duration_minutes', 5, type=float)
         if not duration_minutes or duration_minutes <= 0:
             duration_minutes = 5
+
+        # Minimum confidence to import (default 0.1); detections below it are
+        # dropped server-side before insertion. Clamp to the valid [0, 1] range.
+        confidence_threshold = request.form.get('confidence_threshold', 0.1, type=float)
+        if confidence_threshold is None:
+            confidence_threshold = 0.1
+        confidence_threshold = min(max(confidence_threshold, 0.0), 1.0)
 
         is_admin = current_user.has_role('admin')
 
@@ -3855,12 +3864,14 @@ def api_pam_import(lang_code):
         processor = PAMImportProcessor(engine, location_id, importer,
                                        duration_minutes=duration_minutes,
                                        model_id=model_id,
-                                       reference_model_id=reference_model_id)
+                                       reference_model_id=reference_model_id,
+                                       confidence_threshold=confidence_threshold)
         stats = processor.process_batch(files)
 
         current_app.logger.info(
             f"PAM import: user={current_user.id}, location={location_id}, "
-            f"format={fmt}, model_id={model_id}, stats={stats}"
+            f"format={fmt}, model_id={model_id}, "
+            f"conf_threshold={confidence_threshold}, stats={stats}"
         )
         return jsonify({'success': True, 'stats': stats})
 
