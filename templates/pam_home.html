@@ -2,6 +2,10 @@
 
 {% block title %}{{ _('Пасивний акустичний моніторинг') }}{% endblock %}
 
+{# lang_code conditional (not _()): this template lives in the shared-pam
+   submodule with its own i18n domain, kept separate from the main catalog. #}
+{% block meta_description %}{% if g.lang_code == 'uk' %}Пасивний акустичний моніторинг (PAM) у БіоМон: автоматичне розпізнавання видів за звуком, аналіз аудіозаписів фауни на Розточчі.{% else %}Passive acoustic monitoring (PAM) in BioMon: automatic species recognition from sound and analysis of wildlife audio recordings in Roztochia.{% endif %}{% endblock %}
+
 {% block pam_content %}
 <div class="container">
 <div class="module-hub">
