@@ -655,7 +655,9 @@ main .container:not(.maplistcontainer) {
 /* pam_yearly_table: центрована кнопка дії */
 .trends-wrapper .action-group {
     display: flex;
+    flex-direction: row;
     justify-content: center;
+    align-items: center;
     margin-top: 15px;
 }
 .trends-wrapper .year-group { grid-column: span 1; }

@@ -54,7 +54,7 @@
             
             <!-- Row 4: Sliders -->
             {% if models and models|length > 1 %}
-            <div class="filter-group full-width">
+            <div class="filter-group">
                 <label for="model-select">{{ _('Модель:') }}</label>
                 <select id="model-select" class="form-control">
                     {% for m in models %}
@@ -198,6 +198,7 @@
                     allowClear: true,
                     width: '100%'
                 });
+                $('#model-select').select2({ width: '100%', minimumResultsForSearch: Infinity });
 
                 // Initial filter data load.
                 updateDynamicFilters();
