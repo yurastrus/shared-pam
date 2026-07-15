@@ -28,12 +28,19 @@
 
 BEGIN;
 
--- 1. Allow the new 'discarded' status.
+-- 1a. Allow the new 'discarded' status.
 ALTER TABLE segments DROP CONSTRAINT IF EXISTS segments_status_check;
 ALTER TABLE segments ADD CONSTRAINT segments_status_check
     CHECK ((status)::text = ANY (ARRAY[
         'pending'::text, 'completed'::text, 'archived'::text, 'discarded'::text
     ]));
+
+-- 1b. Allow verification_result = 2 ("unknown") in addition to 0/1/NULL.
+ALTER TABLE segment_verifications
+    DROP CONSTRAINT IF EXISTS segment_verifications_verification_result_check;
+ALTER TABLE segment_verifications
+    ADD CONSTRAINT segment_verifications_verification_result_check
+    CHECK (verification_result IS NULL OR verification_result = ANY (ARRAY[0, 1, 2]));
 
 -- 2. Consensus counts only real (0/1) votes; unknown (2) / NULL are ignored.
 CREATE OR REPLACE FUNCTION public.update_segment_stats()
