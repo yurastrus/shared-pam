@@ -9,6 +9,10 @@ import threading
 import pandas as pd
 from .pam_upload_utils import process_zip_archive, get_upload_statistics
 from .pam_import_utils import IMPORTERS, PAMImportProcessor
+from .pam_segment_sampling import (
+    run_stratified_sample, save_and_register_segment,
+    ALLOWED_SEGMENT_DURATIONS,
+)
 from app.utils.decorators import role_required
 from . import pam_bp
 from .utils import get_pam_db_connection, get_pam_engine, generate_spectrogram_image, get_occurrence_data, get_institution_filter
@@ -37,6 +41,7 @@ def pam_home(lang_code):
             'manager', 'pam_verifier', 'roztochya_user', 'fzs_user', 'volunteer_user'
         ),
         is_manager=auth and current_user.has_role('manager'),
+        is_admin=auth and current_user.has_role('admin'),
         can_export=auth and current_user.has_role('manager', 'roztochya_user'),
     )
 
@@ -3926,6 +3931,238 @@ def api_pam_import(lang_code):
     except Exception as e:
         current_app.logger.error(f"PAM import API error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# AUTOMATED SAMPLE UPLOAD (admin) — confidence-stratified segment sampling.
+# Parallel to /pam/verification/upload (ZIP). The server draws a stratified
+# detection sample; the browser cuts the windows from the operator's LOCAL
+# recordings and streams them back; each is FLAC-encoded and registered with an
+# explicit detection_id/recording_id link. See pam_segment_sampling.py.
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _pam_upload_dir():
+    """Resolve (and create) the PAM segment upload directory. Shared helper."""
+    upload_dir = current_app.config.get('PAM_UPLOAD_PATH')
+    if not upload_dir:
+        upload_dir = os.path.join(current_app.instance_path, 'uploads', 'pam_segments')
+        current_app.logger.warning(
+            f"PAM_UPLOAD_PATH not configured, using fallback: {upload_dir}")
+    os.makedirs(upload_dir, exist_ok=True)
+    return upload_dir
+
+
+def _user_location_ids_allowed(conn, location_ids):
+    """Filter location_ids to those the current user may access (admins: all)."""
+    if current_user.has_role('admin'):
+        return list(location_ids)
+    user_inst_ids = [i.id for i in current_user.institutions]
+    if not user_inst_ids:
+        return []
+    rows = conn.execute(text("""
+        SELECT DISTINCT location_id FROM location_institutions
+        WHERE location_id = ANY(:locs) AND institution_id = ANY(:insts)
+    """), {'locs': list(location_ids), 'insts': user_inst_ids}).fetchall()
+    return [r.location_id for r in rows]
+
+
+@pam_bp.route('/<lang_code>/pam/verification/sample-upload')
+@login_required
+@role_required('admin')
+def sample_upload(lang_code):
+    """Automated sample-upload page: cascade + local folder + client-side cut."""
+    g.lang_code = lang_code
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
+        if lang_code == 'uk':
+            inst_names_map = {i.id: i.name_uk for i in all_inst_objects}
+        else:
+            inst_names_map = {i.id: (i.name_en or i.name_uk) for i in all_inst_objects}
+        institutions = [{'id': i.id, 'name': inst_names_map[i.id]} for i in all_inst_objects]
+
+        raw_rows = conn.execute(text("""
+            SELECT l.location_id, l.location_name, l.location_name_en, li.institution_id
+            FROM locations l
+            LEFT JOIN location_institutions li ON l.location_id = li.location_id
+            WHERE EXISTS (
+                SELECT 1 FROM recordings r
+                WHERE r.location_id = l.location_id
+                  AND EXISTS (SELECT 1 FROM detections d WHERE d.recording_id = r.recording_id)
+            )
+            ORDER BY l.location_name
+        """)).fetchall()
+
+        locations_dict = {}
+        for row in raw_rows:
+            lid = row.location_id
+            if lid not in locations_dict:
+                loc_name = row.location_name
+                if lang_code == 'en' and row.location_name_en:
+                    loc_name = row.location_name_en
+                locations_dict[lid] = {'location_id': lid, 'name': loc_name, 'inst_ids': []}
+            if row.institution_id:
+                locations_dict[lid]['inst_ids'].append(row.institution_id)
+
+        return render_template(
+            'pam_sample_upload.html',
+            institutions=institutions,
+            locations_data=list(locations_dict.values()),
+            segment_durations=list(ALLOWED_SEGMENT_DURATIONS),
+        )
+    except Exception as e:
+        current_app.logger.error(f"PAM sample-upload page error: {e}", exc_info=True)
+        flash('Помилка завантаження сторінки.', 'danger')
+        return redirect(url_for('pam.pam_home', lang_code=lang_code))
+    finally:
+        if conn:
+            conn.close()
+
+
+@pam_bp.route('/<lang_code>/api/pam/sample/species')
+@login_required
+@role_required('admin')
+def api_sample_species(lang_code):
+    """Species that have detections at the given locations (cascade step)."""
+    conn = None
+    try:
+        raw = request.args.get('location_ids', '')
+        location_ids = [int(x) for x in raw.split(',') if x.strip().isdigit()]
+        if not location_ids:
+            return jsonify({'species': []})
+
+        conn = get_pam_db_connection()
+        location_ids = _user_location_ids_allowed(conn, location_ids)
+        if not location_ids:
+            return jsonify({'species': []})
+
+        rows = conn.execute(text("""
+            SELECT DISTINCT s.species_id, s.scientific_name,
+                   s.common_name_uk, s.common_name_en
+            FROM detections d
+            JOIN recordings r ON d.recording_id = r.recording_id
+            JOIN species s ON d.species_id = s.species_id
+            WHERE r.location_id = ANY(:locs)
+            ORDER BY s.scientific_name
+        """), {'locs': location_ids}).mappings().fetchall()
+
+        species = []
+        for row in rows:
+            display = row['scientific_name']
+            if lang_code == 'uk' and row['common_name_uk']:
+                display = f"{row['common_name_uk']} ({row['scientific_name']})"
+            elif lang_code == 'en' and row['common_name_en']:
+                display = f"{row['common_name_en']} ({row['scientific_name']})"
+            species.append({
+                'species_id': row['species_id'],
+                'scientific_name': row['scientific_name'],
+                'text': display,
+            })
+        return jsonify({'species': species})
+    except Exception as e:
+        current_app.logger.error(f"api_sample_species error: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to load species'}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@pam_bp.route('/<lang_code>/api/pam/sample/prepare', methods=['POST'])
+@login_required
+@role_required('admin')
+def api_sample_prepare(lang_code):
+    """Draw a confidence-stratified detection sample for a species + locations.
+
+    JSON body: species_name, location_ids[], confidence_threshold, n_strata,
+    sample_size. Returns the list of detections to cut client-side.
+    """
+    conn = None
+    try:
+        data = request.get_json(silent=True) or {}
+        species_name = (data.get('species_name') or '').strip()
+        location_ids = [int(x) for x in (data.get('location_ids') or []) if str(x).isdigit()]
+        if not species_name or not location_ids:
+            return jsonify({'success': False, 'error': 'species_name and location_ids required'}), 400
+
+        conf_thr = min(max(float(data.get('confidence_threshold', 0.1) or 0.1), 0.0), 1.0)
+        n_strata = min(max(int(data.get('n_strata', 10) or 10), 1), 50)
+        sample_size = int(data.get('sample_size', 700) or 700)
+
+        conn = get_pam_db_connection()
+        location_ids = _user_location_ids_allowed(conn, location_ids)
+        if not location_ids:
+            return jsonify({'success': False, 'error': 'Access denied to these locations'}), 403
+
+        segments = run_stratified_sample(
+            species_name, location_ids,
+            confidence_threshold=conf_thr, n_strata=n_strata,
+            sample_size=sample_size, conn=conn,
+        )
+        return jsonify({'success': True, 'count': len(segments), 'segments': segments})
+    except Exception as e:
+        current_app.logger.error(f"api_sample_prepare error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Failed to prepare sample'}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@pam_bp.route('/<lang_code>/api/pam/sample/upload-segment', methods=['POST'])
+@login_required
+@role_required('admin')
+def api_sample_upload_segment(lang_code):
+    """Receive one client-cut WAV clip + metadata; FLAC-encode and register it.
+
+    Multipart form:
+        segment            – the WAV clip (file)
+        species_name, species_id, detection_id, recording_id,
+        segment_filename, confidence, location_name,
+        recorded_date, recorded_time  – metadata (form fields)
+    """
+    conn = None
+    try:
+        clip = request.files.get('segment')
+        if clip is None or clip.filename == '':
+            return jsonify({'success': False, 'error': 'No segment file'}), 400
+
+        def _int(name):
+            v = request.form.get(name, type=int)
+            return v
+        meta = {
+            'species_name': request.form.get('species_name', ''),
+            'species_id': _int('species_id'),
+            'detection_id': _int('detection_id'),
+            'recording_id': _int('recording_id'),
+            'segment_filename': request.form.get('segment_filename', ''),
+            'confidence': request.form.get('confidence', type=float),
+            'location_name': request.form.get('location_name', ''),
+            'recorded_date': request.form.get('recorded_date') or None,
+            'recorded_time': request.form.get('recorded_time') or None,
+        }
+        if not meta['species_id'] or not meta['detection_id'] or not meta['segment_filename']:
+            return jsonify({'success': False, 'error': 'Missing required metadata'}), 400
+
+        wav_bytes = clip.read()
+        if not wav_bytes:
+            return jsonify({'success': False, 'error': 'Empty segment'}), 400
+
+        upload_dir = _pam_upload_dir()
+        conn = get_pam_db_connection()
+        status, seg_id = save_and_register_segment(wav_bytes, meta, upload_dir, conn)
+
+        if status == 'saved':
+            return jsonify({'success': True, 'status': 'saved', 'segment_id': seg_id})
+        if status == 'duplicate':
+            return jsonify({'success': True, 'status': 'duplicate'})
+        return jsonify({'success': False, 'status': 'error',
+                        'error': 'Failed to save segment'}), 500
+    except Exception as e:
+        current_app.logger.error(f"api_sample_upload_segment error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+    finally:
+        if conn:
+            conn.close()
 
 
 

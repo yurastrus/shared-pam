@@ -76,10 +76,18 @@
     </section>
 
     {# ── MANAGEMENT (manager / roztochya_user) ── #}
-    {% if can_export or is_manager %}
+    {% if can_export or is_manager or is_admin %}
     <section class="hub-section">
         <h2 class="hub-section-title">{{ _('Управління') }}</h2>
         <div class="hub-grid">
+
+            {% if is_admin %}
+            <a class="hub-card" href="{{ url_for('pam.sample_upload', lang_code=g.lang_code) }}">
+                <span class="hub-card__icon">✂️</span>
+                <span class="hub-card__title">{{ _('Автоматична підготовка сегментів') }}</span>
+                <span class="hub-card__desc">{{ _('Стратифікована вибірка детекцій + нарізка сегментів із локальних записів на боці браузера.') }}</span>
+            </a>
+            {% endif %}
 
             {% if can_export %}
             <a class="hub-card" href="{{ url_for('pam.pam_data_export', lang_code=g.lang_code) }}">

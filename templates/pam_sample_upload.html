@@ -1,0 +1,440 @@
+{% extends "pam_base.html" %}
+
+{% block title %}{{ _('Автоматична підготовка сегментів') }}{% endblock %}
+
+{% block pam_head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+{% endblock %}
+
+{% block pam_content %}
+<input type="hidden" id="csrf_token" value="{{ csrf_token() }}"/>
+
+<div class="container-fluid px-3 py-2" style="max-width:1100px;">
+
+    <div class="d-flex align-items-center mb-2" style="gap:10px;">
+        <h4 class="mb-0" style="font-size:1.2rem;">{{ _('Автоматична підготовка сегментів') }}</h4>
+    </div>
+    <p class="su-help mb-3">
+        {{ _('Сервер формує стратифіковану за конфіденсом вибірку детекцій, а браузер вирізає відповідні сегменти з ваших локальних записів і завантажує їх для верифікації. Уже завантажені раніше детекції автоматично пропускаються.') }}
+    </p>
+
+    <!-- STEP 1: institution + locations -->
+    <div class="su-card">
+        <div class="su-title"><span class="su-step-num">1</span>{{ _('Установа та локації') }}</div>
+        <div class="row g-2">
+            <div class="col-md-4">
+                <label class="form-label form-label-sm">{{ _('Установа') }}</label>
+                <select id="su-institution" class="form-select form-select-sm">
+                    <option value="">— {{ _('Усі доступні') }} —</option>
+                    {% for inst in institutions %}
+                    <option value="{{ inst.id }}">{{ inst.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-8">
+                <label class="form-label form-label-sm">{{ _('Локації') }} <span class="su-help">({{ _('можна кілька') }})</span></label>
+                <select id="su-locations" class="form-select form-select-sm" multiple size="6"></select>
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 2: species -->
+    <div class="su-card">
+        <div class="su-title"><span class="su-step-num">2</span>{{ _('Вид') }}</div>
+        <select id="su-species" class="form-select form-select-sm" disabled>
+            <option value="">{{ _('— Спершу виберіть локації —') }}</option>
+        </select>
+    </div>
+
+    <!-- STEP 3: sampling parameters -->
+    <div class="su-card">
+        <div class="su-title"><span class="su-step-num">3</span>{{ _('Параметри вибірки та нарізки') }}</div>
+        <div class="row g-2">
+            <div class="col-md-3">
+                <label class="form-label form-label-sm">{{ _('Довжина сегмента (с)') }}</label>
+                <select id="su-duration" class="form-select form-select-sm">
+                    {% for d in segment_durations %}
+                    <option value="{{ d }}" {% if d == 5 %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label form-label-sm">{{ _('Зсув старту (с)') }}</label>
+                <input type="number" id="su-shift" class="form-control form-control-sm" value="0" step="0.5">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label form-label-sm">{{ _('Мін. конфіденс') }}</label>
+                <input type="number" id="su-conf" class="form-control form-control-sm" value="0.1" min="0" max="1" step="0.05">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label form-label-sm">{{ _('К-сть страт') }}</label>
+                <input type="number" id="su-strata" class="form-control form-control-sm" value="10" min="1" max="50">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label form-label-sm">{{ _('Розмір вибірки') }}</label>
+                <input type="number" id="su-size" class="form-control form-control-sm" value="700" min="1" max="5000">
+            </div>
+        </div>
+        <div class="mt-2">
+            <button id="su-prepare" class="btn btn-sm btn-primary" disabled>{{ _('Сформувати вибірку') }}</button>
+            <span id="su-prepare-info" class="su-help ms-2"></span>
+        </div>
+    </div>
+
+    <!-- STEP 4: local folder -->
+    <div class="su-card">
+        <div class="su-title"><span class="su-step-num">4</span>{{ _('Локальна папка із записами') }}</div>
+        <input type="file" id="su-folder" webkitdirectory directory multiple class="form-control form-control-sm">
+        <div class="su-help mt-1" id="su-folder-info"></div>
+    </div>
+
+    <!-- STEP 5: run -->
+    <div class="su-card">
+        <div class="su-title"><span class="su-step-num">5</span>{{ _('Нарізати та завантажити') }}</div>
+        <button id="su-run" class="btn btn-sm btn-success" disabled>{{ _('Старт') }}</button>
+        <div class="mt-3">
+            <div class="su-prog-wrap"><div id="su-prog" class="su-prog-bar">0%</div></div>
+        </div>
+        <div class="mt-2">
+            <span class="su-stat">{{ _('Знайдено файлів:') }} <b id="su-stat-matched">0</b></span>
+            <span class="su-stat">{{ _('Завантажено:') }} <b id="su-stat-saved">0</b></span>
+            <span class="su-stat">{{ _('Дублікати:') }} <b id="su-stat-dup">0</b></span>
+            <span class="su-stat">{{ _('Пропущено (нема файлу):') }} <b id="su-stat-nofile">0</b></span>
+            <span class="su-stat">{{ _('Помилки:') }} <b id="su-stat-err">0</b></span>
+        </div>
+        <div id="su-log" class="mt-2"></div>
+    </div>
+</div>
+
+<script>
+"use strict";
+(function () {
+    // ── config injected from server ─────────────────────────────────────────
+    const LOCATIONS = {{ locations_data | tojson }};
+    const CSRF = document.getElementById('csrf_token').value;
+    const LANG = "{{ g.lang_code }}";
+    const URL_SPECIES  = "{{ url_for('pam.api_sample_species',  lang_code=g.lang_code) }}";
+    const URL_PREPARE  = "{{ url_for('pam.api_sample_prepare',  lang_code=g.lang_code) }}";
+    const URL_UPLOAD   = "{{ url_for('pam.api_sample_upload_segment', lang_code=g.lang_code) }}";
+    const CONCURRENCY  = 4;               // parallel uploads, mirrors fast-upload
+    const AUDIO_EXT    = /\.(wav|flac|mp3)$/i;
+
+    // ── state ─────────────────────────────────────────────────────────────
+    let plannedSegments = [];             // from /prepare
+    let fileMap = new Map();              // basename(lower) -> File
+
+    const $ = (id) => document.getElementById(id);
+    function log(msg) {
+        const el = $('su-log');
+        el.textContent += msg + "\n";
+        el.scrollTop = el.scrollHeight;
+    }
+
+    // ── STEP 1: institution → locations cascade (client-side filter) ────────
+    function renderLocations() {
+        const inst = $('su-institution').value;
+        const sel = $('su-locations');
+        sel.innerHTML = '';
+        LOCATIONS.filter(loc => !inst || (loc.inst_ids || []).includes(parseInt(inst, 10)))
+            .forEach(loc => {
+                const o = document.createElement('option');
+                o.value = loc.location_id;
+                o.textContent = loc.name;
+                sel.appendChild(o);
+            });
+        onLocationsChanged();
+    }
+
+    function selectedLocationIds() {
+        return Array.from($('su-locations').selectedOptions).map(o => parseInt(o.value, 10));
+    }
+
+    async function onLocationsChanged() {
+        const ids = selectedLocationIds();
+        const spSel = $('su-species');
+        spSel.disabled = true;
+        spSel.innerHTML = `<option value="">{{ _('Завантаження...') }}</option>`;
+        $('su-prepare').disabled = true;
+        if (!ids.length) {
+            spSel.innerHTML = `<option value="">{{ _('— Спершу виберіть локації —') }}</option>`;
+            return;
+        }
+        try {
+            const r = await fetch(`${URL_SPECIES}?location_ids=${ids.join(',')}`, {
+                headers: { 'X-CSRFToken': CSRF }
+            });
+            const data = await r.json();
+            spSel.innerHTML = `<option value="">{{ _('— Виберіть вид —') }}</option>`;
+            (data.species || []).forEach(sp => {
+                const o = document.createElement('option');
+                o.value = sp.scientific_name;
+                o.textContent = sp.text;
+                spSel.appendChild(o);
+            });
+            spSel.disabled = false;
+        } catch (e) {
+            spSel.innerHTML = `<option value="">{{ _('Помилка завантаження видів') }}</option>`;
+        }
+    }
+
+    // ── STEP 3: prepare stratified sample ───────────────────────────────────
+    async function prepareSample() {
+        const species = $('su-species').value;
+        const ids = selectedLocationIds();
+        if (!species || !ids.length) { return; }
+        $('su-prepare').disabled = true;
+        $('su-prepare-info').textContent = "{{ _('Формування вибірки...') }}";
+        try {
+            const r = await fetch(URL_PREPARE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({
+                    species_name: species,
+                    location_ids: ids,
+                    confidence_threshold: parseFloat($('su-conf').value) || 0.1,
+                    n_strata: parseInt($('su-strata').value, 10) || 10,
+                    sample_size: parseInt($('su-size').value, 10) || 700,
+                })
+            });
+            const data = await r.json();
+            if (!data.success) { throw new Error(data.error || 'error'); }
+            plannedSegments = data.segments || [];
+            $('su-prepare-info').textContent =
+                "{{ _('Відібрано детекцій:') }} " + plannedSegments.length;
+            log("{{ _('Відібрано детекцій:') }} " + plannedSegments.length);
+            refreshRunButton();
+        } catch (e) {
+            $('su-prepare-info').textContent = "{{ _('Помилка:') }} " + e.message;
+        } finally {
+            $('su-prepare').disabled = false;
+        }
+    }
+
+    // ── STEP 4: local folder ────────────────────────────────────────────────
+    function onFolderPicked() {
+        fileMap = new Map();
+        const files = $('su-folder').files;
+        let count = 0;
+        for (const f of files) {
+            if (AUDIO_EXT.test(f.name)) {
+                fileMap.set(f.name.toLowerCase(), f);
+                count++;
+            }
+        }
+        $('su-folder-info').textContent =
+            "{{ _('Аудіофайлів у папці:') }} " + count;
+        refreshRunButton();
+    }
+
+    function refreshRunButton() {
+        $('su-run').disabled = !(plannedSegments.length && fileMap.size);
+    }
+
+    // ── audio cutting ────────────────────────────────────────────────────────
+    // Encode Float32 (or Int16) PCM channels into a 16-bit PCM WAV Blob.
+    function encodeWav(channels, sampleRate) {
+        const numCh = channels.length;
+        const numFrames = channels[0].length;
+        const bytesPerSample = 2;
+        const dataSize = numFrames * numCh * bytesPerSample;
+        const buffer = new ArrayBuffer(44 + dataSize);
+        const view = new DataView(buffer);
+        const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+        writeStr(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeStr(8, 'WAVE');
+        writeStr(12, 'fmt '); view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);                       // PCM
+        view.setUint16(22, numCh, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numCh * bytesPerSample, true);
+        view.setUint16(32, numCh * bytesPerSample, true);
+        view.setUint16(34, 16, true);
+        writeStr(36, 'data'); view.setUint32(40, dataSize, true);
+        let off = 44;
+        for (let i = 0; i < numFrames; i++) {
+            for (let c = 0; c < numCh; c++) {
+                let s = Math.max(-1, Math.min(1, channels[c][i]));
+                view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                off += 2;
+            }
+        }
+        return new Blob([view], { type: 'audio/wav' });
+    }
+
+    // Locate fmt/data chunks in a WAV header (reads only the header bytes).
+    function parseWavHeader(dv) {
+        if (dv.getUint32(0, false) !== 0x52494646 /*RIFF*/) return null;
+        let off = 12, fmt = null, dataOffset = null, dataSize = null;
+        while (off + 8 <= dv.byteLength) {
+            const id = String.fromCharCode(dv.getUint8(off), dv.getUint8(off+1), dv.getUint8(off+2), dv.getUint8(off+3));
+            const size = dv.getUint32(off + 4, true);
+            if (id === 'fmt ') {
+                fmt = {
+                    audioFormat: dv.getUint16(off + 8, true),
+                    numChannels: dv.getUint16(off + 10, true),
+                    sampleRate: dv.getUint32(off + 12, true),
+                    bitsPerSample: dv.getUint16(off + 22, true),
+                };
+            } else if (id === 'data') {
+                dataOffset = off + 8;
+                dataSize = size;
+                break;
+            }
+            off += 8 + size + (size & 1);
+        }
+        if (!fmt || dataOffset === null) return null;
+        return { fmt, dataOffset, dataSize };
+    }
+
+    // Fast path for WAV: byte-slice the requested window without decoding the
+    // whole file. Returns a WAV Blob or null (unsupported → caller falls back).
+    async function cutWavByBytes(file, startSec, durSec) {
+        const headBuf = await file.slice(0, 65536).arrayBuffer();
+        const hdr = parseWavHeader(new DataView(headBuf));
+        if (!hdr) return null;
+        const { fmt, dataOffset, dataSize } = hdr;
+        if (fmt.audioFormat !== 1 || (fmt.bitsPerSample % 8) !== 0) return null; // PCM int only
+        const bytesPerFrame = fmt.numChannels * (fmt.bitsPerSample / 8);
+        const totalFrames = Math.floor((dataSize || (file.size - dataOffset)) / bytesPerFrame);
+        let startFrame = Math.max(0, Math.floor(startSec * fmt.sampleRate));
+        if (startFrame >= totalFrames) return null;
+        let numFrames = Math.floor(durSec * fmt.sampleRate);
+        if (startFrame + numFrames > totalFrames) numFrames = totalFrames - startFrame;
+        const byteStart = dataOffset + startFrame * bytesPerFrame;
+        const byteEnd = byteStart + numFrames * bytesPerFrame;
+        const pcm = await file.slice(byteStart, byteEnd).arrayBuffer();
+
+        // Convert the raw PCM slice → Float32 channels → 16-bit WAV.
+        const dv = new DataView(pcm);
+        const bps = fmt.bitsPerSample;
+        const channels = [];
+        for (let c = 0; c < fmt.numChannels; c++) channels.push(new Float32Array(numFrames));
+        for (let i = 0; i < numFrames; i++) {
+            for (let c = 0; c < fmt.numChannels; c++) {
+                const o = (i * fmt.numChannels + c) * (bps / 8);
+                let v = 0;
+                if (bps === 16) v = dv.getInt16(o, true) / 0x8000;
+                else if (bps === 8) v = (dv.getUint8(o) - 128) / 128;
+                else if (bps === 24) { const b0 = dv.getUint8(o), b1 = dv.getUint8(o+1), b2 = dv.getUint8(o+2); let x = (b2 << 16) | (b1 << 8) | b0; if (x & 0x800000) x -= 0x1000000; v = x / 0x800000; }
+                else if (bps === 32) v = dv.getInt32(o, true) / 0x80000000;
+                channels[c][i] = v;
+            }
+        }
+        return encodeWav(channels, fmt.sampleRate);
+    }
+
+    // Fallback for FLAC/MP3 (or non-PCM WAV): decode the whole file, then slice.
+    // Heavier on memory — used only when the byte-slice path can't apply.
+    let _audioCtx = null;
+    async function cutByDecode(file, startSec, durSec) {
+        if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const buf = await file.arrayBuffer();
+        const audio = await _audioCtx.decodeAudioData(buf);
+        const sr = audio.sampleRate;
+        let startFrame = Math.max(0, Math.floor(startSec * sr));
+        if (startFrame >= audio.length) return null;
+        let numFrames = Math.floor(durSec * sr);
+        if (startFrame + numFrames > audio.length) numFrames = audio.length - startFrame;
+        const channels = [];
+        for (let c = 0; c < audio.numberOfChannels; c++) {
+            channels.push(audio.getChannelData(c).subarray(startFrame, startFrame + numFrames));
+        }
+        return encodeWav(channels, sr);
+    }
+
+    async function cutSegment(file, seg) {
+        const dur = parseFloat($('su-duration').value) || 5;
+        const shift = parseFloat($('su-shift').value) || 0;
+        let start = (seg.start_s || 0) + shift;
+        if (start < 0) start = 0;
+        if (AUDIO_EXT.test(file.name) && /\.wav$/i.test(file.name)) {
+            const w = await cutWavByBytes(file, start, dur);
+            if (w) return w;
+        }
+        return await cutByDecode(file, start, dur);  // flac / mp3 / non-PCM wav
+    }
+
+    // ── STEP 5: run pipeline (cut → upload) with a small concurrency pool ────
+    const stats = { matched: 0, saved: 0, dup: 0, nofile: 0, err: 0, done: 0 };
+    function setStat(id, v) { $(id).textContent = v; }
+    function refreshStats() {
+        setStat('su-stat-matched', stats.matched);
+        setStat('su-stat-saved', stats.saved);
+        setStat('su-stat-dup', stats.dup);
+        setStat('su-stat-nofile', stats.nofile);
+        setStat('su-stat-err', stats.err);
+        const pct = plannedSegments.length ? Math.round(100 * stats.done / plannedSegments.length) : 0;
+        $('su-prog').style.width = pct + '%';
+        $('su-prog').textContent = pct + '%';
+    }
+
+    async function uploadOne(seg) {
+        const file = fileMap.get((seg.recording_filename || '').toLowerCase());
+        if (!file) { stats.nofile++; stats.done++; refreshStats(); return; }
+        stats.matched++;
+        try {
+            const wavBlob = await cutSegment(file, seg);
+            if (!wavBlob) { stats.nofile++; stats.done++; refreshStats(); return; }
+            const fd = new FormData();
+            fd.append('segment', wavBlob, seg.segment_filename.replace(/\.(flac|mp3)$/i, '.wav'));
+            fd.append('species_name', $('su-species').value);
+            fd.append('species_id', seg.species_id);
+            fd.append('detection_id', seg.detection_id);
+            fd.append('recording_id', seg.recording_id);
+            fd.append('segment_filename', seg.segment_filename);
+            fd.append('confidence', seg.confidence);
+            fd.append('location_name', seg.location_name || '');
+            if (seg.recorded_date) fd.append('recorded_date', seg.recorded_date);
+            if (seg.recorded_time) fd.append('recorded_time', seg.recorded_time);
+            const r = await fetch(URL_UPLOAD, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd });
+            const data = await r.json();
+            if (data.success && data.status === 'saved') stats.saved++;
+            else if (data.success && data.status === 'duplicate') stats.dup++;
+            else { stats.err++; log("ERR " + seg.segment_filename + ": " + (data.error || r.status)); }
+        } catch (e) {
+            stats.err++; log("ERR " + seg.segment_filename + ": " + e.message);
+        }
+        stats.done++;
+        refreshStats();
+    }
+
+    async function runPipeline() {
+        $('su-run').disabled = true;
+        $('su-prepare').disabled = true;
+        Object.keys(stats).forEach(k => stats[k] = 0);
+        refreshStats();
+        log("{{ _('Старт нарізки та завантаження...') }}");
+
+        const queue = plannedSegments.slice();
+        const workers = [];
+        for (let i = 0; i < CONCURRENCY; i++) {
+            workers.push((async () => {
+                while (queue.length) {
+                    const seg = queue.shift();
+                    await uploadOne(seg);
+                }
+            })());
+        }
+        await Promise.all(workers);
+        log("{{ _('Готово.') }} " +
+            "{{ _('Завантажено:') }} " + stats.saved +
+            ", {{ _('дублікати:') }} " + stats.dup +
+            ", {{ _('без файлу:') }} " + stats.nofile +
+            ", {{ _('помилки:') }} " + stats.err);
+        $('su-run').disabled = false;
+        $('su-prepare').disabled = false;
+    }
+
+    // ── wire up ─────────────────────────────────────────────────────────────
+    $('su-institution').addEventListener('change', renderLocations);
+    $('su-locations').addEventListener('change', onLocationsChanged);
+    $('su-species').addEventListener('change', () => {
+        $('su-prepare').disabled = !$('su-species').value;
+    });
+    $('su-prepare').addEventListener('click', prepareSample);
+    $('su-folder').addEventListener('change', onFolderPicked);
+    $('su-run').addEventListener('click', runPipeline);
+
+    renderLocations();
+})();
+</script>
+{% endblock %}

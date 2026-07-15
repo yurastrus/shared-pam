@@ -2921,3 +2921,14 @@ main .container:not(.maplistcontainer) {
 
 .coverage-gradient-bar { display:inline-block; width:120px; height:14px; border-radius:3px; vertical-align:middle; background:linear-gradient(to right, rgba(76,175,80,0.15), rgba(76,175,80,1)); border:1px solid #cfd8dc; }
 .coverage-legend-sep { margin-left:16px; }
+
+/* ── Sample-upload page (automated segment preparation) ───────────────────── */
+.su-card { background:#fff; border:1px solid #dee2e6; border-radius:8px; padding:14px 18px; margin-bottom:14px; }
+.su-step-num { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:#0d6efd; color:#fff; font-size:0.8rem; margin-right:8px; }
+.su-title { font-weight:600; font-size:0.95rem; margin-bottom:10px; }
+.su-help { color:#6c757d; font-size:0.8rem; }
+#su-log { font-family:monospace; font-size:0.78rem; max-height:240px; overflow-y:auto; background:#0d1117; color:#c9d1d9; border-radius:6px; padding:10px; white-space:pre-wrap; }
+.su-prog-wrap { height:20px; background:#e9ecef; border-radius:6px; overflow:hidden; }
+.su-prog-bar { height:100%; background:#198754; width:0%; transition:width .2s; text-align:center; color:#fff; font-size:0.72rem; line-height:20px; }
+.su-stat { display:inline-block; margin-right:16px; font-size:0.82rem; }
+.su-stat b { font-size:1.05rem; }
