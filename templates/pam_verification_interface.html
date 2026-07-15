@@ -26,6 +26,14 @@
                                     {% endfor %}
                                 </select>
                             </div>
+                            <div class="species-select-group">
+                                <label for="institution-filter">{{ _('Установа:') }}</label>
+                                <select id="institution-filter" class="form-control" multiple style="width: 100%;">
+                                    {% for inst in institutions %}
+                                        <option value="{{ inst.id }}">{{ inst.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                             <div class="button-group">
                                 <button id="load-segment-btn" class="btn btn-primary">
                                     {{ _('Застосувати') }}
@@ -114,6 +122,9 @@
                         <button id="verify-no" class="btn btn-danger">
                             <i class="fas fa-times"></i> {{ _('НІ - неправильно') }}
                         </button>
+                        <button id="verify-unknown" class="btn btn-warning">
+                            <i class="fas fa-question"></i> {{ _('Не знаю') }}
+                        </button>
                         <button id="verify-skip" class="btn btn-secondary">
                             <i class="fas fa-forward"></i> {{ _('Пропустити') }}
                         </button>
@@ -162,6 +173,7 @@ $(document).ready(function() {
     const loadingSpinner = $('#loading-spinner');
     const audioPlayer = $('#audio-player')[0];
     const speciesFilter = $('#species-filter');
+    const institutionFilter = $('#institution-filter');
     const verificationMessage = $('#verification-message');
     const playbackLine = $('#playback-line');
     const spectrogramWrapper = document.querySelector('.spectrogram-wrapper');
@@ -179,15 +191,33 @@ $(document).ready(function() {
         allowClear: true,
         width: '100%'
     });
-    
+    institutionFilter.select2({
+        language: "{{ g.lang_code }}",
+        placeholder: "{{ _('-- Усі установи --') }}",
+        allowClear: true,
+        width: '100%'
+    });
+
+    // Build the shared filter query string (species + institutions) for the
+    // next-segment and stats endpoints.
+    function filterParams() {
+        const params = [];
+        const speciesId = speciesFilter.val();
+        if (speciesId) params.push('species_id=' + encodeURIComponent(speciesId));
+        const insts = institutionFilter.val();  // array (multiple) or null
+        if (insts && insts.length) params.push('institution_ids=' + insts.join(','));
+        return params.length ? ('?' + params.join('&')) : '';
+    }
+
     // Load the first segment and matching stats.
     loadNextSegment();
-    
+
     // --- Event handlers ---
     loadSegmentBtn.on('click', loadNextSegment);
-    
+
     $('#verify-yes').on('click', () => submitVerification(1));
-    $('#verify-no').on('click', () => submitVerification(0));  
+    $('#verify-no').on('click', () => submitVerification(0));
+    $('#verify-unknown').on('click', () => submitVerification(2)); // "don't know"
     $('#verify-skip').on('click', () => loadNextSegment()); // submitVerification(null)
     
     // --- Yellow boundary line logic (10-second files). ---
@@ -369,13 +399,8 @@ $(document).ready(function() {
         loadUserStats(); // Refresh stats for the current filter.
         showLoading();
         
-        const speciesId = speciesFilter.val();
-        let url = '{{ url_for("pam.api_next_verification_segment", lang_code=g.lang_code) }}';
-        
-        if (speciesId) {
-            url += '?species_id=' + speciesId;
-        }
-        
+        const url = '{{ url_for("pam.api_next_verification_segment", lang_code=g.lang_code) }}' + filterParams();
+
         $.ajax({
             url: url,
             method: 'GET',
@@ -428,7 +453,7 @@ $(document).ready(function() {
     
     /**
      * Submit a verification result to the server.
-     * @param {number|null} result - 1 (yes), 0 (no), null (skip).
+     * @param {number|null} result - 1 (yes), 0 (no), 2 (don't know), null (skip).
      */
     function submitVerification(result) {
         if (!currentSegment) {
@@ -453,10 +478,15 @@ $(document).ready(function() {
                 let messageText = {
                     1: '{{ _("Верифікацію збережено! (Підтверджено)") }}',
                     0: '{{ _("Верифікацію збережено! (Відхилено)") }}',
+                    2: '{{ _("Позначено «не знаю» — більше не показуватиметься вам") }}',
                     'null': '{{ _("Сегмент пропущено") }}'
                 };
-                showVerificationMessage(messageText[String(result)], 'success');
-                                
+                let msg = messageText[String(result)];
+                if (response && response.discarded) {
+                    msg = '{{ _("Сегмент відхилено (3+ «не знаю») і більше не показуватиметься") }}';
+                }
+                showVerificationMessage(msg, 'success');
+
                 setTimeout(loadNextSegment, 1500);
             },
             error: function(xhr) {
@@ -474,12 +504,7 @@ $(document).ready(function() {
      * Takes the active species filter into account.
      */
     function loadUserStats() {
-        const speciesId = speciesFilter.val();
-        let url = '{{ url_for("pam.api_verification_stats", lang_code=g.lang_code) }}';
-        
-        if (speciesId) {
-            url += '?species_id=' + speciesId;
-        }
+        const url = '{{ url_for("pam.api_verification_stats", lang_code=g.lang_code) }}' + filterParams();
 
         $.ajax({
             url: url,

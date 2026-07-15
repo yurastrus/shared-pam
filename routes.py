@@ -23,6 +23,13 @@ from datetime import datetime, timedelta, date
 from .pam_evaluation_utils import get_species_logistic_data
 
 
+def _parse_id_list(raw):
+    """Parse a 'comma,separated,ints' query param into a list[int] (empty on none)."""
+    if not raw:
+        return []
+    return [int(x) for x in str(raw).split(',') if x.strip().lstrip('-').isdigit()]
+
+
 # --- PAM MODULE STATIC FILES ---
 @pam_bp.route('/<lang_code>/pam-static/<path:filename>')
 def serve_pam_static(lang_code, filename):
@@ -295,8 +302,22 @@ def verification_interface(lang_code):
             })
         
         current_app.logger.info(f"Prepared {len(species_list)} species for verification interface")
-        return render_template('pam_verification_interface.html', 
-                             available_species=species_list)
+
+        # Institutions for the optional verification filter (admins: all;
+        # others: their own). Used to narrow the queue to one institution.
+        if current_user.has_role('admin'):
+            inst_objects = Institution.query.order_by(Institution.name_uk).all()
+        else:
+            inst_objects = list(current_user.institutions)
+        institutions = [
+            {'id': i.id,
+             'name': (i.name_uk if lang_code == 'uk' else (i.name_en or i.name_uk))}
+            for i in inst_objects
+        ]
+
+        return render_template('pam_verification_interface.html',
+                             available_species=species_list,
+                             institutions=institutions)
         
     except Exception as e:
         current_app.logger.error(f"Error loading verification interface: {e}")
@@ -1071,45 +1092,46 @@ def api_next_verification_segment(lang_code):
         conn = get_pam_db_connection()
         
         species_id = request.args.get('species_id', type=int)
-        
-        
-        query = text("""
+        institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
+
+        # Build the filter dynamically. Base: pending + not-yet-seen-by-this-user
+        # (an existing verification row — including an "unknown" vote — hides it).
+        conditions = [
+            "seg.status = 'pending'",
+            ("seg.id NOT IN (SELECT sv.segment_id FROM segment_verifications sv "
+             "WHERE sv.user_id = :user_id)"),
+        ]
+        params = {"user_id": current_user.id}
+
+        if species_id:
+            conditions.append("seg.species_id = :species_id")
+            params["species_id"] = species_id
+
+        # Institution filter: segment → recording → location → institution.
+        # Segments without a recording link (unmatched legacy rows) are excluded
+        # while a filter is active — acceptable, they can't be attributed.
+        if institution_ids:
+            conditions.append("""
+                EXISTS (
+                    SELECT 1 FROM recordings r
+                    JOIN location_institutions li ON r.location_id = li.location_id
+                    WHERE r.recording_id = seg.recording_id
+                      AND li.institution_id = ANY(:institution_ids)
+                )
+            """)
+            params["institution_ids"] = institution_ids
+
+        # Priority for segments closest to consensus (more votes first).
+        query = text(f"""
             SELECT seg.id, seg.filename, seg.confidence_level, seg.location_name,
                    seg.recorded_date, seg.recorded_time, seg.file_path,
                    s.scientific_name, s.common_name_uk, s.common_name_en
             FROM segments seg
             JOIN species s ON seg.species_id = s.species_id
-            WHERE seg.status = 'pending'
-            AND seg.id NOT IN (
-                SELECT sv.segment_id 
-                FROM segment_verifications sv 
-                WHERE sv.user_id = :user_id
-            )
+            WHERE {' AND '.join(conditions)}
+            ORDER BY COALESCE(seg.verification_count, 0) DESC, RANDOM() LIMIT 1
         """)
-        
-        params = {"user_id": current_user.id}
-        
-        if species_id:
-            query = text("""
-                SELECT seg.id, seg.filename, seg.confidence_level, seg.location_name,
-                       seg.recorded_date, seg.recorded_time, seg.file_path,
-                       s.scientific_name, s.common_name_uk, s.common_name_en
-                FROM segments seg
-                JOIN species s ON seg.species_id = s.species_id
-                WHERE seg.status = 'pending'
-                AND seg.species_id = :species_id
-                AND seg.id NOT IN (
-                    SELECT sv.segment_id
-                    FROM segment_verifications sv
-                    WHERE sv.user_id = :user_id
-                )
-                ORDER BY COALESCE(seg.verification_count, 0) DESC, RANDOM() LIMIT 1
-            """)
-            params["species_id"] = species_id
-        else:
-            # Priority for segments that need more votes to reach consensus (Idea 7).
-            query = text(str(query) + " ORDER BY COALESCE(seg.verification_count, 0) DESC, RANDOM() LIMIT 1")
-        
+
         result = conn.execute(query, params).fetchone()
         
         if not result:
@@ -1164,17 +1186,17 @@ def api_submit_verification(lang_code):
             return jsonify({'success': False, 'error': 'Немає даних для обробки'}), 400
             
         segment_id = data.get('segment_id')
-        verification_result = data.get('verification_result')  # 1, 0, or None
-        
+        verification_result = data.get('verification_result')  # 1=yes, 0=no, 2=unknown, None=skip
+
         current_app.logger.info(f"Received verification: segment_id={segment_id}, result={verification_result}")
-        
+
         if not segment_id:
             return jsonify({'success': False, 'error': 'ID сегменту обов\'язковий'}), 400
-            
-        if verification_result not in [0, 1, None]:
+
+        if verification_result not in [0, 1, 2, None]:
             return jsonify({
-                'success': False, 
-                'error': 'Результат верифікації має бути 0, 1 або null'
+                'success': False,
+                'error': 'Результат верифікації має бути 0, 1, 2 або null'
             }), 400
         
         conn = get_pam_db_connection()
@@ -1226,17 +1248,42 @@ def api_submit_verification(lang_code):
                 "verification_result": verification_result
             })
             action = 'created'
-        
+
+        # "Unknown" handling: once UNKNOWN_DISCARD_THRESHOLD users say "don't
+        # know" AND there is no meaningful (yes/no) vote, the segment carries no
+        # usable signal — mark it 'discarded' so it stops being served to anyone
+        # (next-segment filters status='pending'). The unknown row itself already
+        # hides it from THIS user. The trigger ignores unknown votes for
+        # consensus, so this is the only place discard can happen.
+        UNKNOWN_DISCARD_THRESHOLD = 3
+        discarded = False
+        if verification_result == 2:
+            counts = conn.execute(text("""
+                SELECT COUNT(*) FILTER (WHERE verification_result = 2)        AS unknown_votes,
+                       COUNT(*) FILTER (WHERE verification_result IN (0, 1))  AS meaningful_votes
+                FROM segment_verifications
+                WHERE segment_id = :segment_id
+            """), {"segment_id": segment_id}).fetchone()
+            if counts.unknown_votes >= UNKNOWN_DISCARD_THRESHOLD and counts.meaningful_votes == 0:
+                conn.execute(
+                    text("UPDATE segments SET status = 'discarded' WHERE id = :segment_id"),
+                    {"segment_id": segment_id}
+                )
+                discarded = True
+                current_app.logger.info(
+                    f"Segment {segment_id} discarded: {counts.unknown_votes} unknown votes, no yes/no")
+
         conn.commit()
-        
+
         current_app.logger.info(
             f"Verification {action} by user {current_user.username} for segment {segment_id}: {verification_result}"
         )
-        
+
         return jsonify({
             'success': True,
             'message': 'Верифікацію збережено успішно',
-            'action': action
+            'action': action,
+            'discarded': discarded
         })
         
     except Exception as e:
@@ -1257,19 +1304,33 @@ def api_verification_stats(lang_code):
     try:
         conn = get_pam_db_connection()
         species_id = request.args.get('species_id', type=int)
+        institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
 
         # --- Prepare query conditions and parameters ---
         params = {'user_id': current_user.id}
-        
+
         # Conditions for user verification statistics (verified segments).
         user_stats_conditions = ["sv.user_id = :user_id"]
         # Conditions for counting remaining (unverified) segments.
         remaining_conditions = ["seg.status = 'pending'"]
-        
+
         if species_id:
             params['species_id'] = species_id
             user_stats_conditions.append("seg.species_id = :species_id")
             remaining_conditions.append("seg.species_id = :species_id")
+
+        # Institution filter applies only to the "remaining to verify" count —
+        # the user's own history counts stay global. Mirrors next-segment.
+        if institution_ids:
+            params['institution_ids'] = institution_ids
+            remaining_conditions.append("""
+                EXISTS (
+                    SELECT 1 FROM recordings r
+                    JOIN location_institutions li ON r.location_id = li.location_id
+                    WHERE r.recording_id = seg.recording_id
+                      AND li.institution_id = ANY(:institution_ids)
+                )
+            """)
 
         user_stats_where = " AND ".join(user_stats_conditions)
         remaining_where = " AND ".join(remaining_conditions)

@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-15 16:16+0300\n"
+"POT-Creation-Date: 2026-07-15 18:32+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -30,6 +30,7 @@ msgstr "New location"
 
 #: app/pam/templates/manage_pam_locations.html:24
 #: app/pam/templates/pam_import.html:23
+#: app/pam/templates/pam_verification_interface.html:30
 msgid "Установа:"
 msgstr "Institution:"
 
@@ -377,7 +378,7 @@ msgstr "Error:"
 #: app/pam/templates/pam_import.html:216
 #: app/pam/templates/pam_sample_upload.html:165
 #: app/pam/templates/pam_service_log.html:242
-#: app/pam/templates/pam_verification_interface.html:137
+#: app/pam/templates/pam_verification_interface.html:148
 #: app/pam/templates/pam_verification_segments.html:104
 msgid "Завантаження..."
 msgstr "Loading..."
@@ -1924,7 +1925,7 @@ msgid "Аналіз даних акустичного моніторингу ф�
 msgstr "Analysis of acoustic fauna monitoring data"
 
 #: app/pam/templates/pam_species_detailed.html:79
-#: app/pam/templates/pam_verification_interface.html:31
+#: app/pam/templates/pam_verification_interface.html:39
 #: app/pam/templates/pam_verification_segments.html:49
 msgid "Застосувати"
 msgstr "Apply"
@@ -2135,75 +2136,79 @@ msgid "Вид для верифікації аудіосегментів BirdNET
 msgstr "Species for BirdNET Audio Segment Verification"
 
 #: app/pam/templates/pam_verification_interface.html:23
-#: app/pam/templates/pam_verification_interface.html:178
+#: app/pam/templates/pam_verification_interface.html:190
 msgid "-- Всі види --"
 msgstr "-- All species --"
 
-#: app/pam/templates/pam_verification_interface.html:39
+#: app/pam/templates/pam_verification_interface.html:47
 msgid "Моя статистика"
 msgstr "My statistics"
 
-#: app/pam/templates/pam_verification_interface.html:42
+#: app/pam/templates/pam_verification_interface.html:50
 msgid "Всього"
 msgstr "Total"
 
-#: app/pam/templates/pam_verification_interface.html:46
+#: app/pam/templates/pam_verification_interface.html:54
 msgid "Залишилось"
 msgstr "Pending"
 
-#: app/pam/templates/pam_verification_interface.html:51
+#: app/pam/templates/pam_verification_interface.html:59
 msgid "Позитивних"
 msgstr "Positive"
 
-#: app/pam/templates/pam_verification_interface.html:55
+#: app/pam/templates/pam_verification_interface.html:63
 msgid "Негативних"
 msgstr "Negative"
 
-#: app/pam/templates/pam_verification_interface.html:60
+#: app/pam/templates/pam_verification_interface.html:68
 msgid "Пропущених"
 msgstr "Skipped"
 
-#: app/pam/templates/pam_verification_interface.html:72
+#: app/pam/templates/pam_verification_interface.html:80
 msgid "Локація:"
 msgstr "Location:"
 
-#: app/pam/templates/pam_verification_interface.html:76
+#: app/pam/templates/pam_verification_interface.html:84
 msgid "Дата запису:"
 msgstr "Recording date:"
 
-#: app/pam/templates/pam_verification_interface.html:80
+#: app/pam/templates/pam_verification_interface.html:88
 msgid "Час запису:"
 msgstr "Recording time:"
 
-#: app/pam/templates/pam_verification_interface.html:92
+#: app/pam/templates/pam_verification_interface.html:100
 msgid "Сонограма аудіосегменту"
 msgstr "Audio segment spectrogram"
 
-#: app/pam/templates/pam_verification_interface.html:94
+#: app/pam/templates/pam_verification_interface.html:102
 msgid "Позиція відтворення"
 msgstr "Playback position"
 
-#: app/pam/templates/pam_verification_interface.html:105
+#: app/pam/templates/pam_verification_interface.html:113
 msgid "Ваш браузер не підтримує аудіо плеєр."
 msgstr "Your browser does not support the audio player."
 
-#: app/pam/templates/pam_verification_interface.html:112
+#: app/pam/templates/pam_verification_interface.html:120
 msgid "ТАК - правильно"
 msgstr "YES - correct"
 
-#: app/pam/templates/pam_verification_interface.html:115
+#: app/pam/templates/pam_verification_interface.html:123
 msgid "НІ - неправильно"
 msgstr "NO - incorrect"
 
-#: app/pam/templates/pam_verification_interface.html:118
+#: app/pam/templates/pam_verification_interface.html:126
+msgid "Не знаю"
+msgstr "Don't know"
+
+#: app/pam/templates/pam_verification_interface.html:129
 msgid "Пропустити"
 msgstr "Skip"
 
-#: app/pam/templates/pam_verification_interface.html:130
+#: app/pam/templates/pam_verification_interface.html:141
 msgid "Сегменти для верифікації відсутні"
 msgstr "No segments available for verification"
 
-#: app/pam/templates/pam_verification_interface.html:131
+#: app/pam/templates/pam_verification_interface.html:142
 msgid ""
 "Немає сегментів для верифікації за вибраними критеріями, або ви вже "
 "верифікували всі доступні сегменти."
@@ -2211,31 +2216,43 @@ msgstr ""
 "There are no segments for verification that match the selected criteria, "
 "or you have already verified all available segments."
 
-#: app/pam/templates/pam_verification_interface.html:400
+#: app/pam/templates/pam_verification_interface.html:196
+msgid "-- Усі установи --"
+msgstr "-- All institutions --"
+
+#: app/pam/templates/pam_verification_interface.html:425
 msgid "Помилка завантаження сегменту"
 msgstr "Error loading segment."
 
-#: app/pam/templates/pam_verification_interface.html:435
+#: app/pam/templates/pam_verification_interface.html:460
 msgid "Немає активного сегменту для верифікації"
 msgstr "No active segment for verification"
 
-#: app/pam/templates/pam_verification_interface.html:454
+#: app/pam/templates/pam_verification_interface.html:479
 msgid "Верифікацію збережено! (Підтверджено)"
 msgstr "Verification saved! (Confirmed)"
 
-#: app/pam/templates/pam_verification_interface.html:455
+#: app/pam/templates/pam_verification_interface.html:480
 msgid "Верифікацію збережено! (Відхилено)"
 msgstr "Verification saved! (Rejected)"
 
-#: app/pam/templates/pam_verification_interface.html:456
+#: app/pam/templates/pam_verification_interface.html:481
+msgid "Позначено «не знаю» — більше не показуватиметься вам"
+msgstr "Marked \"don't know\" — you won't see it again"
+
+#: app/pam/templates/pam_verification_interface.html:482
 msgid "Сегмент пропущено"
 msgstr "(Segment skipped)"
 
-#: app/pam/templates/pam_verification_interface.html:463
+#: app/pam/templates/pam_verification_interface.html:486
+msgid "Сегмент відхилено (3+ «не знаю») і більше не показуватиметься"
+msgstr "Segment discarded (3+ \"don't know\") and will no longer be shown"
+
+#: app/pam/templates/pam_verification_interface.html:493
 msgid "Помилка збереження"
 msgstr "Save error:"
 
-#: app/pam/templates/pam_verification_interface.html:464
+#: app/pam/templates/pam_verification_interface.html:494
 msgid "Помилка: "
 msgstr "Error: "
 
