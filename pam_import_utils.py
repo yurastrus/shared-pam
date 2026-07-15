@@ -135,10 +135,23 @@ class BirdNETImporter(BaseDetectionImporter):
                     f"Cannot find required column '{required}' in headers: {headers}"
                 )
 
+        # BirdNET writes the absolute audio path UNQUOTED into the trailing
+        # 'File' column. When that path contains commas (e.g. a localised folder
+        # like "…, головний канал @ …"), csv splits it across the row's overflow
+        # fields — File keeps only the part up to the first comma and the rest
+        # lands under DictReader's restkey (None). Rejoin them with commas so the
+        # basename is recovered intact. Only safe when 'File' is the last column,
+        # which it always is in BirdNET output.
+        filepath_is_last = bool(headers) and headers[-1] == cols['filepath']
+
         rows = []
         for r in reader:
             try:
-                filename = _basename_from_path(r.get(cols['filepath']))
+                raw_path = r.get(cols['filepath'])
+                overflow = r.get(None)  # restkey: fields past the last header
+                if filepath_is_last and overflow:
+                    raw_path = ','.join([raw_path or '', *overflow])
+                filename = _basename_from_path(raw_path)
                 if not filename:
                     continue
 
