@@ -38,12 +38,15 @@
         </div>
     </div>
 
-    <!-- STEP 2: species -->
+    <!-- STEP 2: species (cascades on selected locations) -->
     <div class="su-card">
         <div class="su-title"><span class="su-step-num">2</span>{{ _('Вид') }}</div>
-        <select id="su-species" class="form-select form-select-sm" disabled>
+        <input type="text" id="su-species-search" class="form-control form-control-sm mb-2"
+               placeholder="{{ _('Пошук виду...') }}" disabled autocomplete="off">
+        <select id="su-species" class="form-select form-select-sm" size="10" disabled>
             <option value="">{{ _('— Спершу виберіть локації —') }}</option>
         </select>
+        <div class="su-help mt-1" id="su-species-count"></div>
     </div>
 
     <!-- STEP 3: sampling parameters -->
@@ -54,7 +57,7 @@
                 <label class="form-label form-label-sm">{{ _('Довжина сегмента (с)') }}</label>
                 <select id="su-duration" class="form-select form-select-sm">
                     {% for d in segment_durations %}
-                    <option value="{{ d }}" {% if d == 5 %}selected{% endif %}>{{ d }}</option>
+                    <option value="{{ d }}" {% if d == 3 %}selected{% endif %}>{{ d }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -72,7 +75,7 @@
             </div>
             <div class="col-md-2">
                 <label class="form-label form-label-sm">{{ _('Розмір вибірки') }}</label>
-                <input type="number" id="su-size" class="form-control form-control-sm" value="700" min="1" max="5000">
+                <input type="number" id="su-size" class="form-control form-control-sm" value="250" min="1" max="5000">
             </div>
         </div>
         <div class="mt-2">
@@ -149,10 +152,16 @@
         return Array.from($('su-locations').selectedOptions).map(o => parseInt(o.value, 10));
     }
 
+    let speciesList = [];   // full list for the selected locations (for search filter)
+
     async function onLocationsChanged() {
         const ids = selectedLocationIds();
         const spSel = $('su-species');
+        const search = $('su-species-search');
         spSel.disabled = true;
+        search.disabled = true;
+        speciesList = [];
+        $('su-species-count').textContent = '';
         spSel.innerHTML = `<option value="">{{ _('Завантаження...') }}</option>`;
         $('su-prepare').disabled = true;
         if (!ids.length) {
@@ -164,17 +173,35 @@
                 headers: { 'X-CSRFToken': CSRF }
             });
             const data = await r.json();
-            spSel.innerHTML = `<option value="">{{ _('— Виберіть вид —') }}</option>`;
-            (data.species || []).forEach(sp => {
-                const o = document.createElement('option');
-                o.value = sp.scientific_name;
-                o.textContent = sp.text;
-                spSel.appendChild(o);
-            });
-            spSel.disabled = false;
+            speciesList = data.species || [];
+            search.value = '';
+            search.disabled = speciesList.length === 0;
+            renderSpecies();
         } catch (e) {
             spSel.innerHTML = `<option value="">{{ _('Помилка завантаження видів') }}</option>`;
         }
+    }
+
+    // Render the species dropdown, filtered by the search box (case-insensitive,
+    // matches common + scientific name). Only species with detections at the
+    // selected locations are ever in speciesList — the cascade is server-side.
+    function renderSpecies() {
+        const spSel = $('su-species');
+        const q = ($('su-species-search').value || '').trim().toLowerCase();
+        const filtered = q
+            ? speciesList.filter(sp => sp.text.toLowerCase().includes(q))
+            : speciesList;
+        spSel.innerHTML = `<option value="">{{ _('— Виберіть вид —') }}</option>`;
+        filtered.forEach(sp => {
+            const o = document.createElement('option');
+            o.value = sp.scientific_name;
+            o.textContent = sp.text;
+            spSel.appendChild(o);
+        });
+        spSel.disabled = speciesList.length === 0;
+        $('su-species-count').textContent =
+            "{{ _('Видів:') }} " + filtered.length + " / " + speciesList.length;
+        $('su-prepare').disabled = !spSel.value;
     }
 
     // ── STEP 3: prepare stratified sample ───────────────────────────────────
@@ -427,6 +454,7 @@
     // ── wire up ─────────────────────────────────────────────────────────────
     $('su-institution').addEventListener('change', renderLocations);
     $('su-locations').addEventListener('change', onLocationsChanged);
+    $('su-species-search').addEventListener('input', renderSpecies);
     $('su-species').addEventListener('change', () => {
         $('su-prepare').disabled = !$('su-species').value;
     });
