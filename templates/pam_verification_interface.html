@@ -28,7 +28,8 @@
                             </div>
                             <div class="species-select-group">
                                 <label for="institution-filter">{{ _('Установа:') }}</label>
-                                <select id="institution-filter" class="form-control" multiple style="width: 100%;">
+                                <select id="institution-filter" class="form-control" style="width: 100%;">
+                                    <option value="">{{ _('-- Усі установи --') }}</option>
                                     {% for inst in institutions %}
                                         <option value="{{ inst.id }}">{{ inst.name }}</option>
                                     {% endfor %}
@@ -122,11 +123,11 @@
                         <button id="verify-no" class="btn btn-danger">
                             <i class="fas fa-times"></i> {{ _('НІ - неправильно') }}
                         </button>
-                        <button id="verify-unknown" class="btn btn-warning">
-                            <i class="fas fa-question"></i> {{ _('Не знаю') }}
-                        </button>
                         <button id="verify-skip" class="btn btn-secondary">
                             <i class="fas fa-forward"></i> {{ _('Пропустити') }}
+                        </button>
+                        <button id="verify-unknown" class="btn btn-warning">
+                            <i class="fas fa-question"></i> {{ _('Не знаю') }}
                         </button>
                     </div>
 
@@ -204,8 +205,9 @@ $(document).ready(function() {
         const params = [];
         const speciesId = speciesFilter.val();
         if (speciesId) params.push('species_id=' + encodeURIComponent(speciesId));
-        const insts = institutionFilter.val();  // array (multiple) or null
-        if (insts && insts.length) params.push('institution_ids=' + insts.join(','));
+        const insts = institutionFilter.val();  // string (single) or array
+        const instList = Array.isArray(insts) ? insts : (insts ? [insts] : []);
+        if (instList.length) params.push('institution_ids=' + instList.join(','));
         return params.length ? ('?' + params.join('&')) : '';
     }
 
