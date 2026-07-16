@@ -2711,8 +2711,16 @@ main .container:not(.maplistcontainer) {
    the paragraph's own text-align (h1 inherits center but the .lead did not),
    so the container rule alone wasn't enough. */
 .priorities-container .page-header { text-align: center; }
+/* The global `main p { max-width: 700px }` pins the subtitle to a left-aligned
+   700px box, so its text centered only within that box (looked off-centre).
+   Drop the cap and center the block. */
 .priorities-container .page-header .lead,
-.priorities-container .page-header p { text-align: center; }
+.priorities-container .page-header p {
+    text-align: center;
+    max-width: none;
+    margin-left: auto;
+    margin-right: auto;
+}
 .priorities-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .priorities-table th,
 .priorities-table td {
