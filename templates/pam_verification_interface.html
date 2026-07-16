@@ -462,6 +462,11 @@ $(document).ready(function() {
      * Load the next segment from the server and refresh stats.
      */
     function loadNextSegment() {
+        // Preserve scroll position: showLoading() hides the whole interface and
+        // the page collapses, which throws the scroll to the top. On mobile this
+        // meant scrolling back down after every ТАК/НІ/Пропустити. Capture now
+        // (interface still visible) and restore after the new segment renders.
+        const _savedScrollY = window.scrollY;
         loadUserStats(); // Refresh stats for the current filter.
         showLoading();
         
@@ -477,6 +482,17 @@ $(document).ready(function() {
                 verificationInterface.show();
                 noSegmentMessage.hide();
                 hideVerificationMessage();
+
+                // Restore scroll so a verdict button doesn't jump to the top.
+                // Twice: right after render, and again once the spectrogram image
+                // has loaded (its height stabilises only then).
+                requestAnimationFrame(function () { window.scrollTo(0, _savedScrollY); });
+                const _specImg = document.getElementById('spectrogram-image');
+                if (_specImg) {
+                    _specImg.addEventListener('load', function () {
+                        window.scrollTo(0, _savedScrollY);
+                    }, { once: true });
+                }
             },
             error: function(xhr) {
                 hideLoading();
