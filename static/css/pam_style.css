@@ -445,6 +445,11 @@ main .container:not(.maplistcontainer) {
 .dashboard-wrapper .filters-panel .filter-group.full-width {
     flex-direction: row;
 }
+/* Grid items must be allowed to shrink below their content width, otherwise a
+   long select2 value (e.g. a long species / institution name) grows the 1fr
+   track past the container and scrolls the whole page sideways. */
+.dashboard-wrapper .filters-panel .filter-group { min-width: 0; }
+.dashboard-wrapper .filters-panel .select2-selection__rendered { max-width: 100%; }
 .dashboard-wrapper .filters-panel .form-control,
 .dashboard-wrapper .filters-panel .form-control-range,
 .dashboard-wrapper .filters-panel .select2-container {
@@ -2834,6 +2839,23 @@ select.select2-hidden-accessible { width: 1px !important; }
 @media (max-width: 992px) {
     .dashboard-layout {
         flex-direction: column;
+    }
+}
+
+/* pam_species_detailed — phone fixes (14e8e4c follow-up):
+   центрувати кнопки дій + не давати парі date-інпутів розпирати екран. */
+@media (max-width: 768px) {
+    /* Center the action buttons; drop the Export button's inline margin-left:auto
+       (which pushed it to the right edge). */
+    .dashboard-wrapper .filters-panel .action-group,
+    .overview-wrapper .filters-panel .action-group { justify-content: center; }
+    .dashboard-wrapper .filters-panel .action-group #export-data-btn { margin-left: 0 !important; }
+
+    /* Two side-by-side date inputs must share the row and shrink, not overflow. */
+    .dashboard-wrapper .filters-panel input[type="date"] {
+        flex: 1 1 0;
+        min-width: 0;
+        width: 100%;
     }
 }
 
