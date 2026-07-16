@@ -2707,8 +2707,12 @@ main .container:not(.maplistcontainer) {
    pam_verification_priorities: species verification-priority table
    ────────────────────────────────────────────────────────── */
 .priorities-container { max-width: 1100px; margin: 0 auto; }
-/* Center the header + subtitle (the .lead subtitle defaulted to left). */
+/* Center the header + subtitle. Target the <p> directly: something overrides
+   the paragraph's own text-align (h1 inherits center but the .lead did not),
+   so the container rule alone wasn't enough. */
 .priorities-container .page-header { text-align: center; }
+.priorities-container .page-header .lead,
+.priorities-container .page-header p { text-align: center; }
 .priorities-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .priorities-table th,
 .priorities-table td {
