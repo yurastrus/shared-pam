@@ -2772,6 +2772,17 @@ select.select2-hidden-accessible { width: 1px !important; }
         grid-template-columns: 1fr;
         height: auto;
     }
+    /* manage_pam_locations: its 3-column grid (280px 1fr 420px) is more specific
+       than the generic .page-layout above, so it must be overridden explicitly —
+       otherwise the ~700px-wide grid never collapses and the page overflows. */
+    .locations-manager-page .page-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    /* Cap the locations list so it scrolls instead of running the page very long. */
+    .locations-manager-page .locations-list-panel {
+        max-height: 50vh;
+    }
     .map-panel {
         height: 50vh;
     }
