@@ -303,16 +303,32 @@ def verification_interface(lang_code):
         
         current_app.logger.info(f"Prepared {len(species_list)} species for verification interface")
 
-        # Institutions for the optional verification filter (admins: all;
-        # others: their own). Used to narrow the queue to one institution.
-        if current_user.has_role('admin'):
-            inst_objects = Institution.query.order_by(Institution.name_uk).all()
-        else:
-            inst_objects = list(current_user.institutions)
+        # Institutions for the optional verification filter — only those that
+        # actually have PENDING segments (so we never offer an institution that
+        # yields an empty queue). Mirrors the cascade endpoint's institution
+        # query. Non-admins are further restricted to their own institutions.
+        inst_cond = ["seg.status = 'pending'"]
+        inst_params = {}
+        if not current_user.has_role('admin'):
+            allowed = [i.id for i in current_user.institutions]
+            if allowed:
+                inst_cond.append("i.id = ANY(:allowed)")
+                inst_params['allowed'] = allowed
+            else:
+                inst_cond.append("false")
+        inst_rows = conn.execute(text(f"""
+            SELECT DISTINCT i.id, i.name_uk, i.name_en
+            FROM segments seg
+            JOIN recordings r ON seg.recording_id = r.recording_id
+            JOIN location_institutions li ON r.location_id = li.location_id
+            JOIN institutions i ON li.institution_id = i.id
+            WHERE {' AND '.join(inst_cond)}
+            ORDER BY i.name_uk
+        """), inst_params).mappings().fetchall()
         institutions = [
-            {'id': i.id,
-             'name': (i.name_uk if lang_code == 'uk' else (i.name_en or i.name_uk))}
-            for i in inst_objects
+            {'id': row['id'],
+             'name': (row['name_uk'] if lang_code == 'uk' else (row['name_en'] or row['name_uk']))}
+            for row in inst_rows
         ]
 
         return render_template('pam_verification_interface.html',
