@@ -182,7 +182,7 @@ $(document).ready(function() {
     }
 
     function buildTable(years, speciesData) {
-        let tableHtml = '<table class="trends-table"><thead><tr>';
+        let tableHtml = '<div class="table-scroll"><table class="trends-table"><thead><tr>';
         tableHtml += '<th>#</th><th>{{ _("Вид") }}</th>';
         years.forEach(year => { tableHtml += `<th>${year}</th>`; });
         tableHtml += `<th style="color: black;"">{{ _("Разом") }}</th></tr></thead><tbody>`;
@@ -198,7 +198,7 @@ $(document).ready(function() {
             const displayTotal = (typeof totalValue === 'number') ? totalValue.toFixed(2) : '–';
             tableHtml += `<td>${displayTotal}</td></tr>`;
         });
-        tableHtml += '</tbody></table>';
+        tableHtml += '</tbody></table></div>';
         ui.containers.table.html(tableHtml);
     }
     

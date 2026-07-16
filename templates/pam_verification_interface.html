@@ -110,9 +110,16 @@
 
                     <!-- Audio player -->
                     <div class="audio-player-section">
-                        <audio id="audio-player" controls preload="auto">
-                            {{ _('Ваш браузер не підтримує аудіо плеєр.') }}
-                        </audio>
+                        <div class="player-row">
+                            <audio id="audio-player" controls preload="auto">
+                                {{ _('Ваш браузер не підтримує аудіо плеєр.') }}
+                            </audio>
+                            <label class="loop-toggle" for="loop-toggle"
+                                   title="{{ _('Аудіо грає по колу; після вашого вибору наступне вмикається автоматично') }}">
+                                <input type="checkbox" id="loop-toggle">
+                                <span>🔁 {{ _('Цикл (автоповтор)') }}</span>
+                            </label>
+                        </div>
                     </div>
 
                     <!-- Verification buttons -->
@@ -255,7 +262,30 @@ $(document).ready(function() {
     $('#verify-no').on('click', () => submitVerification(0));
     $('#verify-unknown').on('click', () => submitVerification(2)); // "don't know"
     $('#verify-skip').on('click', () => loadNextSegment()); // submitVerification(null)
-    
+
+    // --- Loop / autoplay toggle -----------------------------------------
+    // When checked, the segment plays on repeat (native loop) and each freshly
+    // loaded segment auto-plays, so the verifier never touches Play. The choice
+    // is remembered across segments AND page loads via localStorage.
+    const loopToggle = document.getElementById('loop-toggle');
+    const LOOP_KEY = 'pam_verify_loop';
+    // Applied by displaySegment() to every new segment (see below).
+    function applyLoopSetting() {
+        const on = !!(loopToggle && loopToggle.checked);
+        audioPlayer.loop = on;
+        // play() may reject before a user gesture (autoplay policy) — ignore it;
+        // once the user clicks a verdict button, playback is allowed.
+        if (on) { const p = audioPlayer.play(); if (p) p.catch(function () {}); }
+    }
+    if (loopToggle) {
+        loopToggle.checked = localStorage.getItem(LOOP_KEY) === '1';
+        audioPlayer.loop = loopToggle.checked;
+        loopToggle.addEventListener('change', function () {
+            try { localStorage.setItem(LOOP_KEY, loopToggle.checked ? '1' : '0'); } catch (e) {}
+            applyLoopSetting();
+        });
+    }
+
     // --- Yellow boundary line logic (10-second files). ---
     audioPlayer.addEventListener('loadedmetadata', function() {
         const duration = audioPlayer.duration;
@@ -480,6 +510,9 @@ $(document).ready(function() {
         
         audioPlayer.src = segment.audio_url;
         audioPlayer.load();
+        // Carry the loop/autoplay choice onto this new segment: sets .loop and
+        // auto-starts playback when the toggle is on.
+        applyLoopSetting();
 
         const spectrogramUrl = `{{ url_for("pam.serve_spectrogram_image", lang_code=g.lang_code, segment_id=0) }}`.replace('/0', '/' + segment.segment_id);
         $('#spectrogram-image').attr('src', spectrogramUrl);

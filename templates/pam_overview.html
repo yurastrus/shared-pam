@@ -449,14 +449,14 @@
                     .then(response => response.ok ? response.json() : Promise.reject(response))
                     .then(data => {
                         if (data && data.length > 0) {
-                            let tableHtml = `<table class="ranking-table"><thead><tr><th>{{ _('#') }}</th><th>{{ _('Вид') }}</th><th>{{ _('Детекції') }}</th></tr></thead><tbody>`;
+                            let tableHtml = `<div class="table-scroll"><table class="ranking-table"><thead><tr><th>{{ _('#') }}</th><th>{{ _('Вид') }}</th><th>{{ _('Детекції') }}</th></tr></thead><tbody>`;
                             data.forEach(species => {
                                 const detailUrlParams = getApiParams();
                                 detailUrlParams.set('species', species.scientific_name);
                                 const detailUrl = `{{ url_for('pam.pam_detailed', lang_code=g.lang_code) }}?${detailUrlParams.toString()}`;
                                 tableHtml += `<tr onclick="window.location.href='${detailUrl}'"><td>${species.rank}</td><td><a href="${detailUrl}" class="species-link">${species.display_name}</a></td><td>${species.detection_count.toLocaleString()}</td></tr>`;
                             });
-                            tableHtml += '</tbody></table>';
+                            tableHtml += '</tbody></table></div>';
                             rankingContent.html(tableHtml);
                         } else {
                             rankingContent.html('<div class="overview-message info">{{ _("Дані не знайдено. Спробуйте змінити фільтри.") }}</div>');

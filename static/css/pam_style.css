@@ -1368,6 +1368,30 @@ main .container:not(.maplistcontainer) {
     padding: 5px;
     text-align: center;
 }
+/* Player + loop toggle sit on one row; the toggle is to the right of the
+   player and wraps below it on narrow screens. */
+.verification-container .player-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.verification-container .player-row #audio-player { flex: 1 1 260px; min-width: 0; }
+.verification-container .loop-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--card-bg);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    font-size: 0.9rem;
+}
+.verification-container .loop-toggle input { width: 16px; height: 16px; cursor: pointer; }
 .verification-container .segment-info {
     background-color: var(--card-bg);
     border: 1px solid var(--border-color);
@@ -2667,6 +2691,62 @@ main .container:not(.maplistcontainer) {
     margin-top: 20px;
 }
 
+
+/* ──────────────────────────────────────────────────────────
+   17.5 Small-screen hardening — mirrors shared-ct mobile fixes (07.2026)
+   Wide tables scroll inside their own box instead of being clipped by the
+   global overflow:hidden container or pushing the whole page horizontally;
+   Chart.js and select2 overflow guards.
+   ────────────────────────────────────────────────────────── */
+
+/* Wrap any wide table in <div class="table-scroll"> (or Bootstrap's
+   .table-responsive) so it scrolls horizontally in place on narrow screens. */
+.table-scroll,
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+}
+
+/* Grid/flex items holding a Chart.js canvas must be allowed to shrink below the
+   canvas's drawn width — the default min-width:auto keeps the track wide and
+   the chart overflows the card to the right on narrow screens. */
+.chart-section,
+.chart-card,
+.chart-container,
+.chart-wrap,
+.chart-box { min-width: 0; }
+
+/* select2: keep the hidden native <select> at 1px so no generic field rule can
+   widen it (it is position:absolute → widening blows the page out sideways). */
+select.select2-hidden-accessible { width: 1px !important; }
+
+@media (max-width: 768px) {
+    /* Stack EVERY filter container to a single column on phones. Base grids are
+       2 cols (.filters-panel) or 4 (.trends-wrapper/.yearly_table variants);
+       flex bars (.top-filter-bar) only wrap and keep their items' inline widths.
+       !important beats the more-specific per-wrapper grid-template rules. */
+    .filters-panel, .filters-grid { grid-template-columns: 1fr !important; }
+    .filters-row, .filters-row-flex, .top-filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    /* Neutralise per-item column spans / fixed bases so nothing forces a wide row. */
+    .filter-group, .filter-group.full-width, .filter-group.span-2,
+    .filter-item { width: 100%; min-width: 0; }
+
+    /* Any filter container can shrink; its controls never exceed the viewport. */
+    .filters-panel, .filters-row, .filters-row-flex, .filters-grid,
+    .top-filter-bar { min-width: 0; }
+    .filters-panel select, .filters-panel input,
+    .filters-row select, .filters-row input,
+    .filters-row-flex select, .filters-row-flex input,
+    .top-filter-bar select, .top-filter-bar input,
+    .filter-group .form-control, .filter-item .form-control { max-width: 100% !important; }
+
+    /* Long checkbox/radio labels wrap instead of forcing horizontal scroll. */
+    .form-check-label { white-space: normal; }
+}
 
 /* ──────────────────────────────────────────────────────────
    18. Media queries

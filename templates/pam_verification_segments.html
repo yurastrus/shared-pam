@@ -258,6 +258,7 @@ $(document).ready(function() {
         }
         
         let html = `
+            <div class="table-scroll">
             <table class="segments-table">
                 <thead>
                     <tr>
@@ -309,7 +310,7 @@ $(document).ready(function() {
             `;
         });
         
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         segmentsContainer.html(html);
     }
 

@@ -299,6 +299,7 @@ $(document).ready(function() {
         }
         
         let html = `
+            <div class="table-scroll">
             <table class="results-table">
                 <thead>
                     <tr>
@@ -358,7 +359,7 @@ $(document).ready(function() {
             `;
         });
         
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         $('#results-container').html(html);
     }
     
