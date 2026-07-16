@@ -2857,6 +2857,18 @@ select.select2-hidden-accessible { width: 1px !important; }
         min-width: 0;
         width: 100%;
     }
+
+    /* pam_yearly_table: center the "Згенерувати таблицю" button (it rendered
+       left-aligned on mobile). Force flex-center and auto side-margins so the
+       button centers regardless of the container's resolved display. */
+    .trends-wrapper .action-group {
+        display: flex !important;
+        justify-content: center !important;
+    }
+    .trends-wrapper .action-group .btn {
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
 }
 
 /* pam_evaluation_results: компактна таблиця на телефонах */
