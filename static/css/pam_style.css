@@ -2907,6 +2907,18 @@ select.select2-hidden-accessible { width: 1px !important; }
         padding: 8px 10px;
         font-size: 13px;
     }
+
+    /* pam_data_export: the prepare/reset button row (a full-width filter-group
+       with inline flex-direction:row) overflowed. Let it wrap and let the two
+       buttons shrink to share the row instead of running off the right edge. */
+    .data-wrapper .filters-panel .filter-group.full-width[style*="row"] {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .data-wrapper .filters-panel .filter-group.full-width[style*="row"] .btn {
+        flex: 1 1 140px;
+        min-width: 0;
+    }
 }
 
 /* pam_evaluation_results: компактна таблиця на телефонах */
