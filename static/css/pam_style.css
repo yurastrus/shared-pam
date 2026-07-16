@@ -3038,8 +3038,20 @@ select.select2-hidden-accessible { width: 1px !important; }
         align-items: stretch;
     }
     .segments-container .filter-group {
-        min-width: auto;
+        min-width: 0;
     }
+    /* Apply/Reset button row must wrap and its buttons shrink so "Скинути"
+       doesn't run off the right edge. */
+    .segments-container .filter-buttons {
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+    .segments-container .filter-buttons .btn {
+        flex: 1 1 140px;
+        min-width: 0;
+    }
+    /* Guard the species select2 so a long name can't widen the filter column. */
+    .segments-container .select2-container { max-width: 100%; }
     .segments-table {
         font-size: 0.8em;
     }
