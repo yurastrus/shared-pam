@@ -30,6 +30,24 @@ def _parse_id_list(raw):
     return [int(x) for x in str(raw).split(',') if x.strip().lstrip('-').isdigit()]
 
 
+def _segment_access_sql(seg_alias='seg'):
+    """(SQL condition, params) restricting segments to the current user's
+    institutions — the ACCESS baseline, always applied (not just the optional
+    UI filter). Admins: unrestricted ('TRUE'). A verifier with no institutions:
+    none ('FALSE'). Segments with no recording link can't be attributed to an
+    institution, so they are excluded for non-admins."""
+    if current_user.is_authenticated and current_user.has_role('admin'):
+        return "TRUE", {}
+    inst_ids = [i.id for i in current_user.institutions] if current_user.is_authenticated else []
+    if not inst_ids:
+        return "FALSE", {}
+    sql = (f"EXISTS (SELECT 1 FROM recordings r_acc "
+           f"JOIN location_institutions li_acc ON r_acc.location_id = li_acc.location_id "
+           f"WHERE r_acc.recording_id = {seg_alias}.recording_id "
+           f"AND li_acc.institution_id = ANY(:access_inst_ids))")
+    return sql, {"access_inst_ids": inst_ids}
+
+
 # --- PAM MODULE STATIC FILES ---
 @pam_bp.route('/<lang_code>/pam-static/<path:filename>')
 def serve_pam_static(lang_code, filename):
@@ -277,15 +295,18 @@ def verification_interface(lang_code):
         current_app.logger.info("PAM database connected successfully")
         
         current_app.logger.info("Fetching species with pending segments...")
-        species_query = """
+        # ACCESS baseline: non-admins only see species with pending segments in
+        # their own institutions.
+        acc_sql, acc_params = _segment_access_sql('seg')
+        species_query = f"""
             SELECT DISTINCT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
             FROM species s
             JOIN segments seg ON s.species_id = seg.species_id
-            WHERE seg.status = 'pending'
+            WHERE seg.status = 'pending' AND {acc_sql}
             ORDER BY s.scientific_name
         """
-        
-        species_data = conn.execute(text(species_query)).fetchall()
+
+        species_data = conn.execute(text(species_query), acc_params).fetchall()
         current_app.logger.info(f"Found {len(species_data)} species with pending segments")
         
         species_list = []
@@ -1137,6 +1158,12 @@ def api_next_verification_segment(lang_code):
             """)
             params["institution_ids"] = institution_ids
 
+        # ACCESS baseline: non-admins only ever get segments from their own
+        # institutions, even with no UI filter selected.
+        acc_sql, acc_params = _segment_access_sql('seg')
+        conditions.append(acc_sql)
+        params.update(acc_params)
+
         # Priority for segments closest to consensus (more votes first).
         query = text(f"""
             SELECT seg.id, seg.filename, seg.confidence_level, seg.location_name,
@@ -1228,9 +1255,19 @@ def api_submit_verification(lang_code):
             
         if segment_check[1] != 'pending':
             return jsonify({
-                'success': False, 
+                'success': False,
                 'error': 'Сегмент вже не потребує верифікації'
             }), 400
+
+        # ACCESS: non-admins may only verify segments in their institutions.
+        acc_sql, acc_params = _segment_access_sql('seg')
+        if acc_sql != 'TRUE':
+            allowed = conn.execute(
+                text(f"SELECT 1 FROM segments seg WHERE seg.id = :sid AND {acc_sql}"),
+                {"sid": segment_id, **acc_params}
+            ).fetchone()
+            if not allowed:
+                return jsonify({'success': False, 'error': 'Немає доступу до цього сегмента'}), 403
         
         # Check whether the user has already verified this segment.
         existing = conn.execute(text("""
@@ -1348,6 +1385,11 @@ def api_verification_stats(lang_code):
                 )
             """)
 
+        # ACCESS baseline for the "remaining" count (non-admins: own institutions).
+        acc_sql, acc_params = _segment_access_sql('seg')
+        remaining_conditions.append(acc_sql)
+        params.update(acc_params)
+
         user_stats_where = " AND ".join(user_stats_conditions)
         remaining_where = " AND ".join(remaining_conditions)
         
@@ -1455,6 +1497,10 @@ def api_verification_filter_options(lang_code):
                        "JOIN location_institutions li ON r.location_id = li.location_id")
             sp_cond.append("li.institution_id = ANY(:inst_ids)")
             sp_params['inst_ids'] = institution_ids
+        # ACCESS baseline: non-admins only see species present in their institutions.
+        acc_sql, acc_params = _segment_access_sql('seg')
+        sp_cond.append(acc_sql)
+        sp_params.update(acc_params)
         species_rows = conn.execute(text(f"""
             SELECT DISTINCT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
             FROM segments seg
