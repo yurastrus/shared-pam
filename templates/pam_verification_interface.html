@@ -211,6 +211,40 @@ $(document).ready(function() {
         return params.length ? ('?' + params.join('&')) : '';
     }
 
+    // --- Mutual cascade: each filter narrows the other's options ---
+    // Repopulate a Select2 <select>, preserving the current selection if it is
+    // still valid. Uses 'change.select2' so the UI refreshes WITHOUT firing our
+    // own 'change' handler — that's what keeps the two cascades from looping.
+    let cascadeBusy = false;
+    function repopulateSelect($sel, items, placeholder) {
+        const current = $sel.val();
+        $sel.empty();
+        $sel.append(new Option(placeholder, '', false, false));
+        items.forEach(it => $sel.append(new Option(it.text, it.id)));
+        if (current && items.some(it => String(it.id) === String(current))) {
+            $sel.val(current);
+        }
+        $sel.trigger('change.select2');
+    }
+    function refreshCascade(source) {
+        if (cascadeBusy) return;
+        cascadeBusy = true;
+        $.ajax({
+            url: '{{ url_for("pam.api_verification_filter_options", lang_code=g.lang_code) }}' + filterParams(),
+            method: 'GET',
+            success: function(data) {
+                if (source === 'institution') {
+                    repopulateSelect(speciesFilter, data.species || [], "{{ _('-- Всі види --') }}");
+                } else {
+                    repopulateSelect(institutionFilter, data.institutions || [], "{{ _('-- Усі установи --') }}");
+                }
+            },
+            complete: function() { cascadeBusy = false; }
+        });
+    }
+    speciesFilter.on('change', () => refreshCascade('species'));
+    institutionFilter.on('change', () => refreshCascade('institution'));
+
     // Load the first segment and matching stats.
     loadNextSegment();
 

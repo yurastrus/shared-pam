@@ -1408,6 +1408,90 @@ def api_verification_stats(lang_code):
         if conn:
             conn.close()
 
+@pam_bp.route('/<lang_code>/api/verification/filter-options')
+@login_required
+@role_required('pam_verifier')
+def api_verification_filter_options(lang_code):
+    """Mutually-cascading options for the verify filters.
+
+    Given the current selection, return the still-valid options for the OTHER
+    field (species available in the chosen institution; institutions that have
+    the chosen species) — both over pending segments only. The frontend calls
+    this on change and repopulates the opposite dropdown, so impossible
+    combinations are pruned. Non-admins only ever see their own institutions.
+    """
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        g.lang_code = lang_code
+        species_id = request.args.get('species_id', type=int)
+        institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
+
+        is_admin = current_user.has_role('admin')
+        allowed_inst = [] if is_admin else [i.id for i in current_user.institutions]
+
+        # --- species available for the selected institution(s) ---
+        sp_params = {}
+        sp_join = ""
+        sp_cond = ["seg.status = 'pending'"]
+        if institution_ids:
+            sp_join = ("JOIN recordings r ON seg.recording_id = r.recording_id "
+                       "JOIN location_institutions li ON r.location_id = li.location_id")
+            sp_cond.append("li.institution_id = ANY(:inst_ids)")
+            sp_params['inst_ids'] = institution_ids
+        species_rows = conn.execute(text(f"""
+            SELECT DISTINCT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
+            FROM segments seg
+            JOIN species s ON seg.species_id = s.species_id
+            {sp_join}
+            WHERE {' AND '.join(sp_cond)}
+            ORDER BY s.scientific_name
+        """), sp_params).mappings().fetchall()
+        species = []
+        for row in species_rows:
+            display = row['scientific_name']
+            if lang_code == 'uk' and row['common_name_uk']:
+                display = f"{row['common_name_uk']} ({row['scientific_name']})"
+            elif lang_code == 'en' and row['common_name_en']:
+                display = f"{row['common_name_en']} ({row['scientific_name']})"
+            species.append({'id': row['species_id'], 'text': display})
+
+        # --- institutions that have pending segments for the selected species ---
+        inst_params = {}
+        inst_cond = ["seg.status = 'pending'"]
+        if species_id:
+            inst_cond.append("seg.species_id = :species_id")
+            inst_params['species_id'] = species_id
+        if not is_admin:
+            if not allowed_inst:
+                institutions = []
+                return jsonify({'species': species, 'institutions': institutions})
+            inst_cond.append("i.id = ANY(:allowed)")
+            inst_params['allowed'] = allowed_inst
+        inst_rows = conn.execute(text(f"""
+            SELECT DISTINCT i.id, i.name_uk, i.name_en
+            FROM segments seg
+            JOIN recordings r ON seg.recording_id = r.recording_id
+            JOIN location_institutions li ON r.location_id = li.location_id
+            JOIN institutions i ON li.institution_id = i.id
+            WHERE {' AND '.join(inst_cond)}
+            ORDER BY i.name_uk
+        """), inst_params).mappings().fetchall()
+        institutions = [
+            {'id': row['id'],
+             'text': (row['name_uk'] if lang_code == 'uk' else (row['name_en'] or row['name_uk']))}
+            for row in inst_rows
+        ]
+
+        return jsonify({'species': species, 'institutions': institutions})
+    except Exception as e:
+        current_app.logger.error(f"api_verification_filter_options error: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to load filter options'}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
 def _confine_to_pam_base(path):
     """#26 (SEC-013): only allow paths inside PAM_UPLOAD_PATH.
 
