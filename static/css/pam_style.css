@@ -3007,12 +3007,27 @@ select.select2-hidden-accessible { width: 1px !important; }
 
 /* pam_verification_interface: layout у стовпчик на середніх екранах */
 @media (max-width: 1024px) {
+    /* minmax(0,1fr) not 1fr: a plain 1fr keeps min-width:auto, so the select2
+       species filter with a long name (e.g. "Очеретянка чагарникова
+       (Acrocephalus palustris)") blew the track — and the whole page — wider
+       than the phone. minmax(0,…) + min-width:0 lets the panel shrink and the
+       select2 value truncate with an ellipsis. */
     .verification-layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
         gap: 20px;
+    }
+    .verification-container .left-panel,
+    .verification-container .right-panel {
+        min-width: 0;
     }
     .verification-container .left-panel {
         position: static;
+    }
+    .verification-container .select2-container { max-width: 100%; }
+    .verification-container .species-select-group { min-width: 0; }
+    /* Stat cards: 2×2 on phones instead of 4 cramped/overflowing columns. */
+    .verification-container .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
