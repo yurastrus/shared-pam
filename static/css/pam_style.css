@@ -2170,7 +2170,11 @@ main .container:not(.maplistcontainer) {
 .region-line {
     position: absolute;
     top: 0;
-    bottom: 25px;
+    /* Full height, matching #playback-line. A fixed bottom offset (was 25px)
+       broke on scaled-down mobile spectrograms — the line stopped well above
+       the plot bottom ("shifted up"). Percentage-free full span stays aligned
+       at any image size. */
+    bottom: 0;
     width: 2px;
     background-color: var(--color-warning);
     border-right: 1px dashed rgba(0, 0, 0, 0.3);
@@ -2868,6 +2872,28 @@ select.select2-hidden-accessible { width: 1px !important; }
     .trends-wrapper .action-group .btn {
         margin-left: auto !important;
         margin-right: auto !important;
+    }
+
+    /* pam_verification_interface: the 4 verdict buttons don't fit one row on a
+       phone (nowrap flex + min-width:100px clipped the labels). Lay them out
+       2×2, full-width cells, with the icon stacked above centred wrapping text
+       so every label fits. */
+    .verification-container .verification-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+    .verification-container .verification-buttons .btn {
+        min-width: 0;
+        width: 100%;
+        white-space: normal;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 10px 8px;
+        line-height: 1.2;
     }
 }
 
