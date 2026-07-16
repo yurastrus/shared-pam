@@ -2704,6 +2704,35 @@ main .container:not(.maplistcontainer) {
 
 
 /* ──────────────────────────────────────────────────────────
+   pam_verification_priorities: species verification-priority table
+   ────────────────────────────────────────────────────────── */
+.priorities-container { max-width: 1100px; margin: 0 auto; }
+.priorities-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.priorities-table th,
+.priorities-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    vertical-align: top;
+}
+.priorities-table th {
+    background: var(--bg-secondary);
+    user-select: none;
+    white-space: nowrap;
+}
+/* Numeric columns (6–9) right-aligned. */
+.priorities-table th:nth-child(n+6),
+.priorities-table td:nth-child(n+6) { text-align: right; white-space: nowrap; }
+.priorities-table tbody tr:hover { background: var(--bg-secondary); }
+.priorities-table .species-common { font-weight: 600; }
+.priorities-table .species-sci { color: var(--text-muted, #6c757d); }
+/* Under-verified species flagged with a pale red fill. */
+.priorities-table tr.priority-low { background: rgba(220, 53, 69, 0.10); }
+.priorities-table tr.priority-low:hover { background: rgba(220, 53, 69, 0.18); }
+.priorities-table th.sorted-asc::after { content: ' \25B2'; font-size: 0.75em; }
+.priorities-table th.sorted-desc::after { content: ' \25BC'; font-size: 0.75em; }
+
+/* ──────────────────────────────────────────────────────────
    17.5 Small-screen hardening — mirrors shared-ct mobile fixes (07.2026)
    Wide tables scroll inside their own box instead of being clipped by the
    global overflow:hidden container or pushing the whole page horizontally;

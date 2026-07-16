@@ -279,6 +279,83 @@ def verification_segments(lang_code):
         if conn:
             conn.close()
 
+@pam_bp.route('/<lang_code>/pam/verification/priorities')
+@login_required
+@role_required('manager', 'pam_verifier', 'roztochya_user', 'fzs_user', 'volunteer_user')
+def verification_priorities(lang_code):
+    """Priority table: which species most need verification.
+
+    One row per species that has segments in the system, with taxonomy columns
+    (class → order → family → genus → species) plus per-species counts: total
+    segments, total detections, verified segments (>=1 verification) and segments
+    that reached consensus (>=2 verifications). Sorted least-verified first so the
+    highest-priority species surface at the top; rows below VERIFIED_THRESHOLD
+    verified segments are flagged in the template.
+    """
+    g.lang_code = lang_code
+    VERIFIED_THRESHOLD = 250  # verified-segment count below which a row is flagged
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        rows = conn.execute(text("""
+            SELECT
+                s.scientific_name,
+                s.common_name_uk,
+                s.common_name_en,
+                s.class      AS class_name,
+                s.order_rank AS order_name,
+                s.family     AS family_name,
+                s.genus      AS genus_name,
+                COUNT(seg.id)                                               AS total_segments,
+                SUM(CASE WHEN seg.verification_count >= 1 THEN 1 ELSE 0 END) AS verified_segments,
+                SUM(CASE WHEN seg.verification_count >= 2 THEN 1 ELSE 0 END) AS consensus_segments,
+                COALESCE(d.detection_count, 0)                              AS detection_count
+            FROM species s
+            JOIN segments seg ON seg.species_id = s.species_id
+            LEFT JOIN (
+                SELECT species_id, COUNT(*) AS detection_count
+                FROM detections
+                GROUP BY species_id
+            ) d ON d.species_id = s.species_id
+            GROUP BY s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en,
+                     s.class, s.order_rank, s.family, s.genus, d.detection_count
+            ORDER BY consensus_segments ASC, verified_segments ASC, total_segments DESC
+        """)).fetchall()
+
+        species_rows = []
+        for r in rows:
+            if lang_code == 'en' and r.common_name_en:
+                common = r.common_name_en
+            elif r.common_name_uk:
+                common = r.common_name_uk
+            else:
+                common = ''
+            species_rows.append({
+                'scientific_name': r.scientific_name,
+                'common_name': common,
+                'class_name': r.class_name or '',
+                'order_name': r.order_name or '',
+                'family_name': r.family_name or '',
+                'genus_name': r.genus_name or '',
+                'total_segments': int(r.total_segments or 0),
+                'detection_count': int(r.detection_count or 0),
+                'verified_segments': int(r.verified_segments or 0),
+                'consensus_segments': int(r.consensus_segments or 0),
+            })
+
+        return render_template('pam_verification_priorities.html',
+                               species_rows=species_rows,
+                               verified_threshold=VERIFIED_THRESHOLD)
+    except Exception as e:
+        current_app.logger.error(f"Error loading verification priorities: {e}")
+        current_app.logger.error(traceback.format_exc())
+        flash('Помилка завантаження сторінки пріоритетів верифікації.', 'danger')
+        return redirect(url_for('pam.pam_home', lang_code=lang_code))
+    finally:
+        if conn:
+            conn.close()
+
+
 @pam_bp.route('/<lang_code>/pam/verification/verify')
 @login_required
 @role_required('pam_verifier')

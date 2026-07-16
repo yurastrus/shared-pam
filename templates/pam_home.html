@@ -75,11 +75,19 @@
         </div>
     </section>
 
-    {# ── MANAGEMENT (manager / roztochya_user) ── #}
-    {% if can_export or is_manager or is_admin %}
+    {# ── MANAGEMENT (manager / roztochya_user; verifiers also see the priorities card) ── #}
+    {% if can_verifier or can_export or is_manager or is_admin %}
     <section class="hub-section">
         <h2 class="hub-section-title">{{ _('Управління') }}</h2>
         <div class="hub-grid">
+
+            {% if can_verifier or is_admin %}
+            <a class="hub-card" href="{{ url_for('pam.verification_priorities', lang_code=g.lang_code) }}">
+                <span class="hub-card__icon">🎯</span>
+                <span class="hub-card__title">{{ _('Пріоритети верифікації') }}</span>
+                <span class="hub-card__desc">{{ _('Таблиця видів із кількістю сегментів, детекцій і верифікацій — щоб бачити, які види варто верифікувати першими.') }}</span>
+            </a>
+            {% endif %}
 
             {% if is_admin %}
             <a class="hub-card" href="{{ url_for('pam.sample_upload', lang_code=g.lang_code) }}">

@@ -1,0 +1,95 @@
+{% extends "pam_base.html" %}
+
+{% block title %}{{ _('Пріоритети верифікації') }} - {{ _('yurastrus | персональний сайт') }}{% endblock %}
+
+{% block pam_content %}
+<div class="container mt-4">
+    <div class="priorities-container">
+        <div class="page-header mb-4">
+            <h1>{{ _('Пріоритети верифікації видів') }}</h1>
+            <p class="lead">{{ _('Які види варто верифікувати в першу чергу. Клікніть на заголовок колонки, щоб відсортувати. Підсвічено рядки, де верифіковано менше сегментів, ніж поріг:') }} {{ verified_threshold }}.</p>
+        </div>
+
+        {% if species_rows %}
+        <div class="table-scroll">
+            <table class="priorities-table" id="priorities-table">
+                <thead>
+                    <tr>
+                        <th data-type="text">{{ _('Клас') }}</th>
+                        <th data-type="text">{{ _('Ряд') }}</th>
+                        <th data-type="text">{{ _('Родина') }}</th>
+                        <th data-type="text">{{ _('Рід') }}</th>
+                        <th data-type="text">{{ _('Вид') }}</th>
+                        <th data-type="num">{{ _('Сегментів') }}</th>
+                        <th data-type="num">{{ _('Детекцій') }}</th>
+                        <th data-type="num">{{ _('Верифіковано') }}</th>
+                        <th data-type="num">{{ _('Консенсус') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in species_rows %}
+                    <tr class="{{ 'priority-low' if row.verified_segments < verified_threshold else '' }}">
+                        <td>{{ row.class_name }}</td>
+                        <td>{{ row.order_name }}</td>
+                        <td>{{ row.family_name }}</td>
+                        <td>{{ row.genus_name }}</td>
+                        <td class="species-cell">
+                            {% if row.common_name %}<span class="species-common">{{ row.common_name }}</span> {% endif %}<span class="species-sci"><em>{{ row.scientific_name }}</em></span>
+                        </td>
+                        <td data-sort="{{ row.total_segments }}">{{ row.total_segments }}</td>
+                        <td data-sort="{{ row.detection_count }}">{{ row.detection_count }}</td>
+                        <td data-sort="{{ row.verified_segments }}">{{ row.verified_segments }}</td>
+                        <td data-sort="{{ row.consensus_segments }}">{{ row.consensus_segments }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="message-box"><i>{{ _('Немає видів із завантаженими сегментами для верифікації.') }}</i></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var table = document.getElementById('priorities-table');
+    if (!table) return;
+    var headers = table.querySelectorAll('thead th');
+    var tbody = table.querySelector('tbody');
+
+    function cellValue(row, index, type) {
+        var cell = row.children[index];
+        if (type === 'num') {
+            var s = cell.getAttribute('data-sort');
+            return parseFloat(s !== null ? s : cell.textContent) || 0;
+        }
+        return cell.textContent.trim().toLowerCase();
+    }
+
+    headers.forEach(function (th, index) {
+        th.style.cursor = 'pointer';
+        th.addEventListener('click', function () {
+            var type = th.getAttribute('data-type') || 'text';
+            // Toggle direction; default numeric = ascending (least first), text = ascending.
+            var asc = th.getAttribute('data-dir') !== 'asc';
+            headers.forEach(function (h) { h.removeAttribute('data-dir'); h.classList.remove('sorted-asc', 'sorted-desc'); });
+            th.setAttribute('data-dir', asc ? 'asc' : 'desc');
+            th.classList.add(asc ? 'sorted-asc' : 'sorted-desc');
+
+            var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+            rows.sort(function (a, b) {
+                var va = cellValue(a, index, type);
+                var vb = cellValue(b, index, type);
+                if (va < vb) return asc ? -1 : 1;
+                if (va > vb) return asc ? 1 : -1;
+                return 0;
+            });
+            rows.forEach(function (r) { tbody.appendChild(r); });
+        });
+    });
+})();
+</script>
+{% endblock %}
