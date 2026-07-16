@@ -2324,6 +2324,7 @@ main .container:not(.maplistcontainer) {
     align-items: center;
     gap: 10px;
     margin-top: 20px;
+    flex-wrap: wrap;   /* prev/next + page numbers wrap instead of overflowing */
 }
 .evaluation-container .pagination button {
     padding: 8px 12px;
@@ -2669,6 +2670,7 @@ main .container:not(.maplistcontainer) {
     align-items: center;
     gap: 10px;
     margin-top: 20px;
+    flex-wrap: wrap;   /* prev/next + page numbers wrap instead of overflowing */
 }
 .segments-container .pagination button {
     padding: 8px 12px;
@@ -2894,6 +2896,16 @@ select.select2-hidden-accessible { width: 1px !important; }
         gap: 4px;
         padding: 10px 8px;
         line-height: 1.2;
+    }
+
+    /* Pagination: tighter buttons + smaller gap so more page numbers fit a row
+       (row already wraps via flex-wrap, this just reduces how often it wraps). */
+    .segments-container .pagination,
+    .evaluation-container .pagination { gap: 6px; }
+    .segments-container .pagination button,
+    .evaluation-container .pagination button {
+        padding: 8px 10px;
+        font-size: 13px;
     }
 }
 
