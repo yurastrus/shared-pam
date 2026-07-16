@@ -2707,6 +2707,8 @@ main .container:not(.maplistcontainer) {
    pam_verification_priorities: species verification-priority table
    ────────────────────────────────────────────────────────── */
 .priorities-container { max-width: 1100px; margin: 0 auto; }
+/* Center the header + subtitle (the .lead subtitle defaulted to left). */
+.priorities-container .page-header { text-align: center; }
 .priorities-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .priorities-table th,
 .priorities-table td {
