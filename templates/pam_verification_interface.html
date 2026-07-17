@@ -18,6 +18,15 @@
                     <div class="filters-panel">
                         <div class="filters-row-flex">
                             <div class="species-select-group">
+                                <label for="class-filter">{{ _('Таксономічний клас:') }}</label>
+                                <select id="class-filter" class="form-control" style="width: 100%;">
+                                    <option value="">{{ _('-- Усі класи --') }}</option>
+                                    {% for cls in classes %}
+                                        <option value="{{ cls }}">{{ cls }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="species-select-group">
                                 <label for="species-filter">{{ _('Вид для верифікації аудіосегментів BirdNET:') }}</label>
                                 <select id="species-filter" class="form-control" style="width: 100%;">
                                     <option value="">{{ _('-- Всі види --') }}</option>
@@ -188,6 +197,7 @@ $(document).ready(function() {
     const noSegmentMessage = $('#no-segment-message');
     const loadingSpinner = $('#loading-spinner');
     const audioPlayer = $('#audio-player')[0];
+    const classFilter = $('#class-filter');
     const speciesFilter = $('#species-filter');
     const institutionFilter = $('#institution-filter');
     const verificationMessage = $('#verification-message');
@@ -200,6 +210,13 @@ $(document).ready(function() {
     let wasPlaying = false;      // true if audio was playing before drag started (for resume).
     let suppressNextClick = false; // prevent mouseup-after-drag from triggering a seek.
 
+    // Initialise Select2 for the taxonomic-class filter.
+    classFilter.select2({
+        language: "{{ g.lang_code }}",
+        placeholder: "{{ _('-- Усі класи --') }}",
+        allowClear: true,
+        width: '100%'
+    });
     // Initialise Select2 for the species filter.
     speciesFilter.select2({
         language: "{{ g.lang_code }}",
@@ -218,6 +235,8 @@ $(document).ready(function() {
     // next-segment and stats endpoints.
     function filterParams() {
         const params = [];
+        const className = classFilter.val();
+        if (className) params.push('class_name=' + encodeURIComponent(className));
         const speciesId = speciesFilter.val();
         if (speciesId) params.push('species_id=' + encodeURIComponent(speciesId));
         const insts = institutionFilter.val();  // string (single) or array
@@ -248,15 +267,17 @@ $(document).ready(function() {
             url: '{{ url_for("pam.api_verification_filter_options", lang_code=g.lang_code) }}' + filterParams(),
             method: 'GET',
             success: function(data) {
-                if (source === 'institution') {
-                    repopulateSelect(speciesFilter, data.species || [], "{{ _('-- Всі види --') }}");
-                } else {
-                    repopulateSelect(institutionFilter, data.institutions || [], "{{ _('-- Усі установи --') }}");
-                }
+                // Repopulate every filter EXCEPT the one the user just touched,
+                // so its selection is preserved while the others prune to valid
+                // combinations (class ↔ species ↔ institution).
+                if (source !== 'class') repopulateSelect(classFilter, data.classes || [], "{{ _('-- Усі класи --') }}");
+                if (source !== 'species') repopulateSelect(speciesFilter, data.species || [], "{{ _('-- Всі види --') }}");
+                if (source !== 'institution') repopulateSelect(institutionFilter, data.institutions || [], "{{ _('-- Усі установи --') }}");
             },
             complete: function() { cascadeBusy = false; }
         });
     }
+    classFilter.on('change', () => refreshCascade('class'));
     speciesFilter.on('change', () => refreshCascade('species'));
     institutionFilter.on('change', () => refreshCascade('institution'));
 
