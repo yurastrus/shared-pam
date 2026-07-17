@@ -383,6 +383,22 @@ def verification_priorities(lang_code):
                 'pending_for_user': pending_by_species.get(r.species_id, 0),
             })
 
+        # Default order: status first (actionable species that HAVE segments but
+        # are still under-verified come first; then detection-only species with
+        # no segments yet; then fully-verified ones last), then by ascending
+        # segment count, then by taxonomy (class → order → family → genus).
+        def _status_rank(row):
+            if row['total_segments'] == 0:
+                return 1  # red: detections only, nothing to verify yet
+            if row['verified_segments'] < VERIFIED_THRESHOLD:
+                return 0  # orange: has segments, still needs verification
+            return 2      # green: enough verified
+        species_rows.sort(key=lambda r: (
+            _status_rank(r),
+            r['total_segments'],
+            r['class_name'], r['order_name'], r['family_name'], r['genus_name'],
+        ))
+
         return render_template('pam_verification_priorities.html',
                                species_rows=species_rows,
                                verified_threshold=VERIFIED_THRESHOLD,

@@ -2706,7 +2706,7 @@ main .container:not(.maplistcontainer) {
 /* ──────────────────────────────────────────────────────────
    pam_verification_priorities: species verification-priority table
    ────────────────────────────────────────────────────────── */
-.priorities-container { max-width: 1100px; margin: 0 auto; }
+.priorities-container { max-width: 1400px; margin: 0 auto; }
 /* Center the header + subtitle. Target the <p> directly: something overrides
    the paragraph's own text-align (h1 inherits center but the .lead did not),
    so the container rule alone wasn't enough. */
@@ -2748,7 +2748,11 @@ main .container:not(.maplistcontainer) {
 .priorities-table tr.priority-low:hover { background: rgba(255, 153, 0, 0.20); }
 .priorities-table tr.priority-ok { background: rgba(40, 167, 69, 0.10); }
 .priorities-table tr.priority-ok:hover { background: rgba(40, 167, 69, 0.18); }
-.priorities-table td.action-cell { text-align: center; white-space: nowrap; }
+/* Keep the verify column off the numeric right-align rule and always fully
+   visible (never clipped by the table edge). */
+.priorities-table th:last-child,
+.priorities-table td.action-cell { text-align: center; white-space: nowrap; min-width: 150px; }
+.priorities-table td.action-cell .btn { white-space: nowrap; }
 
 /* Legend under the page header. */
 .priority-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; font-size: 0.9rem; }
