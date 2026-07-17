@@ -2706,7 +2706,7 @@ main .container:not(.maplistcontainer) {
 /* ──────────────────────────────────────────────────────────
    pam_verification_priorities: species verification-priority table
    ────────────────────────────────────────────────────────── */
-.priorities-container { max-width: 1600px; margin: 0 auto; }
+.priorities-container { max-width: 1600px; margin: 0 auto; padding: 0 16px; box-sizing: border-box; }
 /* Center the header + subtitle. Target the <p> directly: something overrides
    the paragraph's own text-align (h1 inherits center but the .lead did not),
    so the container rule alone wasn't enough. */
@@ -2758,7 +2758,7 @@ main .container:not(.maplistcontainer) {
 .priorities-table td.action-cell .btn { white-space: nowrap; }
 
 /* Legend under the page header. */
-.priority-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; font-size: 0.9rem; }
+.priority-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-top: 8px; font-size: 0.9rem; }
 .priority-legend .legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .priority-legend .legend-swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
 .priority-legend .swatch-none { background: rgba(220, 53, 69, 0.55); }
