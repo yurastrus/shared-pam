@@ -2740,9 +2740,23 @@ main .container:not(.maplistcontainer) {
 .priorities-table tbody tr:hover { background: var(--bg-secondary); }
 .priorities-table .species-common { font-weight: 600; }
 .priorities-table .species-sci { color: var(--text-muted, #6c757d); }
-/* Under-verified species flagged with a pale red fill. */
-.priorities-table tr.priority-low { background: rgba(220, 53, 69, 0.10); }
-.priorities-table tr.priority-low:hover { background: rgba(220, 53, 69, 0.18); }
+/* Row flags: red = detections but no segments; orange = segments but
+   under-verified; green = enough verifications. */
+.priorities-table tr.priority-none { background: rgba(220, 53, 69, 0.12); }
+.priorities-table tr.priority-none:hover { background: rgba(220, 53, 69, 0.20); }
+.priorities-table tr.priority-low { background: rgba(255, 153, 0, 0.12); }
+.priorities-table tr.priority-low:hover { background: rgba(255, 153, 0, 0.20); }
+.priorities-table tr.priority-ok { background: rgba(40, 167, 69, 0.10); }
+.priorities-table tr.priority-ok:hover { background: rgba(40, 167, 69, 0.18); }
+.priorities-table td.action-cell { text-align: center; white-space: nowrap; }
+
+/* Legend under the page header. */
+.priority-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; font-size: 0.9rem; }
+.priority-legend .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.priority-legend .legend-swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+.priority-legend .swatch-none { background: rgba(220, 53, 69, 0.55); }
+.priority-legend .swatch-low  { background: rgba(255, 153, 0, 0.65); }
+.priority-legend .swatch-ok   { background: rgba(40, 167, 69, 0.55); }
 .priorities-table th.sorted-asc::after { content: ' \25B2'; font-size: 0.75em; }
 .priorities-table th.sorted-desc::after { content: ' \25BC'; font-size: 0.75em; }
 

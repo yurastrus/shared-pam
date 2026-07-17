@@ -285,20 +285,30 @@ def verification_segments(lang_code):
 def verification_priorities(lang_code):
     """Priority table: which species most need verification.
 
-    One row per species that has segments in the system, with taxonomy columns
-    (class → order → family → genus → species) plus per-species counts: total
-    segments, total detections, verified segments (>=1 verification) and segments
-    that reached consensus (>=2 verifications). Sorted least-verified first so the
-    highest-priority species surface at the top; rows below VERIFIED_THRESHOLD
-    verified segments are flagged in the template.
+    One row per species that has segments OR detections in the system, with
+    taxonomy columns (class → order → family → genus → species) plus per-species
+    counts: total segments, total detections, verified segments (>=1
+    verification) and segments that reached consensus (>=2 verifications). Sorted
+    least-verified first so the highest-priority species surface at the top.
+
+    Colour flag (computed in the template):
+      * red    — detections exist but NO segments have been uploaded yet;
+      * orange — segments exist but fewer than VERIFIED_THRESHOLD are verified;
+      * green  — VERIFIED_THRESHOLD or more segments verified.
+
+    For a user with the ``pam_verifier`` role, each species that still has
+    segments this user personally can verify (pending, not yet voted on, inside
+    their institutions) gets a deep link straight into the verify interface with
+    the species filter pre-applied.
     """
     g.lang_code = lang_code
-    VERIFIED_THRESHOLD = 250  # verified-segment count below which a row is flagged
+    VERIFIED_THRESHOLD = 250  # verified-segment count for the green (done) flag
     conn = None
     try:
         conn = get_pam_db_connection()
         rows = conn.execute(text("""
             SELECT
+                s.species_id,
                 s.scientific_name,
                 s.common_name_uk,
                 s.common_name_en,
@@ -306,21 +316,49 @@ def verification_priorities(lang_code):
                 s.order_rank AS order_name,
                 s.family     AS family_name,
                 s.genus      AS genus_name,
-                COUNT(seg.id)                                               AS total_segments,
-                SUM(CASE WHEN seg.verification_count >= 1 THEN 1 ELSE 0 END) AS verified_segments,
-                SUM(CASE WHEN seg.verification_count >= 2 THEN 1 ELSE 0 END) AS consensus_segments,
-                COALESCE(d.detection_count, 0)                              AS detection_count
+                COALESCE(seg.total_segments, 0)     AS total_segments,
+                COALESCE(seg.verified_segments, 0)  AS verified_segments,
+                COALESCE(seg.consensus_segments, 0) AS consensus_segments,
+                COALESCE(d.detection_count, 0)      AS detection_count
             FROM species s
-            JOIN segments seg ON seg.species_id = s.species_id
+            LEFT JOIN (
+                SELECT species_id,
+                       COUNT(id)                                              AS total_segments,
+                       SUM(CASE WHEN verification_count >= 1 THEN 1 ELSE 0 END) AS verified_segments,
+                       SUM(CASE WHEN verification_count >= 2 THEN 1 ELSE 0 END) AS consensus_segments
+                FROM segments
+                GROUP BY species_id
+            ) seg ON seg.species_id = s.species_id
             LEFT JOIN (
                 SELECT species_id, COUNT(*) AS detection_count
                 FROM detections
                 GROUP BY species_id
             ) d ON d.species_id = s.species_id
-            GROUP BY s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en,
-                     s.class, s.order_rank, s.family, s.genus, d.detection_count
+            WHERE seg.species_id IS NOT NULL OR d.species_id IS NOT NULL
             ORDER BY consensus_segments ASC, verified_segments ASC, total_segments DESC
         """)).fetchall()
+
+        # For a verifier, find which species still have segments THEY can verify
+        # (pending, not yet voted on by them, inside their institutions) — same
+        # predicate as the next-segment queue, grouped by species.
+        pending_by_species = {}
+        is_verifier = current_user.is_authenticated and current_user.has_role('pam_verifier')
+        if is_verifier:
+            acc_sql, acc_params = _segment_access_sql('seg')
+            params = {'user_id': current_user.id}
+            params.update(acc_params)
+            pending_rows = conn.execute(text(f"""
+                SELECT seg.species_id, COUNT(*) AS remaining
+                FROM segments seg
+                WHERE seg.status = 'pending'
+                  AND seg.id NOT IN (
+                      SELECT sv.segment_id FROM segment_verifications sv
+                      WHERE sv.user_id = :user_id
+                  )
+                  AND {acc_sql}
+                GROUP BY seg.species_id
+            """), params).fetchall()
+            pending_by_species = {pr.species_id: int(pr.remaining or 0) for pr in pending_rows}
 
         species_rows = []
         for r in rows:
@@ -331,6 +369,7 @@ def verification_priorities(lang_code):
             else:
                 common = ''
             species_rows.append({
+                'species_id': r.species_id,
                 'scientific_name': r.scientific_name,
                 'common_name': common,
                 'class_name': r.class_name or '',
@@ -341,11 +380,13 @@ def verification_priorities(lang_code):
                 'detection_count': int(r.detection_count or 0),
                 'verified_segments': int(r.verified_segments or 0),
                 'consensus_segments': int(r.consensus_segments or 0),
+                'pending_for_user': pending_by_species.get(r.species_id, 0),
             })
 
         return render_template('pam_verification_priorities.html',
                                species_rows=species_rows,
-                               verified_threshold=VERIFIED_THRESHOLD)
+                               verified_threshold=VERIFIED_THRESHOLD,
+                               is_verifier=is_verifier)
     except Exception as e:
         current_app.logger.error(f"Error loading verification priorities: {e}")
         current_app.logger.error(traceback.format_exc())

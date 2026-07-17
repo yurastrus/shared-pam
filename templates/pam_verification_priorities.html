@@ -7,7 +7,12 @@
     <div class="priorities-container">
         <div class="page-header mb-4">
             <h1>{{ _('Пріоритети верифікації видів') }}</h1>
-            <p class="lead">{{ _('Які види варто верифікувати в першу чергу. Клікніть на заголовок колонки, щоб відсортувати. Підсвічено рядки, де верифіковано менше сегментів, ніж поріг:') }} {{ verified_threshold }}.</p>
+            <p class="lead">{{ _('Які види варто верифікувати в першу чергу. Клікніть на заголовок колонки, щоб відсортувати.') }}</p>
+            <div class="priority-legend">
+                <span class="legend-item"><span class="legend-swatch swatch-none"></span>{{ _('є детекції, але сегментів ще не завантажено') }}</span>
+                <span class="legend-item"><span class="legend-swatch swatch-low"></span>{{ _('є сегменти, але верифіковано менше, ніж поріг') }} ({{ verified_threshold }})</span>
+                <span class="legend-item"><span class="legend-swatch swatch-ok"></span>{{ _('верифіковано достатньо') }}</span>
+            </div>
         </div>
 
         {% if species_rows %}
@@ -24,11 +29,19 @@
                         <th data-type="num">{{ _('Детекцій') }}</th>
                         <th data-type="num">{{ _('Верифіковано') }}</th>
                         <th data-type="num">{{ _('Консенсус') }}</th>
+                        {% if is_verifier %}<th data-type="text">{{ _('Дія') }}</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in species_rows %}
-                    <tr class="{{ 'priority-low' if row.verified_segments < verified_threshold else '' }}">
+                    {% if row.total_segments == 0 %}
+                        {% set priority_class = 'priority-none' %}
+                    {% elif row.verified_segments < verified_threshold %}
+                        {% set priority_class = 'priority-low' %}
+                    {% else %}
+                        {% set priority_class = 'priority-ok' %}
+                    {% endif %}
+                    <tr class="{{ priority_class }}">
                         <td>{{ row.class_name }}</td>
                         <td>{{ row.order_name }}</td>
                         <td>{{ row.family_name }}</td>
@@ -40,6 +53,16 @@
                         <td data-sort="{{ row.detection_count }}">{{ row.detection_count }}</td>
                         <td data-sort="{{ row.verified_segments }}">{{ row.verified_segments }}</td>
                         <td data-sort="{{ row.consensus_segments }}">{{ row.consensus_segments }}</td>
+                        {% if is_verifier %}
+                        <td class="action-cell">
+                            {% if row.pending_for_user > 0 %}
+                            <a class="btn btn-sm btn-primary verify-link"
+                               href="{{ url_for('pam.verification_interface', lang_code=g.lang_code, species_id=row.species_id) }}">
+                                {{ _('Верифікувати') }} ({{ row.pending_for_user }})
+                            </a>
+                            {% endif %}
+                        </td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>

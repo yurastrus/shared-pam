@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-16 23:33+0300\n"
+"POT-Creation-Date: 2026-07-17 10:48+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: uk\n"
@@ -655,7 +655,7 @@ msgstr ""
 #: app/pam/templates/pam_evaluation_results.html:197
 #: app/pam/templates/pam_overview.html:452
 #: app/pam/templates/pam_sample_upload.html:43
-#: app/pam/templates/pam_verification_priorities.html:22
+#: app/pam/templates/pam_verification_priorities.html:27
 #: app/pam/templates/pam_verification_segments.html:266
 #: app/pam/templates/pam_yearly_table.html:186
 msgid "Вид"
@@ -1467,7 +1467,7 @@ msgid "-- Всі локації --"
 msgstr ""
 
 #: app/pam/templates/pam_overview.html:379
-#: app/pam/templates/pam_verification_priorities.html:24
+#: app/pam/templates/pam_verification_priorities.html:29
 msgid "Детекцій"
 msgstr ""
 
@@ -2212,39 +2212,39 @@ msgid ""
 "верифікували всі доступні сегменти."
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:507
+#: app/pam/templates/pam_verification_interface.html:516
 msgid "Помилка завантаження сегменту"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:545
+#: app/pam/templates/pam_verification_interface.html:554
 msgid "Немає активного сегменту для верифікації"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:564
+#: app/pam/templates/pam_verification_interface.html:573
 msgid "Верифікацію збережено! (Підтверджено)"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:565
+#: app/pam/templates/pam_verification_interface.html:574
 msgid "Верифікацію збережено! (Відхилено)"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:566
+#: app/pam/templates/pam_verification_interface.html:575
 msgid "Позначено «не знаю» — більше не показуватиметься вам"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:567
+#: app/pam/templates/pam_verification_interface.html:576
 msgid "Сегмент пропущено"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:571
+#: app/pam/templates/pam_verification_interface.html:580
 msgid "Сегмент відхилено (3+ «не знаю») і більше не показуватиметься"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:578
+#: app/pam/templates/pam_verification_interface.html:587
 msgid "Помилка збереження"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:579
+#: app/pam/templates/pam_verification_interface.html:588
 msgid "Помилка: "
 msgstr ""
 
@@ -2255,40 +2255,59 @@ msgstr ""
 #: app/pam/templates/pam_verification_priorities.html:10
 msgid ""
 "Які види варто верифікувати в першу чергу. Клікніть на заголовок колонки,"
-" щоб відсортувати. Підсвічено рядки, де верифіковано менше сегментів, ніж"
-" поріг:"
+" щоб відсортувати."
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:18
-msgid "Клас"
+#: app/pam/templates/pam_verification_priorities.html:12
+msgid "є детекції, але сегментів ще не завантажено"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:19
-msgid "Ряд"
+#: app/pam/templates/pam_verification_priorities.html:13
+msgid "є сегменти, але верифіковано менше, ніж поріг"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:20
-msgid "Родина"
-msgstr ""
-
-#: app/pam/templates/pam_verification_priorities.html:21
-msgid "Рід"
+#: app/pam/templates/pam_verification_priorities.html:14
+msgid "верифіковано достатньо"
 msgstr ""
 
 #: app/pam/templates/pam_verification_priorities.html:23
+msgid "Клас"
+msgstr ""
+
+#: app/pam/templates/pam_verification_priorities.html:24
+msgid "Ряд"
+msgstr ""
+
+#: app/pam/templates/pam_verification_priorities.html:25
+msgid "Родина"
+msgstr ""
+
+#: app/pam/templates/pam_verification_priorities.html:26
+msgid "Рід"
+msgstr ""
+
+#: app/pam/templates/pam_verification_priorities.html:28
 #: app/pam/templates/pam_verification_segments.html:64
 msgid "Сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:25
+#: app/pam/templates/pam_verification_priorities.html:30
 msgid "Верифіковано"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:26
+#: app/pam/templates/pam_verification_priorities.html:31
 msgid "Консенсус"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:49
+#: app/pam/templates/pam_verification_priorities.html:32
+msgid "Дія"
+msgstr ""
+
+#: app/pam/templates/pam_verification_priorities.html:61
+msgid "Верифікувати"
+msgstr ""
+
+#: app/pam/templates/pam_verification_priorities.html:72
 msgid "Немає видів із завантаженими сегментами для верифікації."
 msgstr ""
 
@@ -2667,5 +2686,12 @@ msgstr ""
 #~ msgstr ""
 
 #~ msgid "Пропущені назви:"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Які види варто верифікувати в першу "
+#~ "чергу. Клікніть на заголовок колонки, "
+#~ "щоб відсортувати. Підсвічено рядки, де "
+#~ "верифіковано менше сегментів, ніж поріг:"
 #~ msgstr ""
 

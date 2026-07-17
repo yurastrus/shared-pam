@@ -252,6 +252,15 @@ $(document).ready(function() {
     speciesFilter.on('change', () => refreshCascade('species'));
     institutionFilter.on('change', () => refreshCascade('institution'));
 
+    // Deep link from the priorities page: ?species_id=<id> pre-applies the
+    // species filter so the queue serves that species straight away. The option
+    // is guaranteed present — the priorities link only appears for species with
+    // segments this user can still verify.
+    const _preSpeciesId = new URLSearchParams(window.location.search).get('species_id');
+    if (_preSpeciesId && speciesFilter.find('option[value="' + _preSpeciesId + '"]').length) {
+        speciesFilter.val(_preSpeciesId).trigger('change.select2');
+    }
+
     // Load the first segment and matching stats.
     loadNextSegment();
 
