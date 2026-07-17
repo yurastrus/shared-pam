@@ -1319,12 +1319,18 @@ def api_next_verification_segment(lang_code):
         params.update(acc_params)
 
         # Priority for segments closest to consensus (more votes first).
+        # LEFT JOIN to the locations table (via the recording link) so the
+        # location can be shown from the registry, bilingually. seg.location_name
+        # (parsed from the filename) stays as the fallback when there is no link.
         query = text(f"""
             SELECT seg.id, seg.filename, seg.confidence_level, seg.location_name,
                    seg.recorded_date, seg.recorded_time, seg.file_path,
-                   s.scientific_name, s.common_name_uk, s.common_name_en
+                   s.scientific_name, s.common_name_uk, s.common_name_en,
+                   l.location_name AS loc_name_uk, l.location_name_en AS loc_name_en
             FROM segments seg
             JOIN species s ON seg.species_id = s.species_id
+            LEFT JOIN recordings r ON seg.recording_id = r.recording_id
+            LEFT JOIN locations l ON r.location_id = l.location_id
             WHERE {' AND '.join(conditions)}
             ORDER BY COALESCE(seg.verification_count, 0) DESC, RANDOM() LIMIT 1
         """)
@@ -1346,16 +1352,26 @@ def api_next_verification_segment(lang_code):
         elif g.lang_code == 'en' and common_name_en:
             display_name = f"{common_name_en} ({scientific_name})"
 
-        audio_url = url_for('pam.serve_verification_audio', 
+        # Location: prefer the registry record (bilingual) over the filename-parsed
+        # seg.location_name. UK → location_name; EN → location_name_en (→ UK → filename).
+        loc_name_uk = result[10]
+        loc_name_en = result[11]
+        seg_location = result[3]  # parsed from filename — fallback
+        if g.lang_code == 'en':
+            location_name = loc_name_en or loc_name_uk or seg_location
+        else:
+            location_name = loc_name_uk or seg_location
+
+        audio_url = url_for('pam.serve_verification_audio',
                            lang_code=g.lang_code,
                            segment_id=result[0],
                            _external=True)
-        
+
         return jsonify({
             'segment_id': result[0],
             'filename': result[1],
             'confidence_level': round(result[2], 3),
-            'location_name': result[3],
+            'location_name': location_name,
             'recorded_date': result[4].strftime('%d.%m.%Y'),
             'recorded_time': result[5].strftime('%H:%M:%S'),
             'species_display_name': display_name,
