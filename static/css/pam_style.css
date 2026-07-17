@@ -2706,7 +2706,7 @@ main .container:not(.maplistcontainer) {
 /* ──────────────────────────────────────────────────────────
    pam_verification_priorities: species verification-priority table
    ────────────────────────────────────────────────────────── */
-.priorities-container { max-width: 1400px; margin: 0 auto; }
+.priorities-container { max-width: 1600px; margin: 0 auto; }
 /* Center the header + subtitle. Target the <p> directly: something overrides
    the paragraph's own text-align (h1 inherits center but the .lead did not),
    so the container rule alone wasn't enough. */
@@ -2734,9 +2734,12 @@ main .container:not(.maplistcontainer) {
     user-select: none;
     white-space: nowrap;
 }
-/* Numeric columns (6–9) right-aligned. */
-.priorities-table th:nth-child(n+6),
-.priorities-table td:nth-child(n+6) { text-align: right; white-space: nowrap; }
+/* Numeric count columns (Сегментів…Консенсус, now cols 7–10) right-aligned. */
+.priorities-table th:nth-child(n+7),
+.priorities-table td:nth-child(n+7) { text-align: right; white-space: nowrap; }
+/* # column: narrow original-priority index. */
+.priorities-table th:first-child,
+.priorities-table td.order-cell { text-align: right; white-space: nowrap; width: 1%; color: var(--text-muted, #6c757d); }
 .priorities-table tbody tr:hover { background: var(--bg-secondary); }
 .priorities-table .species-common { font-weight: 600; }
 .priorities-table .species-sci { color: var(--text-muted, #6c757d); }

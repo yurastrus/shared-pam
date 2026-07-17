@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-17 10:48+0300\n"
+"POT-Creation-Date: 2026-07-17 11:13+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: uk\n"
@@ -655,7 +655,7 @@ msgstr ""
 #: app/pam/templates/pam_evaluation_results.html:197
 #: app/pam/templates/pam_overview.html:452
 #: app/pam/templates/pam_sample_upload.html:43
-#: app/pam/templates/pam_verification_priorities.html:27
+#: app/pam/templates/pam_verification_priorities.html:28
 #: app/pam/templates/pam_verification_segments.html:266
 #: app/pam/templates/pam_yearly_table.html:186
 msgid "Вид"
@@ -1467,7 +1467,7 @@ msgid "-- Всі локації --"
 msgstr ""
 
 #: app/pam/templates/pam_overview.html:379
-#: app/pam/templates/pam_verification_priorities.html:29
+#: app/pam/templates/pam_verification_priorities.html:30
 msgid "Детекцій"
 msgstr ""
 
@@ -2271,43 +2271,47 @@ msgid "верифіковано достатньо"
 msgstr ""
 
 #: app/pam/templates/pam_verification_priorities.html:23
-msgid "Клас"
+msgid "Порядок за пріоритетом (початкове сортування)"
 msgstr ""
 
 #: app/pam/templates/pam_verification_priorities.html:24
-msgid "Ряд"
+msgid "Клас"
 msgstr ""
 
 #: app/pam/templates/pam_verification_priorities.html:25
-msgid "Родина"
+msgid "Ряд"
 msgstr ""
 
 #: app/pam/templates/pam_verification_priorities.html:26
+msgid "Родина"
+msgstr ""
+
+#: app/pam/templates/pam_verification_priorities.html:27
 msgid "Рід"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:28
+#: app/pam/templates/pam_verification_priorities.html:29
 #: app/pam/templates/pam_verification_segments.html:64
 msgid "Сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:30
+#: app/pam/templates/pam_verification_priorities.html:31
 msgid "Верифіковано"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:31
+#: app/pam/templates/pam_verification_priorities.html:32
 msgid "Консенсус"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:32
+#: app/pam/templates/pam_verification_priorities.html:33
 msgid "Дія"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:61
+#: app/pam/templates/pam_verification_priorities.html:63
 msgid "Верифікувати"
 msgstr ""
 
-#: app/pam/templates/pam_verification_priorities.html:72
+#: app/pam/templates/pam_verification_priorities.html:74
 msgid "Немає видів із завантаженими сегментами для верифікації."
 msgstr ""
 

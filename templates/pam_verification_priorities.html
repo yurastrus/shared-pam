@@ -3,7 +3,7 @@
 {% block title %}{{ _('Пріоритети верифікації') }} - {{ _('yurastrus | персональний сайт') }}{% endblock %}
 
 {% block pam_content %}
-<div class="container mt-4">
+<div class="container-fluid mt-4">
     <div class="priorities-container">
         <div class="page-header mb-4">
             <h1>{{ _('Пріоритети верифікації видів') }}</h1>
@@ -20,6 +20,7 @@
             <table class="priorities-table" id="priorities-table">
                 <thead>
                     <tr>
+                        <th data-type="num" title="{{ _('Порядок за пріоритетом (початкове сортування)') }}">#</th>
                         <th data-type="text">{{ _('Клас') }}</th>
                         <th data-type="text">{{ _('Ряд') }}</th>
                         <th data-type="text">{{ _('Родина') }}</th>
@@ -42,6 +43,7 @@
                         {% set priority_class = 'priority-ok' %}
                     {% endif %}
                     <tr class="{{ priority_class }}">
+                        <td class="order-cell" data-sort="{{ loop.index }}">{{ loop.index }}</td>
                         <td>{{ row.class_name }}</td>
                         <td>{{ row.order_name }}</td>
                         <td>{{ row.family_name }}</td>

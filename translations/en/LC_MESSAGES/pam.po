@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-17 10:48+0300\n"
+"POT-Creation-Date: 2026-07-17 11:13+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -656,7 +656,7 @@ msgstr "Min. ver."
 #: app/pam/templates/pam_evaluation_results.html:197
 #: app/pam/templates/pam_overview.html:452
 #: app/pam/templates/pam_sample_upload.html:43
-#: app/pam/templates/pam_verification_priorities.html:27
+#: app/pam/templates/pam_verification_priorities.html:28
 #: app/pam/templates/pam_verification_segments.html:266
 #: app/pam/templates/pam_yearly_table.html:186
 msgid "Вид"
@@ -1492,7 +1492,7 @@ msgid "-- Всі локації --"
 msgstr "-- All locations --"
 
 #: app/pam/templates/pam_overview.html:379
-#: app/pam/templates/pam_verification_priorities.html:29
+#: app/pam/templates/pam_verification_priorities.html:30
 msgid "Детекцій"
 msgstr "Detections"
 
@@ -2291,8 +2291,7 @@ msgstr "Species verification priorities"
 msgid ""
 "Які види варто верифікувати в першу чергу. Клікніть на заголовок колонки,"
 " щоб відсортувати."
-msgstr ""
-"Which species to verify first. Click a column header to sort."
+msgstr "Which species to verify first. Click a column header to sort."
 
 #: app/pam/templates/pam_verification_priorities.html:12
 msgid "є детекції, але сегментів ще не завантажено"
@@ -2307,43 +2306,47 @@ msgid "верифіковано достатньо"
 msgstr "enough verified"
 
 #: app/pam/templates/pam_verification_priorities.html:23
+msgid "Порядок за пріоритетом (початкове сортування)"
+msgstr "Priority order (initial sorting)"
+
+#: app/pam/templates/pam_verification_priorities.html:24
 msgid "Клас"
 msgstr "Class"
 
-#: app/pam/templates/pam_verification_priorities.html:24
+#: app/pam/templates/pam_verification_priorities.html:25
 msgid "Ряд"
 msgstr "Order"
 
-#: app/pam/templates/pam_verification_priorities.html:25
+#: app/pam/templates/pam_verification_priorities.html:26
 msgid "Родина"
 msgstr "Family"
 
-#: app/pam/templates/pam_verification_priorities.html:26
+#: app/pam/templates/pam_verification_priorities.html:27
 msgid "Рід"
 msgstr "Genus"
 
-#: app/pam/templates/pam_verification_priorities.html:28
+#: app/pam/templates/pam_verification_priorities.html:29
 #: app/pam/templates/pam_verification_segments.html:64
 msgid "Сегментів"
 msgstr "Segments"
 
-#: app/pam/templates/pam_verification_priorities.html:30
+#: app/pam/templates/pam_verification_priorities.html:31
 msgid "Верифіковано"
 msgstr "Verified"
 
-#: app/pam/templates/pam_verification_priorities.html:31
+#: app/pam/templates/pam_verification_priorities.html:32
 msgid "Консенсус"
 msgstr "Consensus"
 
-#: app/pam/templates/pam_verification_priorities.html:32
+#: app/pam/templates/pam_verification_priorities.html:33
 msgid "Дія"
 msgstr "Action"
 
-#: app/pam/templates/pam_verification_priorities.html:61
+#: app/pam/templates/pam_verification_priorities.html:63
 msgid "Верифікувати"
 msgstr "Verify"
 
-#: app/pam/templates/pam_verification_priorities.html:72
+#: app/pam/templates/pam_verification_priorities.html:74
 msgid "Немає видів із завантаженими сегментами для верифікації."
 msgstr "No species with uploaded segments to verify."
 
