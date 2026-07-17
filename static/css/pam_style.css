@@ -2142,6 +2142,22 @@ main .container:not(.maplistcontainer) {
 /* Wrapper для спектрограми теж має займати повну ширину,
    щоб inline-block не обмежував зображення натуральним розміром. */
 .verification-container .spectrogram-wrapper { width: 100%; cursor: pointer; }
+/* Поки нова сонограма генерується на сервері й вантажиться, ховаємо стару
+   картинку (visibility, щоб не схлопувалась висота) і показуємо заглушку зі
+   спінером — інакше повзунок їхав би по застарілому зображенні. */
+.spectrogram-wrapper.loading #spectrogram-image { visibility: hidden; }
+.spectrogram-loading-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    z-index: 7;               /* над повзунком (6) та жовтими лініями (5) */
+}
+.spectrogram-wrapper.loading .spectrogram-loading-overlay { display: flex; }
 #playback-line {
     position: absolute;
     top: 0;

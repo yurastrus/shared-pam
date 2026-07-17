@@ -105,6 +105,14 @@
                             <!-- Boundary lines for the central region (long files only) -->
                             <div id="region-start-line" class="region-line"></div>
                             <div id="region-end-line" class="region-line"></div>
+
+                            <!-- Shown (via .loading on wrapper) while the new
+                                 spectrogram is being generated/loaded. -->
+                            <div class="spectrogram-loading-overlay">
+                                <div class="spinner-border" role="status">
+                                    <span class="sr-only">{{ _('Завантаження...') }}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -539,10 +547,26 @@ $(document).ready(function() {
         // auto-starts playback when the toggle is on.
         applyLoopSetting();
 
+        // Hide the stale spectrogram + playback line until the NEW image has
+        // loaded. The server renders the spectrogram with matplotlib, which takes
+        // a fraction of a second; without this, the browser keeps showing the
+        // previous image while the (already-playing) audio drags the playback
+        // line across it — confusing. A .loading overlay masks the wrapper until
+        // the fresh image fires 'load'; the line reappears already at the right
+        // position (RAF kept updating its offset while hidden).
+        const $wrapper = $(spectrogramWrapper);
+        const $specImg = $('#spectrogram-image');
+        $wrapper.addClass('loading');
+        playbackLine.css('left', SPECTROGRAM_PADDING_LEFT_PERCENT + '%').hide();
+
         const spectrogramUrl = `{{ url_for("pam.serve_spectrogram_image", lang_code=g.lang_code, segment_id=0) }}`.replace('/0', '/' + segment.segment_id);
-        $('#spectrogram-image').attr('src', spectrogramUrl);
-        
-        playbackLine.css('left', SPECTROGRAM_PADDING_LEFT_PERCENT + '%').show();
+        $specImg
+            .off('load.spec error.spec')
+            .on('load.spec error.spec', function () {
+                $wrapper.removeClass('loading');
+                playbackLine.show();
+            })
+            .attr('src', spectrogramUrl);
     }
     
     /**
