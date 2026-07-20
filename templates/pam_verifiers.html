@@ -1,0 +1,112 @@
+{% extends "pam_base.html" %}
+
+{% block title %}{{ _('Всі верифікатори') }} - {{ _('yurastrus | персональний сайт') }}{% endblock %}
+
+{% block pam_head_extra %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block pam_content %}
+<div class="container mt-4">
+    <div class="segments-container">
+        <div class="page-header mb-4">
+            <h1>{{ _('Всі верифікатори') }}</h1>
+            <p class="lead">{{ _('Повний перелік верифікаторів та їхній внесок за ковзні періоди.') }}</p>
+        </div>
+
+        <!-- Filters -->
+        <form id="filters-form" method="GET" class="filters-panel">
+            <div class="filters-row">
+                <div class="filter-group">
+                    <label for="species-filter">{{ _('Вид:') }}</label>
+                    <select id="species-filter" name="species_id" class="form-control" style="width: 100%;">
+                        <option value="">{{ _('-- Усі види --') }}</option>
+                        {% for species in available_species %}
+                        <option value="{{ species.id }}" {% if selected_species_id == species.id %}selected{% endif %}>{{ species.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="status-filter">{{ _('Статус:') }}</label>
+                    <select id="status-filter" name="status" class="form-control">
+                        <option value="all" {% if selected_status == 'all' %}selected{% endif %}>{{ _('-- Усі статуси --') }}</option>
+                        <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>{{ _('На верифікацію') }}</option>
+                        <option value="completed" {% if selected_status == 'completed' %}selected{% endif %}>{{ _('Завершено') }}</option>
+                        <option value="archived" {% if selected_status == 'archived' %}selected{% endif %}>{{ _('Архівовано') }}</option>
+                    </select>
+                </div>
+                <div class="filter-buttons">
+                    <button type="submit" class="btn">{{ _('Застосувати') }}</button>
+                    <a href="{{ url_for('pam.verification_verifiers', lang_code=g.lang_code) }}" class="btn btn-secondary">{{ _('Скинути') }}</a>
+                </div>
+            </div>
+        </form>
+
+        <div class="segments-table-section" style="margin-top: 20px;">
+            {% if verifiers %}
+            <div class="table-scroll">
+            <table class="verifiers-table" id="verifiers-table">
+                <thead>
+                    <tr>
+                        <th data-type="text">#</th>
+                        <th data-type="text">{{ _('Верифікатор') }}</th>
+                        <th data-type="num">{{ _('Сьогодні') }}</th>
+                        <th data-type="num">{{ _('Тиждень') }}</th>
+                        <th data-type="num">{{ _('Місяць') }}</th>
+                        <th data-type="num">{{ _('Рік') }}</th>
+                        <th data-type="num" class="sorted-desc">{{ _('Усього') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for v in verifiers %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ v.name }}</td>
+                        <td>{{ v.d_today }}</td>
+                        <td>{{ v.d_week }}</td>
+                        <td>{{ v.d_month }}</td>
+                        <td>{{ v.d_year }}</td>
+                        <td class="col-total">{{ v.total }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}
+            <div class="no-data-message">{{ _('Дані для рейтингу відсутні за вибраними критеріями') }}</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#species-filter').select2({ placeholder: "{{ _('-- Усі види --') }}", allowClear: true });
+    $('#status-filter').select2({ minimumResultsForSearch: Infinity });
+
+    // Simple client-side table sorting.
+    $('#verifiers-table th').on('click', function() {
+        var table = $('#verifiers-table');
+        var rows = table.find('tbody tr').get();
+        var idx = $(this).index();
+        var type = $(this).data('type');
+        var asc = !$(this).hasClass('sorted-asc');
+
+        table.find('th').removeClass('sorted-asc sorted-desc');
+        $(this).addClass(asc ? 'sorted-asc' : 'sorted-desc');
+
+        rows.sort(function(a, b) {
+            var x = $(a).children('td').eq(idx).text().trim();
+            var y = $(b).children('td').eq(idx).text().trim();
+            if (type === 'num') { x = parseFloat(x) || 0; y = parseFloat(y) || 0; return asc ? x - y : y - x; }
+            return asc ? x.localeCompare(y) : y.localeCompare(x);
+        });
+        $.each(rows, function(i, row) { table.children('tbody').append(row); });
+    });
+});
+</script>
+{% endblock %}

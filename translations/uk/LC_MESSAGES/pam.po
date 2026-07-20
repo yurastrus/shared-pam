@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-17 15:00+0300\n"
+"POT-Creation-Date: 2026-07-20 14:06+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: uk\n"
@@ -381,7 +381,7 @@ msgstr ""
 #: app/pam/templates/pam_service_log.html:242
 #: app/pam/templates/pam_verification_interface.html:122
 #: app/pam/templates/pam_verification_interface.html:173
-#: app/pam/templates/pam_verification_segments.html:104
+#: app/pam/templates/pam_verification_segments.html:107
 msgid "Завантаження..."
 msgstr ""
 
@@ -611,6 +611,7 @@ msgstr ""
 #: app/pam/templates/pam_verification_priorities.html:3
 #: app/pam/templates/pam_verification_segments.html:3
 #: app/pam/templates/pam_verification_upload.html:3
+#: app/pam/templates/pam_verifiers.html:3
 msgid "yurastrus | персональний сайт"
 msgstr ""
 
@@ -657,7 +658,7 @@ msgstr ""
 #: app/pam/templates/pam_overview.html:452
 #: app/pam/templates/pam_sample_upload.html:43
 #: app/pam/templates/pam_verification_priorities.html:28
-#: app/pam/templates/pam_verification_segments.html:266
+#: app/pam/templates/pam_verification_segments.html:269
 #: app/pam/templates/pam_yearly_table.html:186
 msgid "Вид"
 msgstr ""
@@ -811,7 +812,7 @@ msgid "Відкрити графік регресії"
 msgstr ""
 
 #: app/pam/templates/pam_evaluation_results.html:380
-#: app/pam/templates/pam_verification_segments.html:381
+#: app/pam/templates/pam_verification_segments.html:384
 msgid "← Попередня"
 msgstr ""
 
@@ -825,7 +826,7 @@ msgid "з"
 msgstr ""
 
 #: app/pam/templates/pam_evaluation_results.html:382
-#: app/pam/templates/pam_verification_segments.html:405
+#: app/pam/templates/pam_verification_segments.html:408
 msgid "Наступна →"
 msgstr ""
 
@@ -1034,7 +1035,7 @@ msgid "Імпорт даних ПАМ"
 msgstr ""
 
 #: app/pam/templates/pam_import.html:40
-#: app/pam/templates/pam_verification_segments.html:268
+#: app/pam/templates/pam_verification_segments.html:271
 msgid "Локація"
 msgstr ""
 
@@ -1911,6 +1912,7 @@ msgstr ""
 #: app/pam/templates/pam_species_detailed.html:79
 #: app/pam/templates/pam_verification_interface.html:49
 #: app/pam/templates/pam_verification_segments.html:49
+#: app/pam/templates/pam_verifiers.html:52
 msgid "Застосувати"
 msgstr ""
 
@@ -2338,38 +2340,46 @@ msgid ""
 msgstr ""
 
 #: app/pam/templates/pam_verification_segments.html:21
+#: app/pam/templates/pam_verifiers.html:34
 msgid "Вид:"
 msgstr ""
 
 #: app/pam/templates/pam_verification_segments.html:23
-#: app/pam/templates/pam_verification_segments.html:145
+#: app/pam/templates/pam_verification_segments.html:148
+#: app/pam/templates/pam_verifiers.html:36
+#: app/pam/templates/pam_verifiers.html:101
 msgid "-- Усі види --"
 msgstr ""
 
 #: app/pam/templates/pam_verification_segments.html:30
+#: app/pam/templates/pam_verifiers.html:43
 msgid "Статус:"
 msgstr ""
 
 #: app/pam/templates/pam_verification_segments.html:32
+#: app/pam/templates/pam_verifiers.html:45
 msgid "-- Усі статуси --"
 msgstr ""
 
 #: app/pam/templates/pam_verification_segments.html:33
 #: app/pam/templates/pam_verification_segments.html:68
-#: app/pam/templates/pam_verification_segments.html:353
+#: app/pam/templates/pam_verification_segments.html:356
 #: app/pam/templates/pam_verification_upload.html:18
+#: app/pam/templates/pam_verifiers.html:46
 msgid "На верифікацію"
 msgstr ""
 
 #: app/pam/templates/pam_verification_segments.html:34
 #: app/pam/templates/pam_verification_segments.html:72
-#: app/pam/templates/pam_verification_segments.html:354
+#: app/pam/templates/pam_verification_segments.html:357
+#: app/pam/templates/pam_verifiers.html:47
 msgid "Завершено"
 msgstr ""
 
 #: app/pam/templates/pam_verification_segments.html:35
 #: app/pam/templates/pam_verification_segments.html:76
-#: app/pam/templates/pam_verification_segments.html:355
+#: app/pam/templates/pam_verification_segments.html:358
+#: app/pam/templates/pam_verifiers.html:48
 msgid "Архівовано"
 msgstr ""
 
@@ -2378,6 +2388,7 @@ msgid "На сторінці:"
 msgstr ""
 
 #: app/pam/templates/pam_verification_segments.html:52
+#: app/pam/templates/pam_verifiers.html:53
 msgid "Скинути"
 msgstr ""
 
@@ -2393,51 +2404,56 @@ msgstr ""
 msgid "Топ верифікаторів (за фільтром)"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:99
+#: app/pam/templates/pam_verification_segments.html:95
+msgid "Переглянути всіх верифікаторів →"
+msgstr ""
+
+#: app/pam/templates/pam_verification_segments.html:102
 msgid "Список сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:217
+#: app/pam/templates/pam_verification_segments.html:220
 msgid "Помилка завантаження даних"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:246
+#: app/pam/templates/pam_verification_segments.html:249
 msgid "Помилка завантаження рейтингу"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:256
+#: app/pam/templates/pam_verification_segments.html:259
 msgid "Сегменти не знайдено за вибраними критеріями"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:265
+#: app/pam/templates/pam_verification_segments.html:268
 msgid "Файл"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:267
+#: app/pam/templates/pam_verification_segments.html:270
 msgid "Точність"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:269
+#: app/pam/templates/pam_verification_segments.html:272
 msgid "Дата запису"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:270
+#: app/pam/templates/pam_verification_segments.html:273
 msgid "Час запису"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:271
+#: app/pam/templates/pam_verification_segments.html:274
 msgid "Статус"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:272
+#: app/pam/templates/pam_verification_segments.html:275
 msgid "Верифікації"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:319
+#: app/pam/templates/pam_verification_segments.html:322
+#: app/pam/templates/pam_verifiers.html:89
 msgid "Дані для рейтингу відсутні за вибраними критеріями"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:334
+#: app/pam/templates/pam_verification_segments.html:337
 msgid "верифікацій"
 msgstr ""
 
@@ -2590,6 +2606,40 @@ msgstr ""
 msgid "Перевірте логи сервера для детальної інформації про помилку."
 msgstr ""
 
+#: app/pam/templates/pam_verifiers.html:3
+#: app/pam/templates/pam_verifiers.html:26
+msgid "Всі верифікатори"
+msgstr ""
+
+#: app/pam/templates/pam_verifiers.html:27
+msgid "Повний перелік верифікаторів та їхній внесок за ковзні періоди."
+msgstr ""
+
+#: app/pam/templates/pam_verifiers.html:65
+msgid "Верифікатор"
+msgstr ""
+
+#: app/pam/templates/pam_verifiers.html:66
+msgid "Сьогодні"
+msgstr ""
+
+#: app/pam/templates/pam_verifiers.html:67
+msgid "Тиждень"
+msgstr ""
+
+#: app/pam/templates/pam_verifiers.html:68
+msgid "Місяць"
+msgstr ""
+
+#: app/pam/templates/pam_verifiers.html:69
+#: app/pam/templates/pam_yearly_trends.html:191
+msgid "Рік"
+msgstr ""
+
+#: app/pam/templates/pam_verifiers.html:70
+msgid "Усього"
+msgstr ""
+
 #: app/pam/templates/pam_yearly_table.html:11
 msgid "Порівняльна таблиця річної активності видів"
 msgstr ""
@@ -2654,10 +2704,6 @@ msgstr ""
 
 #: app/pam/templates/pam_yearly_trends.html:188
 msgid "RAI (детекцій на годину)"
-msgstr ""
-
-#: app/pam/templates/pam_yearly_trends.html:191
-msgid "Рік"
 msgstr ""
 
 #~ msgid "Алгоритм класифікації"

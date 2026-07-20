@@ -3214,3 +3214,16 @@ select.select2-hidden-accessible { width: 1px !important; }
 .su-prog-bar { height:100%; background:#198754; width:0%; transition:width .2s; text-align:center; color:#fff; font-size:0.72rem; line-height:20px; }
 .su-stat { display:inline-block; margin-right:16px; font-size:0.82rem; }
 .su-stat b { font-size:1.05rem; }
+
+/* Verifiers leaderboard table (pam_verifiers.html) */
+.verifiers-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.verifiers-table th, .verifiers-table td {
+    padding: 8px 12px; border-bottom: 1px solid #e0e0e0; text-align: right;
+}
+.verifiers-table th:nth-child(2), .verifiers-table td:nth-child(2),
+.verifiers-table th:first-child, .verifiers-table td:first-child { text-align: left; }
+.verifiers-table th { cursor: pointer; user-select: none; white-space: nowrap; }
+.verifiers-table th.sorted-asc::after { content: " \25B2"; }
+.verifiers-table th.sorted-desc::after { content: " \25BC"; }
+.verifiers-table tbody tr:hover { background: #f6f8fa; }
+.verifiers-table .col-total { font-weight: 600; color: #0779e4; }

@@ -20,6 +20,7 @@ import io
 import csv
 from app.models import User, Institution
 from datetime import datetime, timedelta, date
+from dateutil.relativedelta import relativedelta
 from .pam_evaluation_utils import get_species_logistic_data
 
 
@@ -275,6 +276,116 @@ def verification_segments(lang_code):
         current_app.logger.error(f"Full traceback: {traceback.format_exc()}")
         flash('Помилка завантаження сторінки сегментів.', 'danger')
         return redirect(url_for('pam.pam_home', lang_code=lang_code))
+    finally:
+        if conn:
+            conn.close()
+
+@pam_bp.route('/<lang_code>/pam/verification/verifiers')
+@login_required
+@role_required('pam_verifier')
+def verification_verifiers(lang_code):
+    """Full leaderboard of segment verifiers with rolling-window statistics.
+
+    PAM analogue of the camera-traps ``contributors`` page. For every user who
+    has cast at least one segment verification, show how many verifications they
+    made today / in the last 7 days / month / year / all time (windows anchored
+    to ``verified_at``, i.e. when the vote was cast). Optional species / status
+    filters mirror the "Топ верифікаторів (за фільтром)" block on the segments
+    page. Usernames (full names for managers) come from the main application DB.
+    """
+    g.lang_code = lang_code
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+
+        # --- Species filter dropdown (segments that actually have verifications) ---
+        species_for_filter = conn.execute(text("""
+            SELECT DISTINCT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
+            FROM species s
+            JOIN segments seg ON s.species_id = seg.species_id
+            ORDER BY s.scientific_name
+        """)).fetchall()
+        species_list = []
+        for sp in species_for_filter:
+            display_name = sp[1]
+            if lang_code == 'uk' and sp[2]:
+                display_name = f"{sp[2]} ({sp[1]})"
+            elif lang_code == 'en' and sp[3]:
+                display_name = f"{sp[3]} ({sp[1]})"
+            species_list.append({'id': sp[0], 'name': display_name})
+
+        selected_species_id = request.args.get('species_id', type=int)
+        selected_status = request.args.get('status', 'all')
+
+        # --- Rolling window boundaries anchored to the start of today ---
+        today = date.today()
+        start_today = datetime.combine(today, datetime.min.time())
+        start_week = datetime.combine(today - timedelta(days=6), datetime.min.time())
+        start_month = datetime.combine(today - relativedelta(months=1), datetime.min.time())
+        start_year = datetime.combine(today - relativedelta(years=1), datetime.min.time())
+
+        conditions = []
+        params = {
+            'start_today': start_today,
+            'start_week': start_week,
+            'start_month': start_month,
+            'start_year': start_year,
+        }
+        if selected_species_id:
+            conditions.append("seg.species_id = :species_id")
+            params['species_id'] = selected_species_id
+        if selected_status != 'all':
+            conditions.append("seg.status = :status")
+            params['status'] = selected_status
+        where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+        rows = conn.execute(text(f"""
+            SELECT
+                sv.user_id,
+                COUNT(*) FILTER (WHERE sv.verified_at >= :start_today) AS d_today,
+                COUNT(*) FILTER (WHERE sv.verified_at >= :start_week)  AS d_week,
+                COUNT(*) FILTER (WHERE sv.verified_at >= :start_month) AS d_month,
+                COUNT(*) FILTER (WHERE sv.verified_at >= :start_year)  AS d_year,
+                COUNT(*) AS total
+            FROM segment_verifications sv
+            JOIN segments seg ON sv.segment_id = seg.id
+            {where_clause}
+            GROUP BY sv.user_id
+            ORDER BY total DESC
+        """), params).fetchall()
+
+        # --- Resolve names from the main application database ---
+        verifiers = []
+        if rows:
+            is_manager = current_user.is_authenticated and current_user.has_role('manager')
+            user_ids = [r[0] for r in rows]
+            users = User.query.filter(User.id.in_(user_ids)).all()
+            if is_manager:
+                name_map = {u.id: (u.full_name or u.username) for u in users}
+            else:
+                name_map = {u.id: u.username for u in users}
+            for r in rows:
+                verifiers.append({
+                    'name': name_map.get(r[0], f'User #{r[0]}'),
+                    'd_today': r[1] or 0,
+                    'd_week': r[2] or 0,
+                    'd_month': r[3] or 0,
+                    'd_year': r[4] or 0,
+                    'total': r[5] or 0,
+                })
+
+        return render_template(
+            'pam_verifiers.html',
+            verifiers=verifiers,
+            available_species=species_list,
+            selected_species_id=selected_species_id,
+            selected_status=selected_status,
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error loading verifiers leaderboard: {e}")
+        current_app.logger.error(f"Full traceback: {traceback.format_exc()}")
+        flash('Помилка завантаження рейтингу верифікаторів.', 'danger')
+        return redirect(url_for('pam.verification_segments', lang_code=lang_code))
     finally:
         if conn:
             conn.close()
@@ -2692,7 +2803,7 @@ def api_top_verifiers(lang_code):
             {where_clause}
             GROUP BY sv.user_id
             ORDER BY verification_count DESC
-            LIMIT 20
+            LIMIT 10
         """)
         
         # Execute query against PAM_DB.
