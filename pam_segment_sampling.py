@@ -47,17 +47,37 @@ MAX_SAMPLE_PER_SPECIES = 5000
 
 # ── sampling ──────────────────────────────────────────────────────────────────
 
-def build_sampling_query(n_strata):
+def build_sampling_query(n_strata, is_reference=True):
     """Return the parameterised stratified-sampling SQL.
 
     Kept as a pure function (no DB, no I/O) so it is unit-testable. ``n_strata``
     is interpolated into the SQL text because it drives ``ntile()``'s argument;
     every value that depends on user input stays a bound parameter.
 
+    ``is_reference`` selects which confidence drives the sample:
+      * reference model (BirdNET 2.4) — ``detections.confidence`` (unchanged; the
+        column that legacy behaviour used), so no ``detection_models`` join is
+        needed and the historical result is reproduced exactly.
+      * any other model — that model's own ``detection_models.confidence`` (bound
+        as :model_id), so the sample is stratified by the model being evaluated.
+
+    Dedup is per ``(detection_id, model_id)`` — a detection already sampled for
+    THIS model is skipped, but the same biological event can still be sampled
+    (and separately verified) for a different model.
+
     Bind params expected by the returned SQL:
-        :species_name, :location_ids (list), :conf_thr, :per_stratum
+        :species_name, :location_ids (list), :conf_thr, :per_stratum,
+        :seg_model_id  (the model to tag the sample with / dedup against)
+        :model_id      (only when is_reference is False — the model to score by)
     """
     n_strata = max(1, int(n_strata))
+    if is_reference:
+        conf_expr = "d.confidence"
+        model_join = ""
+    else:
+        conf_expr = "dm.confidence"
+        model_join = ("JOIN detection_models dm "
+                      "ON dm.detection_id = d.detection_id AND dm.model_id = :model_id")
     return text(f"""
         WITH candidates AS (
             SELECT d.detection_id,
@@ -68,19 +88,21 @@ def build_sampling_query(n_strata):
                    l.location_name,
                    d.start_s,
                    d.end_s,
-                   d.confidence,
-                   ntile({n_strata}) OVER (ORDER BY d.confidence) AS stratum
+                   {conf_expr}      AS confidence,
+                   ntile({n_strata}) OVER (ORDER BY {conf_expr}) AS stratum
             FROM detections d
             JOIN recordings r ON d.recording_id = r.recording_id
             JOIN locations  l ON r.location_id  = l.location_id
             JOIN species    s ON d.species_id   = s.species_id
+            {model_join}
             WHERE s.scientific_name = :species_name
               AND r.location_id = ANY(:location_ids)
-              AND d.confidence IS NOT NULL
-              AND d.confidence >= :conf_thr
+              AND {conf_expr} IS NOT NULL
+              AND {conf_expr} >= :conf_thr
               AND NOT EXISTS (
                     SELECT 1 FROM segments sg
                     WHERE sg.detection_id = d.detection_id
+                      AND sg.model_id = :seg_model_id
               )
         ),
         ranked AS (
@@ -97,14 +119,21 @@ def build_sampling_query(n_strata):
 
 
 def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
-                          n_strata=10, sample_size=700, conn=None):
-    """Draw a confidence-stratified detection sample for one species.
+                          n_strata=10, sample_size=700, conn=None,
+                          model_id=None, is_reference=True):
+    """Draw a confidence-stratified detection sample for one species + model.
 
     Mirrors ``produce_random_segments.R``: split the confidence range into
     ``n_strata`` quantile bins (``ntile``) and take up to
     ``ceil(sample_size / n_strata)`` random detections per bin — so low- and
-    high-confidence events are both represented. Already-uploaded detections are
-    excluded by the query itself.
+    high-confidence events are both represented. Already-uploaded detections
+    (for this ``model_id``) are excluded by the query itself.
+
+    ``model_id`` is the model the sample is drawn / tagged for; ``is_reference``
+    is True for the BirdNET 2.4 reference model (uses ``detections.confidence``)
+    and False for any other model (uses its ``detection_models.confidence``). The
+    chosen ``model_id`` is echoed into every result dict so the client sends it
+    back on upload and the segment is tagged with it.
 
     Returns a list of plain dicts (JSON-serialisable) — one per sampled
     detection — carrying everything the browser needs to cut + label the clip.
@@ -115,16 +144,23 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
     sample_size = max(1, min(int(sample_size), MAX_SAMPLE_PER_SPECIES))
     per_stratum = math.ceil(sample_size / n_strata)
 
+    params = {
+        'species_name': species_name,
+        'location_ids': list(location_ids),
+        'conf_thr': float(confidence_threshold),
+        'per_stratum': per_stratum,
+        'seg_model_id': model_id,
+    }
+    if not is_reference:
+        params['model_id'] = model_id
+
     own_conn = conn is None
     if own_conn:
         conn = get_pam_db_connection()
     try:
-        rows = conn.execute(build_sampling_query(n_strata), {
-            'species_name': species_name,
-            'location_ids': list(location_ids),
-            'conf_thr': float(confidence_threshold),
-            'per_stratum': per_stratum,
-        }).mappings().fetchall()
+        rows = conn.execute(
+            build_sampling_query(n_strata, is_reference=is_reference), params
+        ).mappings().fetchall()
     finally:
         if own_conn and conn is not None:
             conn.close()
@@ -150,6 +186,7 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
             'detection_id': int(row['detection_id']),
             'recording_id': int(row['recording_id']),
             'species_id': int(row['species_id']),
+            'model_id': int(model_id) if model_id is not None else None,
             'recording_filename': rec_filename,
             'segment_filename': seg_filename,
             'location_name': _location_token(rec_filename, row['location_name']),
@@ -232,12 +269,14 @@ def convert_wav_bytes_to_flac(wav_bytes, flac_path):
 
 def register_sampled_segment(conn, *, species_id, detection_id, recording_id,
                              segment_filename, confidence, location_name,
-                             recorded_date, recorded_time, file_path):
-    """Insert one sampled segment, with explicit detection/recording links.
+                             recorded_date, recorded_time, file_path,
+                             model_id=None):
+    """Insert one sampled segment, with explicit detection/recording/model links.
 
-    Idempotent per detection: if a segment for this ``detection_id`` already
-    exists (e.g. a double-click, or it was uploaded via the old path and
-    backfilled) the insert is skipped and ``None`` is returned. Otherwise the
+    Idempotent per ``(detection_id, model_id)``: if a segment for this detection
+    AND this model already exists (e.g. a double-click, or a prior sample for
+    the same model) the insert is skipped and ``None`` is returned. The same
+    biological event may still be sampled for a DIFFERENT model. Otherwise the
     new segment id is returned. Runs inside the caller's transaction.
 
     ``status`` is ``'pending'`` so the segment flows through the standard
@@ -245,25 +284,26 @@ def register_sampled_segment(conn, *, species_id, detection_id, recording_id,
     """
     dup = conn.execute(text("""
         SELECT id FROM segments
-        WHERE detection_id = :detection_id
-           OR filename = :filename
+        WHERE (detection_id = :detection_id OR filename = :filename)
+          AND model_id IS NOT DISTINCT FROM :model_id
         LIMIT 1
-    """), {'detection_id': detection_id, 'filename': segment_filename}).fetchone()
+    """), {'detection_id': detection_id, 'filename': segment_filename,
+           'model_id': model_id}).fetchone()
     if dup:
         current_app.logger.info(
             f"Sampled segment skipped (duplicate): detection={detection_id} "
-            f"filename={segment_filename}")
+            f"model={model_id} filename={segment_filename}")
         return None
 
     row = conn.execute(text("""
         INSERT INTO segments
             (species_id, filename, confidence_level, location_name,
              recorded_date, recorded_time, file_path, upload_date, status,
-             recording_id, detection_id)
+             recording_id, detection_id, model_id)
         VALUES
             (:species_id, :filename, :confidence, :location_name,
              :recorded_date, :recorded_time, :file_path, :upload_date, 'pending',
-             :recording_id, :detection_id)
+             :recording_id, :detection_id, :model_id)
         RETURNING id
     """), {
         'species_id': species_id,
@@ -276,6 +316,7 @@ def register_sampled_segment(conn, *, species_id, detection_id, recording_id,
         'upload_date': datetime.now(),
         'recording_id': recording_id,
         'detection_id': detection_id,
+        'model_id': model_id,
     }).fetchone()
     return row[0] if row else None
 
@@ -309,6 +350,7 @@ def save_and_register_segment(wav_bytes, meta, upload_directory, conn):
                 recorded_date=meta.get('recorded_date'),
                 recorded_time=meta.get('recorded_time'),
                 file_path=final_path,
+                model_id=meta.get('model_id'),
             )
         if seg_id is None:
             _quiet_remove(final_path)

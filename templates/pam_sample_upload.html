@@ -52,6 +52,23 @@
     <!-- STEP 3: sampling parameters -->
     <div class="su-card">
         <div class="su-title"><span class="su-step-num">3</span>{{ _('Параметри вибірки та нарізки') }}</div>
+        {% if models and models|length > 1 %}
+        <div class="row g-2 mb-2">
+            <div class="col-md-6">
+                <label class="form-label form-label-sm">{{ _('Модель класифікатора') }}</label>
+                <select id="su-model" class="form-select form-select-sm">
+                    {% for m in models %}
+                    <option value="{{ m.model_id }}" {% if m.model_id == reference_model_id %}selected{% endif %}>
+                        {{ m.label }}{% if m.is_reference %} — {{ _('еталон') }}{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="su-help mt-1">{{ _('Вибірка стратифікується за конфіденсом обраної моделі; сегменти позначаються нею.') }}</div>
+            </div>
+        </div>
+        {% else %}
+        <input type="hidden" id="su-model" value="{{ reference_model_id or '' }}">
+        {% endif %}
         <div class="row g-2">
             <div class="col-md-3">
                 <label class="form-label form-label-sm">{{ _('Довжина сегмента (с)') }}</label>
@@ -221,6 +238,7 @@
                     confidence_threshold: parseFloat($('su-conf').value) || 0.1,
                     n_strata: parseInt($('su-strata').value, 10) || 10,
                     sample_size: parseInt($('su-size').value, 10) || 700,
+                    model_id: parseInt(($('su-model') || {}).value, 10) || null,
                 })
             });
             const data = await r.json();
@@ -410,6 +428,9 @@
             fd.append('segment_filename', seg.segment_filename);
             fd.append('confidence', seg.confidence);
             fd.append('location_name', seg.location_name || '');
+            // model this segment was sampled for (from /prepare, or the selector)
+            if (seg.model_id != null) fd.append('model_id', seg.model_id);
+            else if (($('su-model') || {}).value) fd.append('model_id', $('su-model').value);
             if (seg.recorded_date) fd.append('recorded_date', seg.recorded_date);
             if (seg.recorded_time) fd.append('recorded_time', seg.recorded_time);
             const r = await fetch(URL_UPLOAD, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd });

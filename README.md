@@ -27,10 +27,10 @@ The PAM module uses its own PostgreSQL database (`pam_db`, configured via `PAM_D
 
 | Table | Key columns | Purpose |
 |---|---|---|
-| `segments` | `id`, `species_id`, `filename`, `confidence_level`, `location_name`, `recorded_date`, `recorded_time`, `file_path`, `upload_date`, `status` | Audio clips extracted for human review; `status` tracks lifecycle (`pending` → `completed` → `archived`) |
+| `segments` | `id`, `species_id`, `filename`, `confidence_level`, `location_name`, `recorded_date`, `recorded_time`, `file_path`, `upload_date`, `status`, `recording_id`, `detection_id`, `model_id` | Audio clips extracted for human review; `status` tracks lifecycle (`pending` → `completed` → `archived`); `model_id` is the classifier the clip was sampled from and `confidence_level` holds that model's own score (legacy rows backfilled to the BirdNET 2.4 reference) |
 | `segment_verifications` | `segment_id`, `user_id`, `verification_result`, `verified_at` | One row per verifier per segment; `verification_result` is 1 (positive) or 0 (negative) |
 | `detection_verification_map` | `detection_id`, `segment_id`, `result` | Links verified segments back to raw detections; `result` stores the consensus outcome |
-| `evaluation` | `species_id`, `precision_score`, `precision_lower_ci`, `precision_upper_ci`, `total_samples`, `logistic_beta0`, `logistic_beta1`, `logistic_r_squared`, `logistic_n_samples`, `logistic_status`, `p0_9_threshold`, `p0_95_threshold`, `p0_99_threshold` (+ CI columns), `calculation_version`, `calculated_by_user_id`, `logistic_calculated_at`, `is_current` | BirdNET accuracy metrics per species; only the row with `is_current = TRUE` is used |
+| `evaluation` | `species_id`, `model_id`, `precision_score`, `precision_lower_ci`, `precision_upper_ci`, `total_samples`, `logistic_beta0`, `logistic_beta1`, `logistic_r_squared`, `logistic_n_samples`, `logistic_status`, `p0_9_threshold`, `p0_95_threshold`, `p0_99_threshold` (+ CI columns), `calculation_version`, `calculated_by_user_id`, `logistic_calculated_at`, `is_current` | Accuracy metrics **per (species, model)**; the current row is unique per `(species_id, model_id)` (only `is_current = TRUE` is used). Recalculation computes every model that has verified segments; the results page has a model switcher, defaulting to the BirdNET 2.4 reference |
 
 ### Organisation & access
 

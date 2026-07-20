@@ -357,6 +357,29 @@ def get_models_list():
             conn.close()
 
 
+def get_reference_model_id(conn=None):
+    """model_id of the BirdNET 2.4 reference model, or None if not seeded.
+
+    The reference is the model whose confidence lives in detections.confidence;
+    it is the default everywhere a model must be chosen (sampling, evaluation
+    view) so behaviour is unchanged when the user makes no explicit choice.
+    """
+    own = conn is None
+    try:
+        if own:
+            conn = get_pam_db_connection()
+        row = conn.execute(text(
+            "SELECT model_id FROM models WHERE name = 'BirdNET' AND version = '2.4'"
+        )).fetchone()
+        return int(row[0]) if row else None
+    except Exception as e:
+        current_app.logger.error(f"PAM DB Error (get_reference_model_id): {e}")
+        return None
+    finally:
+        if own and conn is not None:
+            conn.close()
+
+
 def get_filtered_detections(species_name, start_date=None, end_date=None, confidence=0.0, location_ids=None, biotope_ids=None, institution_id=None, mode='birdnet', model_id=None):
     """Return filtered detections, including verification status for each one."""
     conn = None

@@ -15,7 +15,7 @@ from .pam_segment_sampling import (
 )
 from app.utils.decorators import role_required
 from . import pam_bp
-from .utils import get_pam_db_connection, get_pam_engine, generate_spectrogram_image, get_occurrence_data, get_institution_filter
+from .utils import get_pam_db_connection, get_pam_engine, generate_spectrogram_image, get_occurrence_data, get_institution_filter, get_models_list, get_reference_model_id
 import io
 import csv
 from app.models import User, Institution
@@ -633,9 +633,16 @@ def evaluation_results(lang_code):
         current_app.logger.info("=== STARTING EVALUATION RESULTS PAGE ===")
         current_app.logger.info(f"Language code: {lang_code}")
         
+        # Which model's metrics to VIEW (default: BirdNET 2.4 reference). The
+        # switcher only changes the view; recalculation always computes every
+        # model. Invalid/absent → reference, so the page is unchanged by default.
+        models = get_models_list()
+        selected_model_id, _is_ref = _resolve_model_choice(
+            request.args.get('model_id', type=int), models=models)
+
         current_app.logger.info("Calling get_evaluation_summary()...")
-        summary = get_evaluation_summary()
-        species_list = get_species_for_dropdown()
+        summary = get_evaluation_summary(model_id=selected_model_id)
+        species_list = get_species_for_dropdown(model_id=selected_model_id)
 
         current_app.logger.info(f"Summary received. Type: {type(summary)}")
         
@@ -661,7 +668,9 @@ def evaluation_results(lang_code):
                     current_app.logger.info(f"Logistic species {i}: {species}")
         
         current_app.logger.info("Rendering template...")
-        result = render_template('pam_evaluation_results.html', summary=summary, species_list=species_list)
+        result = render_template('pam_evaluation_results.html', summary=summary,
+                                 species_list=species_list, models=models,
+                                 selected_model_id=selected_model_id)
         current_app.logger.info("Template rendered successfully")
         return result
         
@@ -705,6 +714,24 @@ def _read_model_mode():
     if mode == 'model' and model_id is None:
         mode = 'birdnet'
     return mode, model_id
+
+
+def _resolve_model_choice(requested_model_id, models=None, reference_id=None):
+    """Validate a requested model_id against the catalogue; fall back to reference.
+
+    Returns (model_id, is_reference). Anything invalid — an unknown id, or None —
+    resolves to the BirdNET 2.4 reference model, so callers always get safe,
+    behaviour-preserving defaults. ``is_reference`` is True when the resolved id
+    is the reference model.
+    """
+    if models is None:
+        models = get_models_list()
+    if reference_id is None:
+        reference_id = get_reference_model_id()
+    valid_ids = {m['model_id'] for m in models}
+    if requested_model_id is not None and requested_model_id in valid_ids:
+        return requested_model_id, (requested_model_id == reference_id)
+    return reference_id, True
 
 
 @pam_bp.route('/<lang_code>/api/pam/get-plot-data')
@@ -1969,11 +1996,16 @@ def api_detailed_evaluation_results(lang_code):
             order = 'desc'
         
         sort_field = sort_field_mapping[sort_by]
-        
+
         conn = get_pam_db_connection()
-        
+
+        # Scope to the selected model (default: reference). is_current is now
+        # per (species, model), so the filter is required to avoid mixing models.
+        selected_model_id, _is_ref = _resolve_model_choice(
+            request.args.get('model_id', type=int))
+
         offset = (page - 1) * per_page
-        
+
         # Explicit column list including new threshold confidence intervals.
         # Column index reference:
         # 0-3:   species info
@@ -1992,20 +2024,21 @@ def api_detailed_evaluation_results(lang_code):
                 e.p0_99_lower_ci, e.p0_99_upper_ci
             FROM evaluation e
             JOIN species s ON e.species_id = s.species_id
-            WHERE e.is_current = TRUE
+            WHERE e.is_current = TRUE AND e.model_id = :model_id
             ORDER BY {sort_field} {order.upper()} NULLS LAST
             LIMIT :per_page OFFSET :offset
         """
-        
+
         results = conn.execute(text(query), {
             'per_page': per_page,
-            'offset': offset
+            'offset': offset,
+            'model_id': selected_model_id
         }).fetchall()
-        
+
         # Fetch total row count.
         total_count = conn.execute(text("""
-            SELECT COUNT(*) FROM evaluation WHERE is_current = TRUE
-        """)).fetchone()[0]
+            SELECT COUNT(*) FROM evaluation WHERE is_current = TRUE AND model_id = :model_id
+        """), {'model_id': selected_model_id}).fetchone()[0]
         
         # Build result list.
         detailed_results = []
@@ -2367,7 +2400,13 @@ def api_get_evaluation_thresholds(lang_code):
     conn = None
     try:
         conn = get_pam_db_connection()
-        
+
+        # Scope to the selected model (default: reference). Without this filter
+        # the per-model evaluation rows (migration 0005) would mix Perch/Nocmig
+        # thresholds into this species→threshold map used by the dashboards.
+        selected_model_id, _is_ref = _resolve_model_choice(
+            request.args.get('model_id', type=int))
+
         # 1. Does not use is_current.
         # 2. Filters by total_samples > 200.
         # 3. Takes the LATEST qualifying calculation per species to avoid duplicates.
@@ -2378,10 +2417,11 @@ def api_get_evaluation_thresholds(lang_code):
                     e.p0_95_threshold,
                     ROW_NUMBER() OVER(PARTITION BY e.species_id ORDER BY e.calculated_at DESC) as rn
                 FROM evaluation e
-                WHERE e.p0_95_threshold IS NOT NULL 
-                  AND e.p0_95_threshold > 0 
+                WHERE e.p0_95_threshold IS NOT NULL
+                  AND e.p0_95_threshold > 0
                   AND e.p0_95_threshold < 1
                   AND e.total_samples > 200
+                  AND e.model_id = :model_id
             )
             SELECT
                 s.scientific_name,
@@ -2390,8 +2430,8 @@ def api_get_evaluation_thresholds(lang_code):
             JOIN species s ON re.species_id = s.species_id
             WHERE re.rn = 1
         """)
-        
-        db_result = conn.execute(query).mappings().fetchall()
+
+        db_result = conn.execute(query, {'model_id': selected_model_id}).mappings().fetchall()
         
         # Build {species_name: threshold} dict.
         thresholds = {
@@ -4193,15 +4233,16 @@ def export_detailed_data(lang_code):
 @pam_bp.route('/<lang_code>/pam/evaluation/species/<int:species_id>')
 @login_required
 def species_evaluation_detail(lang_code, species_id):
-    """Render the regression analysis page for a single species."""
+    """Render the regression analysis page for a single species + model."""
     g.lang_code = lang_code
-    
-    data = get_species_logistic_data(species_id)
-    
+
+    selected_model_id, _is_ref = _resolve_model_choice(request.args.get('model_id', type=int))
+    data = get_species_logistic_data(species_id, model_id=selected_model_id)
+
     if not data:
         flash('Дані для цього виду відсутні або ще не розраховані.', 'warning')
         return redirect(url_for('pam.evaluation_results', lang_code=lang_code))
-    
+
     # Build a user-friendly display name for the page title.
     info = data['info']
     display_name = info['scientific_name']
@@ -4209,12 +4250,13 @@ def species_evaluation_detail(lang_code, species_id):
         display_name = f"{info['common_name_uk']} ({info['scientific_name']})"
     elif lang_code == 'en' and info['common_name_en']:
         display_name = f"{info['common_name_en']} ({info['scientific_name']})"
-        
+
     return render_template(
-        'pam_evaluation_species_detail.html', 
+        'pam_evaluation_species_detail.html',
         data=data,
         display_name=display_name,
-        species_id=species_id
+        species_id=species_id,
+        selected_model_id=selected_model_id,
     )
 
 @pam_bp.route('/<lang_code>/pam/evaluation/export-species/<int:species_id>')
@@ -4223,7 +4265,8 @@ def species_evaluation_detail(lang_code, species_id):
 def download_species_evaluation_excel(lang_code, species_id):
     """Export logistic regression data to Excel."""
     try:
-        data = get_species_logistic_data(species_id)
+        selected_model_id, _is_ref = _resolve_model_choice(request.args.get('model_id', type=int))
+        data = get_species_logistic_data(species_id, model_id=selected_model_id)
         if not data:
             return "No data", 404
 
@@ -4534,11 +4577,15 @@ def sample_upload(lang_code):
             if row.institution_id:
                 locations_dict[lid]['inst_ids'].append(row.institution_id)
 
+        models = get_models_list()
+        reference_id = get_reference_model_id(conn)
         return render_template(
             'pam_sample_upload.html',
             institutions=institutions,
             locations_data=list(locations_dict.values()),
             segment_durations=list(ALLOWED_SEGMENT_DURATIONS),
+            models=models,
+            reference_model_id=reference_id,
         )
     except Exception as e:
         current_app.logger.error(f"PAM sample-upload page error: {e}", exc_info=True)
@@ -4623,12 +4670,23 @@ def api_sample_prepare(lang_code):
         if not location_ids:
             return jsonify({'success': False, 'error': 'Access denied to these locations'}), 403
 
+        # Resolve which model to sample for (default: BirdNET 2.4 reference, so
+        # behaviour is unchanged when the client sends no model_id).
+        requested_model_id = data.get('model_id')
+        try:
+            requested_model_id = int(requested_model_id) if requested_model_id is not None else None
+        except (TypeError, ValueError):
+            requested_model_id = None
+        model_id, is_reference = _resolve_model_choice(requested_model_id)
+
         segments = run_stratified_sample(
             species_name, location_ids,
             confidence_threshold=conf_thr, n_strata=n_strata,
             sample_size=sample_size, conn=conn,
+            model_id=model_id, is_reference=is_reference,
         )
-        return jsonify({'success': True, 'count': len(segments), 'segments': segments})
+        return jsonify({'success': True, 'count': len(segments),
+                        'model_id': model_id, 'segments': segments})
     except Exception as e:
         current_app.logger.error(f"api_sample_prepare error: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Failed to prepare sample'}), 500
@@ -4668,6 +4726,9 @@ def api_sample_upload_segment(lang_code):
             'location_name': request.form.get('location_name', ''),
             'recorded_date': request.form.get('recorded_date') or None,
             'recorded_time': request.form.get('recorded_time') or None,
+            # Which model this segment was sampled for; fall back to the
+            # reference model if the client omits it (behaviour-preserving).
+            'model_id': _resolve_model_choice(_int('model_id'))[0],
         }
         if not meta['species_id'] or not meta['detection_id'] or not meta['segment_filename']:
             return jsonify({'success': False, 'error': 'Missing required metadata'}), 400

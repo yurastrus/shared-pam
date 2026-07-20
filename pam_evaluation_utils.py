@@ -28,7 +28,7 @@ def convert_numpy_types(obj):
     else:
         return obj
 
-def get_species_for_dropdown():
+def get_species_for_dropdown(model_id=None):
     """
     Fetch species that have at least one verification,
     for the admin dropdown.
@@ -38,22 +38,27 @@ def get_species_for_dropdown():
       • total_verifications — total verification count across the species' segments
     Lets the user immediately see whether recalculation is worthwhile
     (threshold: at least 5 verified segments).
+
+    When ``model_id`` is given, counts are scoped to segments sampled for that
+    model — so the eligibility hints match the model currently being viewed.
     """
     conn = None
     try:
         conn = get_pam_db_connection()
-        query = """
+        model_filter = " AND seg.model_id = :model_id" if model_id is not None else ""
+        qparams = {'model_id': model_id} if model_id is not None else {}
+        query = f"""
             SELECT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en,
                    COUNT(DISTINCT seg.id) AS verified_segments,
                    COUNT(sv.id)           AS total_verifications
             FROM species s
             JOIN segments seg               ON s.species_id = seg.species_id
             JOIN segment_verifications sv   ON seg.id = sv.segment_id
-            WHERE sv.verification_result IS NOT NULL
+            WHERE sv.verification_result IS NOT NULL{model_filter}
             GROUP BY s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
             ORDER BY s.scientific_name
         """
-        return conn.execute(text(query)).fetchall()
+        return conn.execute(text(query), qparams).fetchall()
     except Exception as e:
         current_app.logger.error(f"Error getting species list: {e}")
         return []
@@ -132,28 +137,32 @@ def _build_insufficient_data_message(diag):
             f"(сегменти ≥{diag['min_verifications']} вериф.: "
             f"{diag['segments_meeting_min']}, потрібно ≥{diag['required_segments']}).")
 
-def calculate_species_metrics(species_id, min_verifications=2, consensus_threshold=2.0/3.0):
+def calculate_species_metrics(species_id, model_id, min_verifications=2, consensus_threshold=2.0/3.0):
     """
-    Calculate precision and logistic regression for a specific species.
-    Includes bootstrap estimation of the 95% confidence interval for precision.
+    Calculate precision and logistic regression for a specific species + model.
+    Only segments sampled for ``model_id`` are used, so ``confidence_level`` is
+    that model's own score. Includes bootstrap estimation of the 95% confidence
+    interval for precision.
     """
     conn = None
     try:
         conn = get_pam_db_connection()
-        
+
         query = """
             SELECT seg.id, seg.confidence_level,
                    AVG(CASE WHEN sv.verification_result = 1 THEN 1.0 ELSE 0.0 END) as avg_verification
             FROM segments seg
             JOIN segment_verifications sv ON seg.id = sv.segment_id
-            WHERE seg.species_id = :species_id 
+            WHERE seg.species_id = :species_id
+            AND seg.model_id = :model_id
             AND sv.verification_result IS NOT NULL
             GROUP BY seg.id, seg.confidence_level
             HAVING COUNT(sv.verification_result) >= :min_verifications
         """
-        
+
         results = conn.execute(text(query), {
-            'species_id': species_id, 
+            'species_id': species_id,
+            'model_id': model_id,
             'min_verifications': min_verifications
         }).fetchall()
         
@@ -200,10 +209,11 @@ def calculate_species_metrics(species_id, min_verifications=2, consensus_thresho
             upper_ci = precision
 
         # 4. Logistic regression (unchanged).
-        logistic_results = calculate_logistic_regression(species_id, min_verifications, consensus_threshold)
-        
+        logistic_results = calculate_logistic_regression(species_id, model_id, min_verifications, consensus_threshold)
+
         result_dict = {
             'species_id': species_id,
+            'model_id': model_id,
             'precision_score': precision,
             'precision_lower_ci': lower_ci,
             'precision_upper_ci': upper_ci,
@@ -233,7 +243,7 @@ def calculate_species_metrics(species_id, min_verifications=2, consensus_thresho
         return result_dict
         
     except Exception as e:
-        current_app.logger.error(f"Error calculating metrics for species {species_id}: {e}")
+        current_app.logger.error(f"Error calculating metrics for species {species_id} model {model_id}: {e}")
         return None
     finally:
         if conn: conn.close()
@@ -300,27 +310,31 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
     try:
         conn = get_pam_db_connection()
         
-        # 1. Build the species selection query.
+        # 1. Build the (species, model) selection query. Metrics are computed
+        # per model: one biological event verified once can score several models,
+        # each with its own confidence, so eligibility is checked per (species,
+        # model) pair (≥5 verified segments sampled for that model).
         base_query = """
-            SELECT DISTINCT seg.species_id, s.scientific_name
+            SELECT seg.species_id, seg.model_id, s.scientific_name
             FROM segments seg
             JOIN species s ON seg.species_id = s.species_id
             JOIN segment_verifications sv ON seg.id = sv.segment_id
             WHERE sv.verification_result IS NOT NULL
+            AND seg.model_id IS NOT NULL
         """
-        
+
         params = {}
-        
+
         # Add a filter if a specific species was selected.
         if target_species_id is not None:
             base_query += " AND seg.species_id = :target_id"
             params['target_id'] = target_species_id
-            
+
         base_query += """
-            GROUP BY seg.species_id, s.scientific_name
+            GROUP BY seg.species_id, seg.model_id, s.scientific_name
             HAVING COUNT(DISTINCT seg.id) >= 5
         """
-        
+
         species_list = conn.execute(text(base_query), params).fetchall()
 
         if not species_list:
@@ -341,41 +355,43 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
                 'error': ('У базі немає жодного виду з мінімум 5 сегментами, '
                           'які мають хоча б одну верифікацію.'),
             }
-        
-        # 2. Mark previous calculations as no longer current.
-        # IMPORTANT: when recalculating a single species, reset only that species' flag.
-        if target_species_id is not None:
-            conn.execute(text("UPDATE evaluation SET is_current = FALSE WHERE species_id = :sid"), 
-                         {'sid': target_species_id})
-        else:
-            conn.execute(text("UPDATE evaluation SET is_current = FALSE"))
-        
+
+        # 2. Mark previous calculations as no longer current, scoped to exactly
+        # the (species, model) pairs about to be recomputed — so untouched pairs
+        # keep their current row. IMPORTANT: reset per pair, not per species,
+        # else recomputing one model would blank another model's current metrics.
+        for species_id, model_id, _name in species_list:
+            conn.execute(text(
+                "UPDATE evaluation SET is_current = FALSE "
+                "WHERE species_id = :sid AND model_id = :mid"),
+                {'sid': species_id, 'mid': model_id})
+
         calculated_species = []
         failed_species = []          # legacy: list of names
         failed_species_detail = []   # NEW: list of dicts with per-species reason
         logistic_stats = {'calculated': 0, 'insufficient_data': 0, 'error': 0}
-        
-        for species_id, scientific_name in species_list:
-            current_app.logger.info(f"Calculating metrics for species {scientific_name} (ID: {species_id})")
-            metrics = calculate_species_metrics(species_id, min_verifications, consensus_threshold)
-            
+
+        for species_id, model_id, scientific_name in species_list:
+            current_app.logger.info(f"Calculating metrics for species {scientific_name} (ID: {species_id}), model {model_id}")
+            metrics = calculate_species_metrics(species_id, model_id, min_verifications, consensus_threshold)
+
             if metrics:
                 metrics = convert_numpy_types(metrics)
                 conn.execute(text("""
                     INSERT INTO evaluation (
-                        species_id, precision_score, 
+                        species_id, model_id, precision_score,
                         precision_lower_ci, precision_upper_ci,
                         total_samples,
                         calculation_version, calculated_by_user_id, is_current,
-                        logistic_beta0, logistic_beta1, logistic_r_squared, 
+                        logistic_beta0, logistic_beta1, logistic_r_squared,
                         logistic_n_samples, logistic_status, logistic_calculated_at,
                         p0_9_threshold, p0_9_lower_ci, p0_9_upper_ci,
                         p0_95_threshold, p0_95_lower_ci, p0_95_upper_ci,
                         p0_99_threshold, p0_99_lower_ci, p0_99_upper_ci
                     ) VALUES (
-                        :species_id, :precision_score, 
+                        :species_id, :model_id, :precision_score,
                         :precision_lower_ci, :precision_upper_ci,
-                        :total_samples, 
+                        :total_samples,
                         1, :user_id, TRUE,
                         :logistic_beta0, :logistic_beta1, :logistic_r_squared,
                         :logistic_n_samples, :logistic_status, CURRENT_TIMESTAMP,
@@ -384,11 +400,12 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
                         :p0_99_threshold, :p0_99_lower_ci, :p0_99_upper_ci
                     )
                 """), {
-                    'species_id': metrics['species_id'], 
-                    'precision_score': metrics['precision_score'], 
+                    'species_id': metrics['species_id'],
+                    'model_id': metrics['model_id'],
+                    'precision_score': metrics['precision_score'],
                     'precision_lower_ci': metrics.get('precision_lower_ci'),
                     'precision_upper_ci': metrics.get('precision_upper_ci'),
-                    'total_samples': metrics['total_samples'], 
+                    'total_samples': metrics['total_samples'],
                     'user_id': user_id,
                     'logistic_beta0': metrics['logistic_beta0'],
                     'logistic_beta1': metrics['logistic_beta1'],
@@ -405,7 +422,7 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
                     'p0_99_lower_ci': metrics.get('p0_99_lower_ci'),
                     'p0_99_upper_ci': metrics.get('p0_99_upper_ci')
                 })
-                
+
                 calculated_species.append(scientific_name)
                 status = metrics.get('logistic_status', 'error')
                 logistic_stats[status] = logistic_stats.get(status, 0) + 1
@@ -422,7 +439,7 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
                     })
 
         conn.commit()
-        
+
         result = {
             'success': True,
             'calculated_count': len(calculated_species),
@@ -445,23 +462,30 @@ def recalculate_all_metrics(user_id, min_verifications=1, consensus_threshold=2.
     finally:
         if conn: conn.close()
 
-def get_evaluation_summary():
-    """Return overall statistics for the summary cards on the page (no per-species breakdown)."""
+def get_evaluation_summary(model_id=None):
+    """Return overall statistics for the summary cards on the page (no per-species breakdown).
+
+    When ``model_id`` is given, the summary is scoped to that model's current
+    metrics; otherwise it spans all models (legacy behaviour).
+    """
     conn = None
     try:
         conn = get_pam_db_connection()
-        
+
+        model_filter = " AND model_id = :model_id" if model_id is not None else ""
+        qparams = {'model_id': model_id} if model_id is not None else {}
+
         # Overall statistics for current metrics.
-        summary_query = """
-            SELECT 
+        summary_query = f"""
+            SELECT
                 COUNT(*) as total_species,
                 SUM(total_samples) as total_samples,
                 MAX(calculated_at) as last_calculation
-            FROM evaluation 
-            WHERE is_current = TRUE
+            FROM evaluation
+            WHERE is_current = TRUE{model_filter}
         """
-        
-        summary = conn.execute(text(summary_query)).fetchone()
+
+        summary = conn.execute(text(summary_query), qparams).fetchone()
         
         # Check whether any data exists.
         if not summary or summary[0] == 0:
@@ -480,16 +504,16 @@ def get_evaluation_summary():
             }
         
         # Logistic regression statistics.
-        logistic_stats_query = """
-            SELECT 
+        logistic_stats_query = f"""
+            SELECT
                 COUNT(CASE WHEN logistic_status = 'calculated' THEN 1 END) as logistic_calculated,
                 COUNT(CASE WHEN logistic_status = 'insufficient_data' THEN 1 END) as logistic_insufficient,
                 COUNT(CASE WHEN logistic_status = 'error' THEN 1 END) as logistic_error
-            FROM evaluation 
-            WHERE is_current = TRUE
+            FROM evaluation
+            WHERE is_current = TRUE{model_filter}
         """
-        
-        logistic_stats = conn.execute(text(logistic_stats_query)).fetchone()
+
+        logistic_stats = conn.execute(text(logistic_stats_query), qparams).fetchone()
         
         return {
             'summary': {
@@ -596,28 +620,30 @@ def cleanup_completed_verifications():
         if conn:
             conn.close()
 
-def calculate_logistic_regression(species_id, min_verifications=2, consensus_threshold=2.0/3.0):
+def calculate_logistic_regression(species_id, model_id, min_verifications=2, consensus_threshold=2.0/3.0):
     from sklearn.linear_model import LogisticRegression
     import numpy as np
-    
+
     conn = None
     try:
         conn = get_pam_db_connection()
-        
-        # Fetch data.
+
+        # Fetch data (only segments sampled for this model).
         query = """
             SELECT seg.confidence_level,
                    AVG(CASE WHEN sv.verification_result = 1 THEN 1.0 ELSE 0.0 END) as avg_verification
             FROM segments seg
             JOIN segment_verifications sv ON seg.id = sv.segment_id
-            WHERE seg.species_id = :species_id 
+            WHERE seg.species_id = :species_id
+            AND seg.model_id = :model_id
             AND sv.verification_result IS NOT NULL
             GROUP BY seg.id, seg.confidence_level
             HAVING COUNT(sv.verification_result) >= :min_verifications
         """
-        
+
         results = conn.execute(text(query), {
-            'species_id': species_id, 
+            'species_id': species_id,
+            'model_id': model_id,
             'min_verifications': min_verifications
         }).fetchall()
         
@@ -885,15 +911,25 @@ def convert_wav_to_flac():
         'errors': errors
     }
 
-def get_species_logistic_data(species_id):
-    """Fetch model parameters and ALL verification data points for a species."""
+def get_species_logistic_data(species_id, model_id=None):
+    """Fetch model parameters and ALL verification data points for a species + model.
+
+    When ``model_id`` is given the metrics row and the scatter points are scoped
+    to that model; otherwise the reference model is used (resolved here) so the
+    default view reproduces the historical BirdNET regression page.
+    """
     conn = None
     try:
         conn = get_pam_db_connection()
-        
+
+        # Default to the reference model when none is specified.
+        if model_id is None:
+            from .utils import get_reference_model_id
+            model_id = get_reference_model_id(conn)
+
         # 1. Fetch model parameters.
         query = text("""
-            SELECT 
+            SELECT
                 s.scientific_name, s.common_name_uk, s.common_name_en,
                 e.precision_score, e.total_samples,
                 e.logistic_beta0, e.logistic_beta1, e.logistic_r_squared,
@@ -901,9 +937,10 @@ def get_species_logistic_data(species_id):
             FROM evaluation e
             JOIN species s ON e.species_id = s.species_id
             WHERE e.species_id = :species_id AND e.is_current = TRUE
+              AND e.model_id IS NOT DISTINCT FROM :model_id
         """)
-        row = conn.execute(query, {'species_id': species_id}).mappings().fetchone()
-        
+        row = conn.execute(query, {'species_id': species_id, 'model_id': model_id}).mappings().fetchone()
+
         if not row:
             return None
 
@@ -915,21 +952,22 @@ def get_species_logistic_data(species_id):
             if params.get(key) is not None:
                 params[key] = float(params[key])
 
-        # 2. Fetch data points.
+        # 2. Fetch data points (scoped to this model's segments).
         points_query = text("""
-            SELECT 
+            SELECT
                 seg.id as segment_id,
                 seg.confidence_level,
                 AVG(CASE WHEN sv.verification_result = 1 THEN 1.0 ELSE 0.0 END) as avg_verification,
                 COUNT(sv.id) as verification_count
             FROM segments seg
             JOIN segment_verifications sv ON seg.id = sv.segment_id
-            WHERE seg.species_id = :species_id 
+            WHERE seg.species_id = :species_id
+            AND seg.model_id IS NOT DISTINCT FROM :model_id
             AND sv.verification_result IS NOT NULL
             GROUP BY seg.id, seg.confidence_level
         """)
-        
-        raw_points = conn.execute(points_query, {'species_id': species_id}).mappings().fetchall()
+
+        raw_points = conn.execute(points_query, {'species_id': species_id, 'model_id': model_id}).mappings().fetchall()
         
         processed_points = []
         for p in raw_points:

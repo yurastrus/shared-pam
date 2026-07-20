@@ -140,6 +140,18 @@
             
             <!-- Filters and sorting -->
             <div class="filters-row">
+                {% if models and models|length > 1 %}
+                <div class="filter-group">
+                    <label for="model-select">{{ _('Модель:') }}</label>
+                    <select id="model-select" class="form-control">
+                        {% for m in models %}
+                        <option value="{{ m.model_id }}" {% if m.model_id == selected_model_id %}selected{% endif %}>
+                            {{ m.label }}{% if m.is_reference %} — {{ _('еталон') }}{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
                 <div class="filter-group">
                     <label for="sort-select">{{ _('Сортувати за:') }}</label>
                     <select id="sort-select" class="form-control">
@@ -187,10 +199,21 @@
 $(document).ready(function() {
     // Store the language code for building URLs in JS.
     const g_lang_code = '{{ g.lang_code }}';
-    
+    // Model currently being viewed (server-resolved; default = reference).
+    const g_model_id = {{ selected_model_id if selected_model_id is not none else 'null' }};
+
     let currentPage = 1;
     let currentSort = 'precision_score';
     let currentOrder = 'desc';
+
+    // Model switch: reload the page scoped to the chosen model. Summary cards +
+    // eligibility hints are server-rendered per model; the layout is unchanged,
+    // only the numbers in the cards and tables update.
+    $('#model-select').on('change', function() {
+        const url = new URL(window.location.href);
+        url.searchParams.set('model_id', $(this).val());
+        window.location.href = url.toString();
+    });
 
     // JS translations.
     const translations = {
@@ -228,7 +251,8 @@ $(document).ready(function() {
             page: page,
             per_page: 20,
             sort_by: currentSort,
-            order: currentOrder
+            order: currentOrder,
+            model_id: g_model_id
         };
         
         $.ajax({
@@ -327,8 +351,8 @@ $(document).ready(function() {
             // Build R² link.
             let r2Html = '<span class="text-muted">-</span>';
             if (result.logistic_r_squared !== null) {
-                // Build URL to the detail page.
-                const detailUrl = `/${g_lang_code}/pam/evaluation/species/${result.species_id}`;
+                // Build URL to the detail page (carry the viewed model).
+                const detailUrl = `/${g_lang_code}/pam/evaluation/species/${result.species_id}?model_id=${g_model_id}`;
                 
                 // Create a link that opens in a new tab.
                 r2Html = `
