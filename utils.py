@@ -319,6 +319,42 @@ def _confidence_filter_sql(mode='birdnet', model_id=None, alias='d'):
     return f"{alias}.confidence >= :confidence"
 
 
+_CONSENSUS_THRESHOLD = 2.0 / 3.0  # mirrors update_segment_stats() (migration 0004)
+
+
+def _verification_display_status(total_votes, positive_votes):
+    """Map a segment's meaningful-vote tally to a chart display status.
+
+    Mirrors the 2/3 consensus rule in update_segment_stats() (migration 0004)
+    but ALSO surfaces single-verifier votes (where no consensus exists yet) so
+    that one person's review work is visible on the detailed charts. Computed
+    from the live segments counts (verification_count / positive_verifications)
+    rather than the possibly-stale dvm.verification_result.
+
+    total_votes counts only meaningful votes (0/1); "unknown" (2) / skips are
+    already excluded by update_segment_stats when it fills these columns.
+
+    Returns one of:
+      'consensus_confirmed' — ≥2 votes, ≥2/3 positive       (dark green)
+      'consensus_rejected'  — ≥2 votes, ≤1/3 positive        (dark red)
+      'single_confirmed'    — exactly 1 vote, positive        (light green)
+      'single_rejected'     — exactly 1 vote, negative        (light red)
+      'unverified'          — 0 votes OR a ≥2-vote conflict   (blue)
+    """
+    total = total_votes or 0
+    pos = positive_votes or 0
+    if total >= 2:
+        ratio = pos / total
+        if ratio >= _CONSENSUS_THRESHOLD:
+            return 'consensus_confirmed'
+        if ratio <= (1 - _CONSENSUS_THRESHOLD):
+            return 'consensus_rejected'
+        return 'unverified'  # genuine conflict — no consensus, treated as unverified
+    if total == 1:
+        return 'single_confirmed' if pos == 1 else 'single_rejected'
+    return 'unverified'
+
+
 def _confidence_value_sql(mode='birdnet', model_id=None, alias='d'):
     """SELECT expression for the confidence value to DISPLAY in the active mode."""
     if mode == 'model' and model_id is not None:
@@ -397,6 +433,7 @@ def get_filtered_detections(species_name, start_date=None, end_date=None, confid
             JOIN recordings r ON d.recording_id = r.recording_id
             JOIN locations l ON r.location_id = l.location_id
             LEFT JOIN detection_verification_map dvm ON d.detection_id = dvm.detection_id
+            LEFT JOIN segments seg ON dvm.segment_id = seg.id
         """
         conditions = [
                     "s.scientific_name = :species_name",
@@ -424,21 +461,25 @@ def get_filtered_detections(species_name, start_date=None, end_date=None, confid
             SELECT
                 r.datetime_start,
                 {_confidence_value_sql(mode, model_id)} AS confidence,
-                dvm.verification_result
+                dvm.verification_result,
+                seg.verification_count,
+                seg.positive_verifications
             FROM detections d
             JOIN species s ON d.species_id = s.species_id
             {joins}
             WHERE {where_clause}
             ORDER BY r.datetime_start
         """
-        
+
         db_result = conn.execute(text(query_sql), params).mappings().fetchall()
         return [
             {
-                'datetime': r['datetime_start'].strftime('%Y-%m-%d %H:%M:%S'), 
+                'datetime': r['datetime_start'].strftime('%Y-%m-%d %H:%M:%S'),
                 'confidence': r['confidence'],
-                'verification_result': r['verification_result']
-            } 
+                'verification_result': r['verification_result'],
+                'verification_status': _verification_display_status(
+                    r['verification_count'], r['positive_verifications'])
+            }
             for r in db_result if r['datetime_start']
         ]
         
@@ -555,6 +596,7 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
         joins = """
             JOIN locations l ON r.location_id = l.location_id
             LEFT JOIN detection_verification_map dvm ON d.detection_id = dvm.detection_id
+            LEFT JOIN segments seg ON dvm.segment_id = seg.id
         """
         conditions = [
             "s.scientific_name = :species_name",
@@ -579,7 +621,9 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
             "r.datetime_start",
             "l.lat",
             "l.lon",
-            "dvm.verification_result"
+            "dvm.verification_result",
+            "seg.verification_count",
+            "seg.positive_verifications"
         ]
 
         # 2. Optional extra fields.
@@ -611,10 +655,12 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
             return {'detections': [], 'sun_times': []}
         
         detections = [{
-            'date': r['datetime_start'].strftime('%Y-%m-%d'), 
+            'date': r['datetime_start'].strftime('%Y-%m-%d'),
             'time': r['datetime_start'].strftime('%H:%M:%S'),
             'confidence': r.get('confidence', None),
-            'verification_result': r['verification_result']
+            'verification_result': r['verification_result'],
+            'verification_status': _verification_display_status(
+                r['verification_count'], r['positive_verifications'])
             } for r in db_result if r['datetime_start']]
         
         lat, lon = (float(db_result[0]['lat']), float(db_result[0]['lon'])) if db_result else (49.0, 32.0)

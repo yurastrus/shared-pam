@@ -104,12 +104,20 @@
                         
                         <!-- Colour legend -->
                         <div id="color-legend" style="margin-bottom: 15px; text-align: center; font-size: 14px;">
-                            <span style="margin-right: 20px;">
-                                <span style="display: inline-block; width: 12px; height: 12px; background-color: green; vertical-align: middle; margin-right: 5px; border: 1px solid #555;"></span>
-                                {{ _('Підтверджено людиною') }}
+                            <span style="margin-right: 18px;">
+                                <span style="display: inline-block; width: 12px; height: 12px; background-color: #1b7a1b; vertical-align: middle; margin-right: 5px; border: 1px solid #555;"></span>
+                                {{ _('Верифіковано консенсусом') }}
                             </span>
-                            <span style="margin-right: 20px;">
-                                <span style="display: inline-block; width: 12px; height: 12px; background-color: red; vertical-align: middle; margin-right: 5px; border: 1px solid #555;"></span>
+                            <span style="margin-right: 18px;">
+                                <span style="display: inline-block; width: 12px; height: 12px; background-color: #8bd68b; vertical-align: middle; margin-right: 5px; border: 1px solid #555;"></span>
+                                {{ _('Верифіковано людиною') }}
+                            </span>
+                            <span style="margin-right: 18px;">
+                                <span style="display: inline-block; width: 12px; height: 12px; background-color: #b30000; vertical-align: middle; margin-right: 5px; border: 1px solid #555;"></span>
+                                {{ _('Відхилено консенсусом') }}
+                            </span>
+                            <span style="margin-right: 18px;">
+                                <span style="display: inline-block; width: 12px; height: 12px; background-color: #f4a6a6; vertical-align: middle; margin-right: 5px; border: 1px solid #555;"></span>
                                 {{ _('Відхилено людиною') }}
                             </span>
                             <span>
@@ -728,6 +736,26 @@
             Plotly.newPlot(document.getElementById('barchart-plot-container'), plotTraces, layout, plotlyConfig);
         }
 
+        // Display statuses drawn from get_time_scatter_data / get_filtered_detections
+        // (see _verification_display_status). Ordered bottom→top so verified points
+        // render on top of the unverified cloud. Legacy detections with only the old
+        // verification_result field fall back via statusOf().
+        const VERIFICATION_STATUS_SPECS = [
+            { key: 'unverified',          color: '#0779e4', name: '{{ _("Не перевірено") }}' },
+            { key: 'single_rejected',     color: '#f4a6a6', name: '{{ _("Відхилено людиною") }}' },
+            { key: 'single_confirmed',    color: '#8bd68b', name: '{{ _("Верифіковано людиною") }}' },
+            { key: 'consensus_rejected',  color: '#b30000', name: '{{ _("Відхилено консенсусом") }}' },
+            { key: 'consensus_confirmed', color: '#1b7a1b', name: '{{ _("Верифіковано консенсусом") }}' }
+        ];
+        // Resolve a detection's display status, falling back to the legacy
+        // consensus-only verification_result when verification_status is absent.
+        function statusOf(d) {
+            if (d.verification_status) return d.verification_status;
+            if (d.verification_result === 1) return 'consensus_confirmed';
+            if (d.verification_result === 0) return 'consensus_rejected';
+            return 'unverified';
+        }
+
         function renderTimeScatterChart(data) {
             const commonLayout = { margin: { l: 50, r: 80, b: 75, t: 50 }, showlegend: false, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', autosize: true};
             const plotlyConfig = { responsive: true, displayModeBar: 'hover', displaylogo:false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] };
@@ -735,33 +763,18 @@
             if (data.detections && data.detections.length > 0) {
                 const convertTimeToDecimal = t => t ? parseInt(t.slice(0,2)) + parseInt(t.slice(3,5))/60 + parseInt(t.slice(6,8))/3600 : 0;
 
-                const unverified = data.detections.filter(d => d.verification_result === null || d.verification_result === undefined);
-                const rejected = data.detections.filter(d => d.verification_result === 0);
-                const confirmed = data.detections.filter(d => d.verification_result === 1);
-
-                const unverifiedTrace = {
-                    x: unverified.map(d => d.date), y: unverified.map(d => convertTimeToDecimal(d.time)),
-                    mode: 'markers', type: 'scatter', name: '{{ _("Не перевірено") }}',
-                    marker: { color: '#0779e4', size: 5, opacity: 0.7 },
-                    showlegend: false
-                };
-                const rejectedTrace = {
-                    x: rejected.map(d => d.date), y: rejected.map(d => convertTimeToDecimal(d.time)),
-                    mode: 'markers', type: 'scatter', name: '{{ _("Відхилено") }}',
-                    marker: { color: 'red', size: 5, opacity: 0.9 },
-                    showlegend: false
-                };
-                const confirmedTrace = {
-                    x: confirmed.map(d => d.date), y: confirmed.map(d => convertTimeToDecimal(d.time)),
-                    mode: 'markers', type: 'scatter', name: '{{ _("Підтверджено") }}',
-                    marker: { color: 'green', size: 5, opacity: 0.9 },
-                    showlegend: false
-                };
+                const statusTraces = VERIFICATION_STATUS_SPECS.map(spec => {
+                    const pts = data.detections.filter(d => statusOf(d) === spec.key);
+                    return {
+                        x: pts.map(d => d.date), y: pts.map(d => convertTimeToDecimal(d.time)),
+                        mode: 'markers', type: 'scatter', name: spec.name,
+                        marker: { color: spec.color, size: 5, opacity: spec.key === 'unverified' ? 0.7 : 0.9 },
+                        showlegend: false
+                    };
+                });
 
                 const traces = [
-                    unverifiedTrace,
-                    rejectedTrace,
-                    confirmedTrace,
+                    ...statusTraces,
                     { x: data.sun_times.map(st => st.date), y: data.sun_times.map(st => convertTimeToDecimal(st.sunrise)), mode: 'lines', type: 'scatter', name: '{{ _("Схід") }}', line: { color: '#ffc107', dash: 'dash' }, hoverinfo: 'skip' },
                     { x: data.sun_times.map(st => st.date), y: data.sun_times.map(st => convertTimeToDecimal(st.sunset)), mode: 'lines', type: 'scatter', name: '{{ _("Захід") }}', line: { color: '#6f42c1', dash: 'dash' }, hoverinfo: 'skip' }
                 ];
@@ -785,30 +798,15 @@
             const plotlyConfig = { responsive: true, displayModeBar: 'hover', displaylogo:false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] };
 
             if (data.detections && data.detections.length > 0) {
-                const unverified = data.detections.filter(d => d.verification_result === null || d.verification_result === undefined);
-                const rejected = data.detections.filter(d => d.verification_result === 0);
-                const confirmed = data.detections.filter(d => d.verification_result === 1);
-
-                const unverifiedTrace = {
-                    x: unverified.map(d => d.datetime), y: unverified.map(d => d.confidence),
-                    mode: 'markers', type: 'scatter', name: '{{ _("Не перевірено") }}',
-                    cliponaxis: false,
-                    marker: { symbol: 'cross-thin-open', color: '#0779e4', size: 8, opacity: 0.7 }
-                };
-                const rejectedTrace = {
-                    x: rejected.map(d => d.datetime), y: rejected.map(d => d.confidence),
-                    mode: 'markers', type: 'scatter', name: '{{ _("Відхилено") }}',
-                    cliponaxis: false,
-                    marker: { symbol: 'cross-thin-open', color: 'red', size: 8, opacity: 0.9 }
-                };
-                const confirmedTrace = {
-                    x: confirmed.map(d => d.datetime), y: confirmed.map(d => d.confidence),
-                    mode: 'markers', type: 'scatter', name: '{{ _("Підтверджено") }}',
-                    cliponaxis: false,
-                    marker: { symbol: 'cross-thin-open', color: 'green', size: 8, opacity: 0.9 }
-                };
-
-                const plotData = [unverifiedTrace, rejectedTrace, confirmedTrace];
+                const plotData = VERIFICATION_STATUS_SPECS.map(spec => {
+                    const pts = data.detections.filter(d => statusOf(d) === spec.key);
+                    return {
+                        x: pts.map(d => d.datetime), y: pts.map(d => d.confidence),
+                        mode: 'markers', type: 'scatter', name: spec.name,
+                        cliponaxis: false,
+                        marker: { symbol: 'cross-thin-open', color: spec.color, size: 8, opacity: spec.key === 'unverified' ? 0.7 : 0.9 }
+                    };
+                });
                 
                 const layout = { ...commonLayout, title: { 
                     text: `{{ _('Усі детекції та їх точність (confidence)') }}`, font: {size: 16}}, 
