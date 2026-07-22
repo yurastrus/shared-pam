@@ -322,25 +322,36 @@ def _confidence_filter_sql(mode='birdnet', model_id=None, alias='d'):
 _CONSENSUS_THRESHOLD = 2.0 / 3.0  # mirrors update_segment_stats() (migration 0004)
 
 
-def _verification_display_status(total_votes, positive_votes):
-    """Map a segment's meaningful-vote tally to a chart display status.
+def _verification_display_status(consensus_result, total_votes, positive_votes):
+    """Map a detection's verification state to a chart display status.
 
-    Mirrors the 2/3 consensus rule in update_segment_stats() (migration 0004)
-    but ALSO surfaces single-verifier votes (where no consensus exists yet) so
-    that one person's review work is visible on the detailed charts. Computed
-    from the live segments counts (verification_count / positive_verifications)
-    rather than the possibly-stale dvm.verification_result.
+    Precedence:
+      1. An AUTHORITATIVE result already recorded in
+         detection_verification_map.verification_result (``consensus_result``)
+         wins — this covers both a ≥2-vote consensus and the legacy
+         hand-verified segments imported as a single authoritative vote (see
+         rebuild_dvm / migration 0004). These render in the dark shades because
+         the rest of the system (evaluation, etc.) treats them as ground truth.
+      2. Otherwise (dvm NULL) derive a PROVISIONAL status from the live segment
+         vote tally so an in-app reviewer's not-yet-consensual work is still
+         visible — a single such vote gets a light shade; a genuine ≥2-vote
+         conflict stays blue. A ≥2-vote consensus here also covers the rare case
+         of a dvm row the trigger has not upserted yet.
 
     total_votes counts only meaningful votes (0/1); "unknown" (2) / skips are
-    already excluded by update_segment_stats when it fills these columns.
+    excluded by update_segment_stats when it fills these columns.
 
     Returns one of:
-      'consensus_confirmed' — ≥2 votes, ≥2/3 positive       (dark green)
-      'consensus_rejected'  — ≥2 votes, ≤1/3 positive        (dark red)
-      'single_confirmed'    — exactly 1 vote, positive        (light green)
-      'single_rejected'     — exactly 1 vote, negative        (light red)
-      'unverified'          — 0 votes OR a ≥2-vote conflict   (blue)
+      'consensus_confirmed' — dvm=1, or dvm NULL & ≥2 votes ≥2/3 positive  (dark green)
+      'consensus_rejected'  — dvm=0, or dvm NULL & ≥2 votes ≤1/3 positive  (dark red)
+      'single_confirmed'    — dvm NULL & exactly 1 positive vote            (light green)
+      'single_rejected'     — dvm NULL & exactly 1 negative vote            (light red)
+      'unverified'          — no votes, or a dvm-NULL ≥2-vote conflict      (blue)
     """
+    if consensus_result == 1:
+        return 'consensus_confirmed'
+    if consensus_result == 0:
+        return 'consensus_rejected'
     total = total_votes or 0
     pos = positive_votes or 0
     if total >= 2:
@@ -478,7 +489,7 @@ def get_filtered_detections(species_name, start_date=None, end_date=None, confid
                 'confidence': r['confidence'],
                 'verification_result': r['verification_result'],
                 'verification_status': _verification_display_status(
-                    r['verification_count'], r['positive_verifications'])
+                    r['verification_result'], r['verification_count'], r['positive_verifications'])
             }
             for r in db_result if r['datetime_start']
         ]
@@ -660,7 +671,7 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
             'confidence': r.get('confidence', None),
             'verification_result': r['verification_result'],
             'verification_status': _verification_display_status(
-                r['verification_count'], r['positive_verifications'])
+                r['verification_result'], r['verification_count'], r['positive_verifications'])
             } for r in db_result if r['datetime_start']]
         
         lat, lon = (float(db_result[0]['lat']), float(db_result[0]['lon'])) if db_result else (49.0, 32.0)
