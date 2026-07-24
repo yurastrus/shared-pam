@@ -167,12 +167,14 @@ are never removed).
     biotope mapping, managed **directly in the DB**, not in the UI.
   - `pam_calculation_log (source_name UNIQUE, status, started_at, …)` — a generic
     keyed status log for background jobs (polled by the admin page).
-- **Seeding (pam_db, one-off):** PAM already has a rich biotope set, so only a
-  general **`Ліс` / `Forest`** is added; the mapping points the other WorldCover
-  classes at existing biotopes (20→Кущі, 30→Лука, 40→C/г поля, 50→Населені пункти,
-  60→Скелі та урвища, 80→Озера та водосховища, 90→Очерети). Snow/mangroves/moss
-  omitted as irrelevant for Ukraine. Bulk assignment is triggered by the admin
-  button, not automatically.
+- **Seeding (pam_db, one-off):** PAM already has a rich biotope set, so only the
+  general biotopes with no good existing match are added — **`Ліс` / `Forest`**
+  (class 10), **`Оголений ґрунт` / `Bare / sparse vegetation`** (class 60, i.e.
+  bare/sand/desert, not cliffs), and **`Водно-болотне угіддя` / `Wetland`**
+  (class 90, broader than reeds). The other classes map to existing biotopes
+  (20→Кущі, 30→Лука, 40→C/г поля, 50→Населені пункти, 80→Озера та водосховища).
+  Snow/mangroves/moss omitted as irrelevant for Ukraine. Bulk assignment is
+  triggered by the admin button, not automatically.
 
 ---
 

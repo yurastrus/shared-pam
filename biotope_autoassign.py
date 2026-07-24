@@ -96,26 +96,31 @@ WORLDCOVER_CLASSES: dict[int, tuple[str, str]] = {
     100: ('Мохи та лишайники', 'Moss and lichen'),
 }
 
-#: Biotopes to create so class 10 has a general "forest" target (pam_db already
-#: has only forest sub-types). Everything else maps to pre-existing PAM biotopes.
+#: General biotopes to create for landcover classes that have no good match among
+#: pam_db's existing (mostly specific) biotopes: a generic "forest" (class 10),
+#: bare ground (class 60 — deserts / sand / destroyed grass cover, NOT cliffs),
+#: and a broad wetland (class 90 — reeds are only one kind of herbaceous wetland).
+#: Everything else maps to pre-existing PAM biotopes.
 DEFAULT_LANDCOVER_BIOTOPES: list[tuple[str, str]] = [
     ('Ліс', 'Forest'),
+    ('Оголений ґрунт', 'Bare / sparse vegetation'),
+    ('Водно-болотне угіддя', 'Wetland'),
 ]
 
 #: Reference seed mapping (ESA WorldCover class → biotope name_ua) for pam_db.
-#: PAM's biotope set is rich, so most classes map to existing biotopes; only
-#: "Ліс" (class 10) is added. Snow/mangroves/moss omitted as irrelevant for
-#: Ukraine. Documentation for reproducing the DB seed — the live mapping is in
-#: biotope_landcover_map. NB "C/г поля" begins with a Latin 'C' in pam_db.
+#: PAM's biotope set is rich, so most classes map to existing biotopes; only the
+#: three general biotopes above are added. Snow/mangroves/moss omitted as
+#: irrelevant for Ukraine. Documentation for reproducing the DB seed — the live
+#: mapping is in biotope_landcover_map. NB "C/г поля" begins with a Latin 'C'.
 DEFAULT_SEED_BY_NAME_UA: dict[int, str] = {
     10: 'Ліс',
     20: 'Кущі',
     30: 'Лука',
     40: 'C/г поля',
     50: 'Населені пункти',
-    60: 'Скелі та урвища',
+    60: 'Оголений ґрунт',
     80: 'Озера та водосховища',
-    90: 'Очерети',
+    90: 'Водно-болотне угіддя',
 }
 
 
