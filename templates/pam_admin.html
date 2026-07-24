@@ -1,0 +1,157 @@
+{% extends "pam_base.html" %}
+
+{% block title %}{{ _('Адміністрування PAM') }}{% endblock %}
+
+{% block pam_content %}
+<div class="container">
+<div class="module-hub">
+
+    <div class="hub-header">
+        <h1>{{ _('Адміністрування PAM') }}</h1>
+        <p>{{ _('Сервісні дії модуля акустичного моніторингу.') }}</p>
+    </div>
+
+    {# ── Auto-assign biotopes from landcover ── #}
+    <section class="hub-section">
+        <h2 class="hub-section-title">🗺️ {{ _('Біотопи з лендковеру') }}</h2>
+        <p style="color: var(--text-secondary); font-size: .9rem; line-height: 1.5;">
+            {{ _('Автоматичне призначення біотопів точкам за даними ESA WorldCover (Google Earth Engine). Для кожної точки береться гістограма класів покриву в заданому радіусі, і топ-N класів переводяться в біотопи через таблицю відповідностей у базі даних. Наявні біотопи не стираються — додаються лише відсутні.') }}
+        </p>
+
+        {% if not gee_available %}
+        <div style="padding: 1rem; border: 1px solid var(--border-color, #ccc); border-radius: 8px; opacity: .7;">
+            <strong>{{ _('Автопризначення недоступне') }}</strong><br>
+            <span style="font-size: .9rem;">
+                {{ _('Google Earth Engine не налаштований на цьому сервері (немає пакета earthengine-api або сервісного ключа GEE_SERVICE_ACCOUNT_KEY). Функція вимкнена.') }}
+            </span>
+        </div>
+        {% else %}
+        <form id="pam-biotope-form"
+              action="{{ url_for('pam.pam_biotope_auto_assign', lang_code=g.lang_code) }}"
+              method="post"
+              style="padding: 1rem; border: 1px solid var(--border-color, #ccc); border-radius: 8px; max-width: 480px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <label style="display:block; margin-bottom:.5rem;">
+                {{ _('Радіус (м):') }}
+                <input type="number" id="pam-biotope-radius" name="radius_m"
+                       value="{{ biotope_autoassign_radius }}" min="10" max="5000" step="10"
+                       style="width:7rem;">
+            </label>
+            <label style="display:block; margin-bottom:.5rem;">
+                {{ _('Топ-N біотопів:') }}
+                <input type="number" id="pam-biotope-top-n" name="top_n"
+                       value="{{ biotope_autoassign_top_n }}" min="1" max="10" step="1"
+                       style="width:7rem;">
+            </label>
+            <label style="display:block; margin-bottom:.75rem; cursor:pointer;">
+                <input type="checkbox" id="pam-biotope-only-missing" name="only_missing_locations" value="true">
+                {{ _('Лише точки без біотопів') }}
+            </label>
+            <button type="submit" id="pam-biotope-btn" class="btn btn-primary"
+                    onclick="return confirm('{{ _('Запустити автопризначення біотопів для точок? Наявні біотопи збережуться, додадуться лише відсутні.') }}')">
+                {{ _('Запустити') }}
+            </button>
+            <p id="pam-biotope-status-line" style="margin-top:.6rem; font-size:.9rem;"></p>
+        </form>
+        {% endif %}
+
+        <p style="color: var(--text-secondary); font-size: .8rem; margin-top:.75rem;">
+            {{ _('Відповідність «клас лендковеру → біотоп» задається в базі даних (таблиця biotope_landcover_map).') }}
+        </p>
+    </section>
+
+</div>
+</div>
+
+{% if gee_available %}
+<script>
+// ── PAM biotope auto-assignment: AJAX start + status polling ───────────────
+(function() {
+    const LANG = '{{ g.lang_code }}';
+    const csrfToken = '{{ csrf_token() }}';
+    const statusUrl = `/${LANG}/pam/admin/biotopes/auto-assign/status`;
+    const form = document.getElementById('pam-biotope-form');
+    const btn = document.getElementById('pam-biotope-btn');
+    const line = document.getElementById('pam-biotope-status-line');
+    if (!form || !btn || !line) return;
+
+    const runUrl = form.getAttribute('action');
+    let pollTimer = null;
+
+    function fmtTime(iso) {
+        if (!iso) return null;
+        const d = new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z');
+        return isNaN(d.getTime()) ? null : d.toLocaleString();
+    }
+
+    function render(data) {
+        const st = (data && data.status) || 'idle';
+        const last = fmtTime(data && data.last_calculated_at);
+        const running = st === 'running';
+        btn.disabled = running;
+        btn.textContent = running ? '{{ _("Виконується…") }}' : '{{ _("Запустити") }}';
+        if (running) {
+            line.textContent = '⏳ {{ _("Автопризначення виконується у фоні…") }}';
+            line.style.color = '#0c5460';
+        } else if (st === 'failed') {
+            line.textContent = '⚠️ {{ _("Останній запуск завершився помилкою.") }}'
+                + (data.error_message ? ' (' + data.error_message + ')' : '');
+            line.style.color = '#dc3545';
+        } else if (last) {
+            line.textContent = '✓ {{ _("Останній успішний запуск:") }} ' + last
+                + (data.error_message ? ' — ' + data.error_message : '');
+            line.style.color = '#6c757d';
+        } else {
+            line.textContent = '{{ _("Ще не запускалося.") }}';
+            line.style.color = '#6c757d';
+        }
+    }
+
+    async function fetchStatus() {
+        try {
+            const r = await fetch(statusUrl, { credentials: 'same-origin' });
+            const data = await r.json().catch(() => ({}));
+            render(data);
+            if (data.status === 'running') startPolling();
+            else stopPolling();
+        } catch (e) { /* status is not critical */ }
+    }
+    function startPolling() { if (!pollTimer) pollTimer = setInterval(fetchStatus, 3000); }
+    function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+    form.addEventListener('submit', async function(ev) {
+        ev.preventDefault();
+        btn.disabled = true;
+        line.textContent = '{{ _("Запуск…") }}';
+        line.style.color = '#0c5460';
+        try {
+            await fetch(runUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    radius_m: parseInt(document.getElementById('pam-biotope-radius').value, 10),
+                    top_n: parseInt(document.getElementById('pam-biotope-top-n').value, 10),
+                    only_missing_locations:
+                        (document.getElementById('pam-biotope-only-missing') || {}).checked === true
+                }),
+                credentials: 'same-origin'
+            });
+            startPolling();
+            fetchStatus();
+        } catch (e) {
+            line.textContent = '⚠️ {{ _("Не вдалося запустити автопризначення.") }}';
+            line.style.color = '#dc3545';
+            btn.disabled = false;
+        }
+    });
+
+    fetchStatus();
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -71,6 +71,109 @@ def pam_home(lang_code):
         can_export=auth and current_user.has_role('manager', 'roztochya_user'),
     )
 
+@pam_bp.route('/<lang_code>/pam/admin')
+@login_required
+@role_required('admin')
+def pam_admin(lang_code):
+    """PAM admin hub: a single page for service actions (biotope auto-assign, …)."""
+    g.lang_code = lang_code
+    gee_available = False
+    radius_default, top_n_default = 100, 3
+    try:
+        from .biotope_autoassign import (
+            gee_landcover_available, DEFAULT_RADIUS_M, DEFAULT_TOP_N,
+        )
+        gee_available = gee_landcover_available()
+        radius_default, top_n_default = DEFAULT_RADIUS_M, DEFAULT_TOP_N
+    except Exception as e:
+        current_app.logger.warning(f"PAM admin: cannot load biotope auto-assign context: {e}")
+    return render_template(
+        'pam_admin.html',
+        gee_available=gee_available,
+        biotope_autoassign_radius=radius_default,
+        biotope_autoassign_top_n=top_n_default,
+    )
+
+
+@pam_bp.route('/<lang_code>/pam/admin/biotopes/auto-assign', methods=['POST'])
+@login_required
+@role_required('admin')
+def pam_biotope_auto_assign(lang_code):
+    """Start background landcover → biotope assignment for PAM points.
+
+    Returns 202/409/503 JSON. Additive only; guarded by GEE availability.
+    """
+    from .biotope_autoassign import (
+        gee_landcover_available, start_async_assign, DEFAULT_RADIUS_M, DEFAULT_TOP_N,
+    )
+
+    wants_json = request.accept_mimetypes.best == 'application/json' \
+        or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    if not gee_landcover_available():
+        msg = ('Google Earth Engine недоступний на цьому сервері — '
+               'автопризначення біотопів вимкнено.')
+        if wants_json:
+            return jsonify({'success': False, 'error': msg}), 503
+        flash(msg, 'warning')
+        return redirect(url_for('pam.pam_admin', lang_code=lang_code))
+
+    payload = request.get_json(silent=True) or {}
+
+    def _int_param(name, default, lo, hi):
+        raw = request.form.get(name, payload.get(name))
+        try:
+            val = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return max(lo, min(hi, val))
+
+    radius_m = _int_param('radius_m', DEFAULT_RADIUS_M, 10, 5000)
+    top_n = _int_param('top_n', DEFAULT_TOP_N, 1, 10)
+    _raw_only = request.form.get('only_missing_locations',
+                                 payload.get('only_missing_locations'))
+    only_missing = str(_raw_only).strip().lower() in ('1', 'true', 'on', 'yes')
+
+    try:
+        current_app.logger.info(
+            f"PAM biotope auto-assign triggered by {current_user.username} "
+            f"(radius={radius_m}m, top_n={top_n}, only_missing={only_missing})"
+        )
+        started = start_async_assign(
+            radius_m=radius_m, top_n=top_n, only_missing_locations=only_missing,
+        )
+        if started:
+            if wants_json:
+                return jsonify({'success': True, 'status': 'running',
+                                'message': 'Автопризначення біотопів запущено у фоні.'}), 202
+            flash('Автопризначення біотопів запущено у фоні. Статус оновиться на цій сторінці.', 'info')
+        else:
+            if wants_json:
+                return jsonify({'success': False, 'status': 'running',
+                                'message': 'Автопризначення біотопів вже виконується.'}), 409
+            flash('Автопризначення біотопів вже виконується. Зачекайте завершення.', 'warning')
+    except Exception as e:
+        current_app.logger.error(f"PAM biotope auto-assign failed to start: {e}", exc_info=True)
+        if wants_json:
+            return jsonify({'error': 'Не вдалося запустити автопризначення біотопів.'}), 500
+        flash('Не вдалося запустити автопризначення біотопів. Перевірте логи.', 'danger')
+
+    return redirect(url_for('pam.pam_admin', lang_code=lang_code))
+
+
+@pam_bp.route('/<lang_code>/pam/admin/biotopes/auto-assign/status', methods=['GET'])
+@login_required
+@role_required('admin')
+def pam_biotope_auto_assign_status(lang_code):
+    """Polling endpoint: current state of the background biotope assignment."""
+    from .biotope_autoassign import get_autoassign_status
+    try:
+        return jsonify(get_autoassign_status()), 200
+    except Exception as e:
+        current_app.logger.exception(f"pam_biotope_auto_assign_status failed: {e}")
+        return jsonify({'error': 'Помилка отримання статусу'}), 500
+
+
 @pam_bp.route('/<lang_code>/pam/pam_detailed')
 def pam_detailed(lang_code):
     """Render the acoustic monitoring dashboard page."""

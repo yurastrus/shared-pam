@@ -144,6 +144,38 @@ Replace `venv/Scripts/` with `venv/bin/` on Linux.
 
 ---
 
+## Biotope auto-assignment from landcover
+
+Admin hub (`GET /<lang>/pam/admin`, admin-only) with a background action that
+assigns biotopes to monitoring points from ESA WorldCover (10 m) via Google Earth
+Engine — the PAM counterpart of camera_traps' feature. For each point it samples
+the landcover histogram in a radius (default 100 m), takes the top-N classes
+(default 3), maps them to biotopes via `biotope_landcover_map`, and **adds** the
+missing ones (`ON CONFLICT DO NOTHING` on `location_biotopes` — existing biotopes
+are never removed).
+
+- **Module:** `biotope_autoassign.py` — self-contained (does NOT import app.sdm /
+  app.camera_traps). Lazy `import ee`, own GEE init from `GEE_SERVICE_ACCOUNT_KEY`,
+  `frequencyHistogram` over `Point.buffer(radius)`, additive assignment, background
+  `threading.Thread`. `gee_landcover_available()` gates the button; the run is
+  wrapped so any failure is recorded, never crashing the site (503 when GEE is off).
+- **Routes:** `POST /<lang>/pam/admin/biotopes/auto-assign` (202/409/503),
+  `GET .../status` (polling). Template: `pam_admin.html`.
+- **Supporting tables** (created idempotently by `ensure_schema()` — no committed
+  init script; the DDL lives in the module docstring and self-heals on first use):
+  - `biotope_landcover_map (worldcover_class UNIQUE, biotope_id FK)` — the class →
+    biotope mapping, managed **directly in the DB**, not in the UI.
+  - `pam_calculation_log (source_name UNIQUE, status, started_at, …)` — a generic
+    keyed status log for background jobs (polled by the admin page).
+- **Seeding (pam_db, one-off):** PAM already has a rich biotope set, so only a
+  general **`Ліс` / `Forest`** is added; the mapping points the other WorldCover
+  classes at existing biotopes (20→Кущі, 30→Лука, 40→C/г поля, 50→Населені пункти,
+  60→Скелі та урвища, 80→Озера та водосховища, 90→Очерети). Snow/mangroves/moss
+  omitted as irrelevant for Ukraine. Bulk assignment is triggered by the admin
+  button, not automatically.
+
+---
+
 ## Integration
 
 This package is registered in biomon's `create_app()` factory as the `pam_bp` blueprint. It connects to a dedicated PostgreSQL database (`PAM_DATABASE_URL`) and uses institution-based access control inherited from the main app's `User` / `Institution` models.

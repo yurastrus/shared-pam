@@ -95,6 +95,12 @@
                 <span class="hub-card__title">{{ _('Автоматична підготовка сегментів') }}</span>
                 <span class="hub-card__desc">{{ _('Стратифікована вибірка детекцій + нарізка сегментів із локальних записів на боці браузера.') }}</span>
             </a>
+
+            <a class="hub-card" href="{{ url_for('pam.pam_admin', lang_code=g.lang_code) }}">
+                <span class="hub-card__icon">🛠️</span>
+                <span class="hub-card__title">{{ _('Адміністрування') }}</span>
+                <span class="hub-card__desc">{{ _('Сервісні дії: автопризначення біотопів точкам за лендковером та інше.') }}</span>
+            </a>
             {% endif %}
 
             {% if can_export %}

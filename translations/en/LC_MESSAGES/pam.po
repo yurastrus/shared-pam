@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-22 17:52+0300\n"
+"POT-Creation-Date: 2026-07-24 12:44+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -415,11 +415,111 @@ msgstr "Save changes"
 msgid "Невідома помилка"
 msgstr "Unknown error"
 
+#: app/pam/templates/pam_admin.html:3 app/pam/templates/pam_admin.html:10
+msgid "Адміністрування PAM"
+msgstr "PAM administration"
+
+#: app/pam/templates/pam_admin.html:11
+msgid "Сервісні дії модуля акустичного моніторингу."
+msgstr "Service actions for the acoustic monitoring module."
+
+#: app/pam/templates/pam_admin.html:16
+msgid "Біотопи з лендковеру"
+msgstr "Biotopes from landcover"
+
+#: app/pam/templates/pam_admin.html:18
+msgid ""
+"Автоматичне призначення біотопів точкам за даними ESA WorldCover (Google "
+"Earth Engine). Для кожної точки береться гістограма класів покриву в "
+"заданому радіусі, і топ-N класів переводяться в біотопи через таблицю "
+"відповідностей у базі даних. Наявні біотопи не стираються — додаються "
+"лише відсутні."
+msgstr ""
+"Automatically assign biotopes to points using ESA WorldCover data (Google"
+" Earth Engine). For each point, a histogram of landcover classes within "
+"the given radius is taken, and the top-N classes are translated into "
+"biotopes via the mapping table in the database. Existing biotopes are not"
+" removed — only missing ones are added."
+
+#: app/pam/templates/pam_admin.html:23
+msgid "Автопризначення недоступне"
+msgstr "Auto-assignment unavailable"
+
+#: app/pam/templates/pam_admin.html:25
+msgid ""
+"Google Earth Engine не налаштований на цьому сервері (немає пакета "
+"earthengine-api або сервісного ключа GEE_SERVICE_ACCOUNT_KEY). Функція "
+"вимкнена."
+msgstr ""
+"Google Earth Engine is not configured on this server (the earthengine-api"
+" package or the GEE_SERVICE_ACCOUNT_KEY service key is missing). The "
+"feature is disabled."
+
+#: app/pam/templates/pam_admin.html:35
+msgid "Радіус (м):"
+msgstr "Radius (m):"
+
+#: app/pam/templates/pam_admin.html:41
+msgid "Топ-N біотопів:"
+msgstr "Top-N biotopes:"
+
+#: app/pam/templates/pam_admin.html:48
+msgid "Лише точки без біотопів"
+msgstr "Only points without biotopes"
+
+#: app/pam/templates/pam_admin.html:51
+msgid ""
+"Запустити автопризначення біотопів для точок? Наявні біотопи збережуться,"
+" додадуться лише відсутні."
+msgstr ""
+"Run biotope auto-assignment for points? Existing biotopes are kept; only "
+"missing ones are added."
+
+#: app/pam/templates/pam_admin.html:52 app/pam/templates/pam_admin.html:92
+msgid "Запустити"
+msgstr "Run"
+
+#: app/pam/templates/pam_admin.html:59
+msgid ""
+"Відповідність «клас лендковеру → біотоп» задається в базі даних (таблиця "
+"biotope_landcover_map)."
+msgstr ""
+"The \"landcover class → biotope\" mapping is managed in the database (the"
+" biotope_landcover_map table)."
+
+#: app/pam/templates/pam_admin.html:92
+msgid "Виконується…"
+msgstr "Running…"
+
+#: app/pam/templates/pam_admin.html:94
+msgid "Автопризначення виконується у фоні…"
+msgstr "Auto-assignment is running in the background…"
+
+#: app/pam/templates/pam_admin.html:97
+msgid "Останній запуск завершився помилкою."
+msgstr "The last run failed."
+
+#: app/pam/templates/pam_admin.html:101
+msgid "Останній успішний запуск:"
+msgstr "Last successful run:"
+
+#: app/pam/templates/pam_admin.html:105
+msgid "Ще не запускалося."
+msgstr "Not run yet."
+
+#: app/pam/templates/pam_admin.html:125
+msgid "Запуск…"
+msgstr "Starting…"
+
+#: app/pam/templates/pam_admin.html:147
+msgid "Не вдалося запустити автопризначення."
+msgstr "Failed to start auto-assignment."
+
 #: app/pam/templates/pam_base.html:13
 msgid "До розділів"
 msgstr "To sections"
 
-#: app/pam/templates/pam_data_export.html:3 app/pam/templates/pam_home.html:103
+#: app/pam/templates/pam_data_export.html:3 app/pam/templates/pam_home.html:109
 msgid "Експорт даних"
 msgstr "Data export"
 
@@ -1029,31 +1129,41 @@ msgstr ""
 "Stratified detection sampling + client-side segment cutting from local "
 "recordings."
 
-#: app/pam/templates/pam_home.html:104
+#: app/pam/templates/pam_home.html:101
+msgid "Адміністрування"
+msgstr "Administration"
+
+#: app/pam/templates/pam_home.html:102
+msgid "Сервісні дії: автопризначення біотопів точкам за лендковером та інше."
+msgstr ""
+"Service actions: landcover-based biotope auto-assignment for points and "
+"more."
+
+#: app/pam/templates/pam_home.html:110
 msgid "Експорт даних PAM моніторингу у CSV таблиці."
 msgstr "Export PAM monitoring data as CSV tables."
 
-#: app/pam/templates/pam_home.html:111
+#: app/pam/templates/pam_home.html:117
 msgid "Імпорт даних"
 msgstr "Import data"
 
-#: app/pam/templates/pam_home.html:112
+#: app/pam/templates/pam_home.html:118
 msgid "Завантаження CSV-файлів від BirdNET та інших класифікаторів."
 msgstr "Upload CSV files from BirdNET and other classifiers."
 
-#: app/pam/templates/pam_home.html:117
+#: app/pam/templates/pam_home.html:123
 msgid "Завантаження сегментів"
 msgstr "Upload segments"
 
-#: app/pam/templates/pam_home.html:118
+#: app/pam/templates/pam_home.html:124
 msgid "Завантаження ZIP-архівів з аудіосегментами для верифікації."
 msgstr "Upload ZIP archives with audio segments for verification."
 
-#: app/pam/templates/pam_home.html:123
+#: app/pam/templates/pam_home.html:129
 msgid "Управління локаціями"
 msgstr "Location management"
 
-#: app/pam/templates/pam_home.html:124
+#: app/pam/templates/pam_home.html:130
 msgid "Редагування назв та біотопів точок акустичного моніторингу."
 msgstr "Edit names and habitats of acoustic monitoring points."
 
