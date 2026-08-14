@@ -49,6 +49,21 @@ def _segment_access_sql(seg_alias='seg'):
     return sql, {"access_inst_ids": inst_ids}
 
 
+def has_pam_export_access():
+    """True if the current user may export PAM data at all.
+
+    Two conditions, matching the camera-traps module and EXPORT_ROLES in
+    app/admin/services.py: the 'analyst' privilege level (analyst / manager /
+    admin via the role hierarchy) AND at least one institution flagged
+    can_export. Admin is unrestricted and needs no institution link.
+    """
+    if not current_user.is_authenticated:
+        return False
+    if current_user.has_role('admin'):
+        return True
+    return current_user.has_role('analyst') and bool(current_user.export_institutions)
+
+
 # --- PAM MODULE STATIC FILES ---
 @pam_bp.route('/<lang_code>/pam-static/<path:filename>')
 def serve_pam_static(lang_code, filename):
@@ -68,7 +83,7 @@ def pam_home(lang_code):
         ),
         is_manager=auth and current_user.has_role('manager'),
         is_admin=auth and current_user.has_role('admin'),
-        can_export=auth and current_user.has_role('manager', 'roztochya_user'),
+        can_export=has_pam_export_access(),
     )
 
 @pam_bp.route('/<lang_code>/pam/admin')
@@ -3226,18 +3241,21 @@ def api_pam_species_dynamics(lang_code):
             
 @pam_bp.route('/<lang_code>/pam/data-export')
 @login_required
-@role_required('manager')
+@role_required('analyst')
 def pam_data_export(lang_code):
     """Data export page; filters are loaded dynamically via API."""
     g.lang_code = lang_code
+    if not has_pam_export_access():
+        flash('У вас немає прав на експорт даних PAM.', 'danger')
+        return redirect(url_for('pam.pam_home', lang_code=lang_code))
     try:
         # Institutions available to the current user.
-        # Admin sees all; others see only their associated institutions.
+        # Admin sees all; others see only institutions flagged can_export.
         is_admin = current_user.has_role('admin')
         if is_admin:
             all_inst = Institution.query.order_by(Institution.name_uk).all()
         else:
-            all_inst = current_user.institutions
+            all_inst = current_user.export_institutions
         institutions = [
             {
                 'id': i.id,
@@ -3323,9 +3341,11 @@ def fetch_distinct_species(conn, lang_code, filters):
 
 @pam_bp.route('/<lang_code>/api/pam/data-preview')
 @login_required
-@role_required('manager')
+@role_required('analyst')
 def api_data_preview(lang_code):
     """API endpoint to preview export data (returns up to 20 rows)."""
+    if not has_pam_export_access():
+        abort(403)
     try:
         filters = {
             'species_ids': [int(sid) for sid in request.args.get('species_ids', '').split(',') if sid],
@@ -3356,7 +3376,11 @@ def api_data_preview(lang_code):
         return jsonify({'error': 'Помилка на сервері при підготовці даних.'}), 500
 
 @pam_bp.route('/<lang_code>/api/pam/data-download')
+@login_required
+@role_required('analyst')
 def api_data_download(lang_code):
+    if not has_pam_export_access():
+        abort(403)
     try:
         filters = {
             'species_ids': [int(sid) for sid in request.args.get('species_ids', '').split(',') if sid],

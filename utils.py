@@ -1407,8 +1407,19 @@ def get_occurrence_data(filters, limit=None):
             'confidence': 0.0 if export_mode == 'smart_filter' else float(filters.get('confidence', 0))
         }
 
-        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        # Access baseline for export is the can_export flag, NOT plain institution
+        # membership: a user exports only from institutions where that flag is set
+        # (same rule as the camera-traps module). Admin is unrestricted.
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
+        user_inst_ids = (
+            [inst.id for inst in current_user.export_institutions]
+            if current_user.is_authenticated else []
+        )
+        if not is_admin and not user_inst_ids:
+            # No export rights anywhere → export nothing. Without this guard
+            # get_institution_filter would fall back to public locations.
+            return {'data': [], 'total_count': 0}
+
         # Multi-select institution filter from UI (list of ints or None/empty)
         selected_inst_ids = filters.get('institution_ids') or None
         inst_condition, inst_params = get_institution_filter(
