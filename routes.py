@@ -32,21 +32,39 @@ def _parse_id_list(raw):
 
 
 def _segment_access_sql(seg_alias='seg'):
-    """(SQL condition, params) restricting segments to the current user's
-    institutions — the ACCESS baseline, always applied (not just the optional
-    UI filter). Admins: unrestricted ('TRUE'). A verifier with no institutions:
-    none ('FALSE'). Segments with no recording link can't be attributed to an
-    institution, so they are excluded for non-admins."""
+    """(SQL condition, params) restricting segments to what the current user may
+    see — the ACCESS baseline, always applied (not just the optional UI filter).
+
+    The rule matches get_institution_filter() and the camera-traps module:
+
+    * admin — unrestricted (``TRUE``);
+    * anyone else — segments recorded on a PUBLIC location
+      (``locations.visibility_level = 0``) plus those on locations belonging to
+      one of the user's institutions.
+
+    Public locations are part of the baseline because self-registered verifiers
+    are approved with no institution attached: the public pool is exactly what
+    their approval grants (see app/utils/registration.py in biomon).
+
+    Segments with no recording link cannot be attributed to a location, so they
+    stay invisible to non-admins (fail closed).
+    """
     if current_user.is_authenticated and current_user.has_role('admin'):
         return "TRUE", {}
     inst_ids = [i.id for i in current_user.institutions] if current_user.is_authenticated else []
+
+    public_cond = (f"EXISTS (SELECT 1 FROM recordings r_pub "
+                   f"JOIN locations l_pub ON l_pub.location_id = r_pub.location_id "
+                   f"WHERE r_pub.recording_id = {seg_alias}.recording_id "
+                   f"AND l_pub.visibility_level = 0)")
     if not inst_ids:
-        return "FALSE", {}
-    sql = (f"EXISTS (SELECT 1 FROM recordings r_acc "
-           f"JOIN location_institutions li_acc ON r_acc.location_id = li_acc.location_id "
-           f"WHERE r_acc.recording_id = {seg_alias}.recording_id "
-           f"AND li_acc.institution_id = ANY(:access_inst_ids))")
-    return sql, {"access_inst_ids": inst_ids}
+        return public_cond, {}
+
+    inst_cond = (f"EXISTS (SELECT 1 FROM recordings r_acc "
+                 f"JOIN location_institutions li_acc ON r_acc.location_id = li_acc.location_id "
+                 f"WHERE r_acc.recording_id = {seg_alias}.recording_id "
+                 f"AND li_acc.institution_id = ANY(:access_inst_ids))")
+    return f"({public_cond} OR {inst_cond})", {"access_inst_ids": inst_ids}
 
 
 def has_pam_export_access():
@@ -1383,8 +1401,14 @@ def api_get_locations_map(lang_code):
 
 @pam_bp.route('/<lang_code>/api/verification/segments')
 @login_required
+@role_required('pam_verifier')
 def api_verification_segments(lang_code):
-    """API endpoint to fetch paginated and filtered segment list."""
+    """API endpoint to fetch paginated and filtered segment list.
+
+    SEC: applies the same access baseline as the verification queue — without it
+    this endpoint listed every segment (filename, location name, date) regardless
+    of the location's visibility.
+    """
     from .utils import get_pam_db_connection
     
     conn = None
@@ -1406,10 +1430,14 @@ def api_verification_segments(lang_code):
             JOIN species s ON seg.species_id = s.species_id
         """
         
-        # Prepare conditions for the main query (species and status).
-        main_conditions = []
-        main_params = {}
-        
+        # ACCESS baseline — applied to every query in this endpoint (list, count,
+        # per-status counts, average confidence) so the numbers and the rows agree.
+        acc_sql, acc_params = _segment_access_sql('seg')
+
+        # Prepare conditions for the main query (access + species and status).
+        main_conditions = [acc_sql]
+        main_params = dict(acc_params)
+
         if species_id:
             main_conditions.append("seg.species_id = :species_id")
             main_params['species_id'] = species_id
@@ -1432,8 +1460,8 @@ def api_verification_segments(lang_code):
         total_count = conn.execute(count_query, main_params).scalar()
         
         # Calculate statistics.
-        species_only_conditions = []
-        species_only_params = {}
+        species_only_conditions = [acc_sql]
+        species_only_params = dict(acc_params)
         if species_id:
             species_only_conditions.append("seg.species_id = :species_id")
             species_only_params['species_id'] = species_id
@@ -1777,6 +1805,7 @@ def api_submit_verification(lang_code):
 
 @pam_bp.route('/<lang_code>/api/verification/stats')
 @login_required
+@role_required('pam_verifier')
 def api_verification_stats(lang_code):
     """API endpoint to fetch the current user's verification statistics (filterable by species_id)."""
     conn = None
@@ -2921,6 +2950,7 @@ def admin_convert_to_flac(lang_code):
 
 @pam_bp.route('/<lang_code>/api/pam/verification/top-verifiers')
 @login_required
+@role_required('pam_verifier')
 def api_top_verifiers(lang_code):
     """API endpoint to fetch the top verifiers ranking based on active filters."""
     conn = None
@@ -3271,6 +3301,7 @@ def pam_data_export(lang_code):
     
 @pam_bp.route('/<lang_code>/api/pam/get-taxonomic-filters')
 @login_required
+@role_required('pam_verifier')
 def api_get_taxonomic_filters(lang_code):
     conn = None
     try:
