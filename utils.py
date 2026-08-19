@@ -64,11 +64,18 @@ def get_pam_engine():
     return _pam_engine
 
 
-def get_user_pam_stats(user_id):
+def get_user_pam_stats(user_id, lang='uk'):
     """Return personal PAM statistics for a user (read-only).
 
     Returns a dict: verifications (total), positive (confirmed = 1),
-    positive_rate (%), species_count (unique species in verified segments).
+    positive_rate (%), species_count (unique species in verified segments),
+    top_species (top-5 [{name, count}]).
+
+    ``top_species`` counts only CONFIRMED verifications (verification_result = 1),
+    i.e. "species this person confirmed" -- a rejection says nothing about the
+    verifier's interest in that taxon. This differs from the camera-traps
+    equivalent (get_user_ct_stats), where every identification is a positive
+    statement about a species, so the UI labels the two blocks differently.
     """
     engine = get_pam_engine()
     with engine.connect() as conn:
@@ -80,6 +87,34 @@ def get_user_pam_stats(user_id):
             JOIN segments s ON s.id = sv.segment_id
             WHERE sv.user_id = :uid
         """), {"uid": user_id}).fetchone()
+
+        top_rows = conn.execute(text("""
+            SELECT s.species_id AS sid, COUNT(DISTINCT sv.segment_id) AS n
+            FROM segment_verifications sv
+            JOIN segments s ON s.id = sv.segment_id
+            WHERE sv.user_id = :uid AND sv.verification_result = 1
+            GROUP BY s.species_id
+            ORDER BY n DESC, s.species_id
+            LIMIT 5
+        """), {"uid": user_id}).fetchall()
+
+        top_species = []
+        if top_rows:
+            ids = [row.sid for row in top_rows]
+            name_rows = conn.execute(text("""
+                SELECT species_id, common_name_uk, common_name_en, scientific_name
+                FROM species WHERE species_id = ANY(:ids)
+            """), {"ids": ids}).fetchall()
+            names = {
+                nr.species_id: ((nr.common_name_en if lang == 'en' else nr.common_name_uk)
+                                or nr.scientific_name or f'#{nr.species_id}')
+                for nr in name_rows
+            }
+            top_species = [
+                {'name': names.get(row.sid, f'#{row.sid}'), 'count': row.n}
+                for row in top_rows
+            ]
+
     total = (r.total if r else 0) or 0
     positive = (r.positive if r else 0) or 0
     return {
@@ -87,6 +122,7 @@ def get_user_pam_stats(user_id):
         'positive': positive,
         'positive_rate': round(positive * 100.0 / total, 1) if total else 0.0,
         'species_count': (r.species if r else 0) or 0,
+        'top_species': top_species,
     }
 
 
