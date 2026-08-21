@@ -44,22 +44,27 @@ _RECORDING_STEM_RE = re.compile(r'^([A-Za-z0-9\-]+)_(\d{8})_(\d{6})$')
 ALLOWED_SEGMENT_DURATIONS = (3, 5, 10)
 MAX_SAMPLE_PER_SPECIES = 5000
 
+# conf_column is interpolated into SQL text, so it is validated before use. It
+# comes from models.conf_column (constrained by ck_models_conf_column in
+# migration 0006), never from request data.
+_CONF_COLUMN_RE = re.compile(r'^[a-z][a-z0-9_]*$')
+
 
 # ── sampling ──────────────────────────────────────────────────────────────────
 
-def build_sampling_query(n_strata, is_reference=True):
+def build_sampling_query(n_strata, conf_column='confidence'):
     """Return the parameterised stratified-sampling SQL.
 
     Kept as a pure function (no DB, no I/O) so it is unit-testable. ``n_strata``
     is interpolated into the SQL text because it drives ``ntile()``'s argument;
     every value that depends on user input stays a bound parameter.
 
-    ``is_reference`` selects which confidence drives the sample:
-      * reference model (BirdNET 2.4) — ``detections.confidence`` (unchanged; the
-        column that legacy behaviour used), so no ``detection_models`` join is
-        needed and the historical result is reproduced exactly.
-      * any other model — that model's own ``detection_models.confidence`` (bound
-        as :model_id), so the sample is stratified by the model being evaluated.
+    ``conf_column`` is the ``detections`` column holding the score of the model
+    being sampled — ``models.conf_column`` (migration 0006). Since every model's
+    score lives on the detection row, one code path serves all models; passing
+    the reference model's ``'confidence'`` reproduces the historical result
+    exactly. The value is interpolated into SQL, so it must come from the models
+    table and match ``_CONF_COLUMN_RE`` — never from request data.
 
     Dedup is per ``(detection_id, model_id)`` — a detection already sampled for
     THIS model is skipped, but the same biological event can still be sampled
@@ -68,16 +73,12 @@ def build_sampling_query(n_strata, is_reference=True):
     Bind params expected by the returned SQL:
         :species_name, :location_ids (list), :conf_thr, :per_stratum,
         :seg_model_id  (the model to tag the sample with / dedup against)
-        :model_id      (only when is_reference is False — the model to score by)
     """
     n_strata = max(1, int(n_strata))
-    if is_reference:
-        conf_expr = "d.confidence"
-        model_join = ""
-    else:
-        conf_expr = "dm.confidence"
-        model_join = ("JOIN detection_models dm "
-                      "ON dm.detection_id = d.detection_id AND dm.model_id = :model_id")
+    if not _CONF_COLUMN_RE.match(conf_column or ''):
+        raise ValueError(f"Invalid conf_column: {conf_column!r}")
+    conf_expr = f"d.{conf_column}"
+    model_join = ""
     return text(f"""
         WITH candidates AS (
             SELECT d.detection_id,
@@ -120,7 +121,7 @@ def build_sampling_query(n_strata, is_reference=True):
 
 def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
                           n_strata=10, sample_size=700, conn=None,
-                          model_id=None, is_reference=True):
+                          model_id=None, conf_column='confidence'):
     """Draw a confidence-stratified detection sample for one species + model.
 
     Mirrors ``produce_random_segments.R``: split the confidence range into
@@ -129,11 +130,11 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
     high-confidence events are both represented. Already-uploaded detections
     (for this ``model_id``) are excluded by the query itself.
 
-    ``model_id`` is the model the sample is drawn / tagged for; ``is_reference``
-    is True for the BirdNET 2.4 reference model (uses ``detections.confidence``)
-    and False for any other model (uses its ``detection_models.confidence``). The
-    chosen ``model_id`` is echoed into every result dict so the client sends it
-    back on upload and the segment is tagged with it.
+    ``model_id`` is the model the sample is drawn / tagged for, and
+    ``conf_column`` is that model's score column on ``detections``
+    (``models.conf_column``); it defaults to the reference model's historical
+    ``'confidence'``. The chosen ``model_id`` is echoed into every result dict so
+    the client sends it back on upload and the segment is tagged with it.
 
     Returns a list of plain dicts (JSON-serialisable) — one per sampled
     detection — carrying everything the browser needs to cut + label the clip.
@@ -151,15 +152,13 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
         'per_stratum': per_stratum,
         'seg_model_id': model_id,
     }
-    if not is_reference:
-        params['model_id'] = model_id
 
     own_conn = conn is None
     if own_conn:
         conn = get_pam_db_connection()
     try:
         rows = conn.execute(
-            build_sampling_query(n_strata, is_reference=is_reference), params
+            build_sampling_query(n_strata, conf_column=conf_column), params
         ).mappings().fetchall()
     finally:
         if own_conn and conn is not None:

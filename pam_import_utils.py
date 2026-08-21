@@ -15,10 +15,14 @@ Two species-resolution modes are supported (``species_lookup_mode``):
 
 Model accounting: every import is tagged with a ``model_id`` (from the
 ``models`` table). Detections stay one row per biological event
-``(recording_id, species_id, start_s, end_s)``; each contributing model gets a
-row in ``detection_models`` with its own confidence. ``detections.confidence``
-keeps the REFERENCE model's (BirdNET 2.4) confidence and is never overwritten by
-another model — so BirdNET threshold filtering / evaluation stay intact.
+``(recording_id, species_id, start_s, end_s)``, and each model's score goes
+into its own ``detections`` column, named by ``models.conf_column``
+(migration 0006). An import writes ONLY its own column, so models never
+overwrite one another; BirdNET's column keeps the historical name
+``confidence``, which is the only thing distinguishing it.
+
+A model with no ``conf_column`` cannot be imported — there is nowhere to store
+its scores — and ``process_batch`` refuses such an import outright.
 """
 
 from abc import ABC, abstractmethod
@@ -289,6 +293,11 @@ IMPORTERS = {
 
 _DETECTION_BATCH_SIZE = 300
 
+# conf_column is interpolated into SQL text, so it is validated before use. It
+# comes from models.conf_column (itself constrained by ck_models_conf_column),
+# never from request data — see migration 0006.
+_CONF_COLUMN_RE = re.compile(r'^[a-z][a-z0-9_]*$')
+
 
 class PAMImportProcessor:
     """
@@ -298,13 +307,13 @@ class PAMImportProcessor:
     Usage:
         processor = PAMImportProcessor(
             get_pam_engine(), location_id, IMPORTERS['raven'],
-            model_id=2, reference_model_id=1)
+            model_id=2, conf_column='conf_perch_v2')
         stats = processor.process_batch(request.files.getlist('files'))
     """
 
     def __init__(self, engine, location_id: int, importer: BaseDetectionImporter,
                  duration_minutes=5, model_id: Optional[int] = None,
-                 reference_model_id: Optional[int] = None,
+                 conf_column: Optional[str] = None,
                  confidence_threshold: float = 0.0):
         self.engine = engine
         self.location_id = location_id
@@ -313,10 +322,11 @@ class PAMImportProcessor:
         # batch, set in the pam/import form (default 5). Stored in
         # recordings.duration_minutes.
         self.duration_minutes = duration_minutes
-        # Which model produced these detections, and which model_id is the
-        # reference (BirdNET 2.4) that owns detections.confidence.
+        # Which model produced these detections, and which detections column
+        # holds its score (models.conf_column — see migration 0006). All models
+        # are handled identically; there is no special case for the reference.
         self.model_id = model_id
-        self.reference_model_id = reference_model_id
+        self.conf_column = conf_column
         # Minimum confidence to import; rows below it are dropped before
         # insertion (set in the pam/import form, default 0.1 at the route layer).
         # Filtering uses each row's own confidence, regardless of model. Rows
@@ -331,18 +341,11 @@ class PAMImportProcessor:
             'detections_inserted': 0,      # new biological events (rows in detections)
             'detections_duplicate': 0,     # events that already existed
             'detections_filtered': 0,      # rows dropped below the confidence threshold
-            'model_links_new': 0,          # new rows in detection_models
-            'model_links_existing': 0,     # detection_models rows already present (refreshed)
             'species_count': 0,
             'rows_skipped_unknown_species': 0,  # rows whose common name matched no species
         }
         # common-name -> count, for reporting which labels were dropped
         self._skipped_species = Counter()
-
-    @property
-    def _is_reference_model(self) -> bool:
-        return (self.model_id is not None
-                and self.model_id == self.reference_model_id)
 
     def _species_key(self, row: DetectionRow):
         if self.importer.species_lookup_mode == 'common':
@@ -353,6 +356,17 @@ class PAMImportProcessor:
         """Process a list of FileStorage objects and return accumulated stats."""
         if self.model_id is None:
             raise ValueError("model_id is required to import detections")
+        # A model with no conf_column has nowhere to store its scores. Refuse
+        # loudly and early rather than importing detections whose confidence is
+        # silently dropped. The route filters such models out of the form, so
+        # this is the defence for a hand-crafted request.
+        if not self.conf_column:
+            raise ValueError(
+                "This model cannot store confidences: no conf_column is configured "
+                "for it in the models table. Add a detections.conf_<model> column "
+                "and set models.conf_column before importing.")
+        if not _CONF_COLUMN_RE.match(self.conf_column):
+            raise ValueError(f"Invalid conf_column: {self.conf_column!r}")
 
         rows_by_filename = {}
 
@@ -503,26 +517,27 @@ class PAMImportProcessor:
 
         for i in range(0, len(detections), _DETECTION_BATCH_SIZE):
             batch = detections[i:i + _DETECTION_BATCH_SIZE]
-            new_events, dup_events, new_links, existing_links = \
-                self._insert_detections_batch(conn, batch)
+            new_events, dup_events = self._insert_detections_batch(conn, batch)
             self.stats['detections_inserted'] += new_events
             self.stats['detections_duplicate'] += dup_events
-            self.stats['model_links_new'] += new_links
-            self.stats['model_links_existing'] += existing_links
 
     def _insert_detections_batch(self, conn, batch: list):
         """
-        Two-phase, idempotent insert for one batch:
-          1. upsert detections by the real unique key
-             (recording_id, species_id, start_s, end_s) → get detection_id;
-          2. upsert detection_models (detection_id, model_id, confidence).
+        Single-phase, idempotent upsert for one batch: detections keyed by the
+        real unique key (recording_id, species_id, start_s, end_s), with this
+        model's score written into its own column (self.conf_column).
 
-        detections.confidence is only written for the reference model (BirdNET
-        2.4); other models never touch it. Per-model confidence always lands in
-        detection_models. Returns
-        (new_events, dup_events, new_links, existing_links).
+        Every model takes the same path — since migration 0006 there is no
+        reference/non-reference branch, because the reference model is simply
+        the one whose column happens to be named `confidence`.
+
+        Only this model's column is ever written, so importing Perch scores
+        cannot disturb BirdNET scores on the same event (and vice versa): a
+        model updates its own column and leaves its neighbours untouched.
+
+        Returns (new_events, dup_events).
         """
-        is_ref = self._is_reference_model
+        col = self.conf_column  # validated in process_batch()
 
         # Dedup within the batch by natural key — Postgres forbids an
         # ON CONFLICT DO UPDATE from affecting the same row twice in one
@@ -535,7 +550,6 @@ class PAMImportProcessor:
                 deduped[k] = d['conf']
         keys = list(deduped.keys())
 
-        # ── Phase 1: detections ──
         placeholders, params = [], {}
         for i, (rec, sp, s, e) in enumerate(keys):
             placeholders.append(f"(:rec{i}, :sp{i}, :s{i}, :e{i}, :c{i})")
@@ -543,56 +557,16 @@ class PAMImportProcessor:
             params[f'sp{i}']  = sp
             params[f's{i}']   = s
             params[f'e{i}']   = e
-            # On a NEW row: reference model writes its confidence; others write
-            # NULL (the reference model has not seen this event).
-            params[f'c{i}']   = deduped[(rec, sp, s, e)] if is_ref else None
-
-        # On CONFLICT: reference refreshes confidence; others keep the existing
-        # value (no-op update so the row is still RETURNED with its id).
-        set_clause = ("confidence = EXCLUDED.confidence" if is_ref
-                      else "confidence = detections.confidence")
+            params[f'c{i}']   = deduped[(rec, sp, s, e)]
 
         det_sql = text(f"""
-            INSERT INTO detections (recording_id, species_id, start_s, end_s, confidence)
+            INSERT INTO detections (recording_id, species_id, start_s, end_s, {col})
             VALUES {', '.join(placeholders)}
             ON CONFLICT (recording_id, species_id, start_s, end_s) DO UPDATE
-                SET {set_clause}
-            RETURNING detection_id, recording_id, species_id, start_s, end_s, (xmax = 0) AS was_inserted
+                SET {col} = EXCLUDED.{col}
+            RETURNING (xmax = 0) AS was_inserted
         """)
         det_rows = conn.execute(det_sql, params).fetchall()
 
-        id_map = {}
-        new_events = 0
-        for r in det_rows:
-            id_map[(r.recording_id, r.species_id, float(r.start_s), float(r.end_s))] = r.detection_id
-            if r.was_inserted:
-                new_events += 1
-        dup_events = len(det_rows) - new_events
-
-        # ── Phase 2: detection_models ──
-        dm_placeholders, dm_params = [], {}
-        for i, k in enumerate(keys):
-            did = id_map.get(k)
-            if did is None:
-                continue
-            dm_placeholders.append(f"(:d{i}, :m{i}, :dc{i})")
-            dm_params[f'd{i}']  = did
-            dm_params[f'm{i}']  = self.model_id
-            dm_params[f'dc{i}'] = deduped[k]
-
-        new_links = existing_links = 0
-        if dm_placeholders:
-            dm_sql = text(f"""
-                WITH up AS (
-                    INSERT INTO detection_models (detection_id, model_id, confidence)
-                    VALUES {', '.join(dm_placeholders)}
-                    ON CONFLICT (detection_id, model_id) DO UPDATE
-                        SET confidence = EXCLUDED.confidence
-                    RETURNING (xmax = 0) AS was_inserted
-                )
-                SELECT count(*) FILTER (WHERE was_inserted), count(*) FROM up
-            """)
-            new_links, total_links = conn.execute(dm_sql, dm_params).fetchone()
-            existing_links = total_links - new_links
-
-        return new_events, dup_events, new_links, existing_links
+        new_events = sum(1 for r in det_rows if r.was_inserted)
+        return new_events, len(det_rows) - new_events

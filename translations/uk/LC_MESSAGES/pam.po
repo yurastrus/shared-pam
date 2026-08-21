@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-07-24 12:44+0300\n"
+"POT-Creation-Date: 2026-08-21 11:48+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: uk\n"
@@ -24,8 +24,8 @@ msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:16
 #: app/pam/templates/manage_pam_locations.html:597
-#: app/pam/templates/pam_import.html:52 app/pam/templates/pam_import.html:391
-#: app/pam/templates/pam_import.html:489
+#: app/pam/templates/pam_import.html:52 app/pam/templates/pam_import.html:388
+#: app/pam/templates/pam_import.html:486
 msgid "Нова локація"
 msgstr ""
 
@@ -145,7 +145,7 @@ msgstr ""
 #: app/pam/templates/manage_pam_locations.html:139
 #: app/pam/templates/manage_pam_locations.html:582
 #: app/pam/templates/manage_pam_locations.html:844
-#: app/pam/templates/pam_import.html:101 app/pam/templates/pam_import.html:531
+#: app/pam/templates/pam_import.html:101 app/pam/templates/pam_import.html:528
 msgid "Зберегти"
 msgstr ""
 
@@ -240,12 +240,12 @@ msgid "Немає даних."
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:257
-#: app/pam/templates/pam_import.html:470
+#: app/pam/templates/pam_import.html:467
 msgid "Виберіть біотопи..."
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:258
-#: app/pam/templates/pam_import.html:469
+#: app/pam/templates/pam_import.html:466
 msgid "Виберіть установи..."
 msgstr ""
 
@@ -289,42 +289,42 @@ msgid "Немає записів для прогнозу"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:374
-#: app/pam/templates/pam_import.html:340
+#: app/pam/templates/pam_import.html:337
 msgid "Національні природні парки"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:375
-#: app/pam/templates/pam_import.html:341
+#: app/pam/templates/pam_import.html:338
 msgid "Біосферні заповідники"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:376
-#: app/pam/templates/pam_import.html:342
+#: app/pam/templates/pam_import.html:339
 msgid "Регіональні ландшафтні парки"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:377
-#: app/pam/templates/pam_import.html:343
+#: app/pam/templates/pam_import.html:340
 msgid "Заказники"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:378
-#: app/pam/templates/pam_import.html:344
+#: app/pam/templates/pam_import.html:341
 msgid "Природні заповідники"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:379
-#: app/pam/templates/pam_import.html:345
+#: app/pam/templates/pam_import.html:342
 msgid "Пам'ятки природи"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:380
-#: app/pam/templates/pam_import.html:346
+#: app/pam/templates/pam_import.html:343
 msgid "Заповідні урочища"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:399
-#: app/pam/templates/pam_import.html:375
+#: app/pam/templates/pam_import.html:372
 #: app/pam/templates/pam_overview.html:422
 #: app/pam/templates/pam_service_log.html:156
 #: app/pam/templates/pam_species_detailed.html:417
@@ -332,7 +332,7 @@ msgid "OSM"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:399
-#: app/pam/templates/pam_import.html:375
+#: app/pam/templates/pam_import.html:372
 #: app/pam/templates/pam_overview.html:422
 #: app/pam/templates/pam_service_log.html:156
 #: app/pam/templates/pam_species_detailed.html:417
@@ -340,7 +340,7 @@ msgid "Супутник"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:410
-#: app/pam/templates/pam_import.html:360
+#: app/pam/templates/pam_import.html:357
 msgid "Території ПЗФ"
 msgstr ""
 
@@ -358,7 +358,7 @@ msgid "Помилка збереження:"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:648
-#: app/pam/templates/pam_import.html:502
+#: app/pam/templates/pam_import.html:499
 msgid "Вкажіть назву локації."
 msgstr ""
 
@@ -410,7 +410,7 @@ msgid "Зберегти зміни"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:818
-#: app/pam/templates/pam_import.html:674
+#: app/pam/templates/pam_import.html:670
 #: app/pam/templates/pam_service_log.html:317
 #: app/pam/templates/pam_verification_upload.html:248
 msgid "Невідома помилка"
@@ -920,7 +920,7 @@ msgid "Сторінка"
 msgstr ""
 
 #: app/pam/templates/pam_evaluation_results.html:405
-#: app/pam/templates/pam_import.html:661
+#: app/pam/templates/pam_import.html:657
 msgid "з"
 msgstr ""
 
@@ -1146,8 +1146,8 @@ msgstr ""
 msgid "Локація"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:43 app/pam/templates/pam_import.html:433
-#: app/pam/templates/pam_import.html:456
+#: app/pam/templates/pam_import.html:43 app/pam/templates/pam_import.html:430
+#: app/pam/templates/pam_import.html:453
 msgid "— Виберіть локацію —"
 msgstr ""
 
@@ -1167,7 +1167,7 @@ msgstr ""
 msgid "Формат"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:125 app/pam/templates/pam_import.html:602
+#: app/pam/templates/pam_import.html:125 app/pam/templates/pam_import.html:599
 msgid ""
 "BirdNET Analyzer: виберіть CSV-файли, що генеруються BirdNET (один файл ="
 " один запис)."
@@ -1205,12 +1205,12 @@ msgstr ""
 msgid "Папка"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:187 app/pam/templates/pam_import.html:576
-#: app/pam/templates/pam_import.html:586
+#: app/pam/templates/pam_import.html:187 app/pam/templates/pam_import.html:573
+#: app/pam/templates/pam_import.html:583
 msgid "файлів"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:188 app/pam/templates/pam_import.html:577
+#: app/pam/templates/pam_import.html:188 app/pam/templates/pam_import.html:574
 msgid "порожніх відфільтровано"
 msgstr ""
 
@@ -1267,69 +1267,61 @@ msgid "Відсіяно за впевненістю"
 msgstr ""
 
 #: app/pam/templates/pam_import.html:242
-msgid "Нових зв’язків з моделлю"
-msgstr ""
-
-#: app/pam/templates/pam_import.html:243
-msgid "Зв’язків оновлено"
-msgstr ""
-
-#: app/pam/templates/pam_import.html:245
 msgid "Унікальних видів"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:246
+#: app/pam/templates/pam_import.html:243
 msgid "Рядків пропущено (невідомий вид)"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:253
+#: app/pam/templates/pam_import.html:250
 msgid "Новий імпорт"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:476
+#: app/pam/templates/pam_import.html:473
 msgid "Скасувати нову локацію"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:503
+#: app/pam/templates/pam_import.html:500
 msgid "Клацніть на карті або введіть координати."
 msgstr ""
 
-#: app/pam/templates/pam_import.html:513
+#: app/pam/templates/pam_import.html:510
 #: app/pam/templates/pam_service_log.html:284
 msgid "Збереження..."
 msgstr ""
 
-#: app/pam/templates/pam_import.html:557
+#: app/pam/templates/pam_import.html:554
 msgid "Перевірка"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:586
+#: app/pam/templates/pam_import.html:583
 msgid "ще"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:603
+#: app/pam/templates/pam_import.html:600
 msgid ""
 "Raven Selection Table (.txt) з BirdNET Analyzer або Chirpity. Один файл "
 "може містити кілька записів; вид визначається за англійською назвою."
 msgstr ""
 
-#: app/pam/templates/pam_import.html:661
+#: app/pam/templates/pam_import.html:657
 msgid "Пакет"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:691
+#: app/pam/templates/pam_import.html:685
 msgid "Помилка з'єднання: "
 msgstr ""
 
-#: app/pam/templates/pam_import.html:696
+#: app/pam/templates/pam_import.html:690
 msgid "Готово!"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:704
+#: app/pam/templates/pam_import.html:698
 msgid "клієнт"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:722
+#: app/pam/templates/pam_import.html:714
 msgid "Пропущені назви:"
 msgstr ""
 

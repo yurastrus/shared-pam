@@ -239,9 +239,6 @@
                             <tr><td style="padding:3px 0;color:#6c757d;">{{ _('Подій уже існувало') }}</td><td id="r-det-dup" style="text-align:right;font-weight:600;color:#fd7e14;">—</td></tr>
                             <tr><td style="padding:3px 0;color:#6c757d;">{{ _('Відсіяно за впевненістю') }}</td><td id="r-det-filtered" style="text-align:right;font-weight:600;color:#fd7e14;">—</td></tr>
                             <tr><td colspan="2" style="height:6px;"></td></tr>
-                            <tr><td style="padding:3px 0;">{{ _('Нових зв’язків з моделлю') }}</td><td id="r-links-new" style="text-align:right;font-weight:700;color:#198754;">—</td></tr>
-                            <tr><td style="padding:3px 0;color:#6c757d;">{{ _('Зв’язків оновлено') }}</td><td id="r-links-exist" style="text-align:right;font-weight:600;">—</td></tr>
-                            <tr><td colspan="2" style="height:6px;"></td></tr>
                             <tr><td style="padding:3px 0;">{{ _('Унікальних видів') }}</td><td id="r-species" style="text-align:right;font-weight:700;color:#198754;">—</td></tr>
                             <tr id="r-skipped-row" style="display:none;"><td style="padding:3px 0;color:#dc3545;">{{ _('Рядків пропущено (невідомий вид)') }}</td><td id="r-skipped" style="text-align:right;font-weight:600;color:#dc3545;">—</td></tr>
                         </tbody>
@@ -649,7 +646,6 @@ $(function() {
                   recordings_new:0, recordings_existing:0,
                   detections_inserted:0, detections_duplicate:0,
                   detections_filtered:0,
-                  model_links_new:0, model_links_existing:0,
                   rows_skipped_unknown_species:0, species_count:0,
                   skipped_species:{} };
 
@@ -681,8 +677,6 @@ $(function() {
                 s.detections_inserted+= r.detections_inserted|| 0;
                 s.detections_duplicate+=r.detections_duplicate||0;
                 s.detections_filtered+= r.detections_filtered|| 0;
-                s.model_links_new    += r.model_links_new    || 0;
-                s.model_links_existing+=r.model_links_existing|| 0;
                 s.rows_skipped_unknown_species += r.rows_skipped_unknown_species || 0;
                 Object.entries(r.skipped_species || {}).forEach(([k,v]) => {
                     s.skipped_species[k] = (s.skipped_species[k] || 0) + v;
@@ -708,8 +702,6 @@ $(function() {
         $('#r-det-inserted').text(s.detections_inserted.toLocaleString());
         $('#r-det-dup').text(s.detections_duplicate.toLocaleString());
         $('#r-det-filtered').text((s.detections_filtered||0).toLocaleString());
-        $('#r-links-new').text((s.model_links_new||0).toLocaleString());
-        $('#r-links-exist').text((s.model_links_existing||0).toLocaleString());
         $('#r-species').text(s.species_count);
 
         const skipped = s.rows_skipped_unknown_species || 0;

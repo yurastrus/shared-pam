@@ -4,6 +4,7 @@ import csv
 import io
 import math
 import os
+import re
 import threading
 from datetime import date, datetime, timedelta, timezone
 
@@ -309,50 +310,132 @@ def get_available_species(lang_code):
                 current_app.logger.error(f"Error closing connection: {close_error}")
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Dashboard model switcher (Task B): BirdNET 2.4 / a specific model / combined.
+# Dashboard model switcher (Task B): reference model / a specific model / combined.
 #
 # detections is one row per biological event (recording_id, species_id, start_s,
-# end_s); detections.confidence holds the BirdNET-2.4 reference confidence, and
-# detection_models(detection_id, model_id, confidence) stores every model's own
-# score. The three modes differ ONLY in which confidence is filtered/displayed —
-# all dashboard queries use a flat confidence threshold, so the switch is a
-# swappable WHERE predicate (and SELECT expression) rather than new JOINs.
+# end_s), and EVERY model's score is a column on that same row — the mapping
+# model_id -> column name lives in models.conf_column (migration 0006), never in
+# code. detections.confidence is BirdNET 2.4's column; it keeps its historical
+# name for compatibility, which is the only asymmetry left.
+#
+# Scores stay inline rather than in a link table for one measured reason: the
+# dashboards filter on "one species, score above a threshold", and a composite
+# index (species_id, <score>) covers that only while both columns live in the
+# same table. With the score in detection_models the same query measured
+# 610..1452 ms instead of 90 ms, and no index can fix it — an index spans one
+# table, so the split filter is uncoverable.
+#
+# The three modes differ ONLY in which column is filtered/displayed, so the
+# switch stays a swappable WHERE predicate (and SELECT expression):
 #   'birdnet'  – reference model: detections.confidence (DEFAULT; SQL unchanged)
-#   'model'    – a specific model_id: its detection_models.confidence
-#   'combined' – any model: the best (MAX) detection_models.confidence per event
-# EXISTS keeps COUNT()/aggregations correct (no row fan-out from the join).
+#   'model'    – a specific model_id: its own conf_<model> column
+#   'combined' – any model: GREATEST() across the score columns
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _normalize_model_mode(mode, model_id, params=None):
-    """Validate (mode, model_id) and bind :model_id into params when relevant.
+# A conf_column value is interpolated into SQL text, so it must never be taken
+# from request data — only from models.conf_column, and only after matching this.
+# The same rule is enforced in the schema by ck_models_conf_column.
+_CONF_COLUMN_RE = re.compile(r'^[a-z][a-z0-9_]*$')
 
-    Returns the effective mode, falling back to 'birdnet' for anything invalid
-    or for 'model' without a model_id — so callers always get safe behavior.
+# Column owning the reference model's score. Its historical name is why the
+# reference model is identifiable from data alone, with no hardcoded model name.
+_REFERENCE_CONF_COLUMN = 'confidence'
+
+# {model_id: conf_column} for every model that can store a score. Cached for the
+# process lifetime: the models table changes only by migration. A miss triggers
+# one refresh, so adding a model does not require a restart.
+_conf_columns_cache = None
+
+
+def get_model_conf_columns(conn=None, refresh=False):
+    """Return {model_id: conf_column} for models that can store a score.
+
+    Models with conf_column IS NULL are excluded — they have nowhere to put a
+    confidence, so they must not be offered for import nor shown in the model
+    switcher. Returns {} on error, which degrades to reference-only behaviour.
+    """
+    global _conf_columns_cache
+    if _conf_columns_cache is not None and not refresh:
+        return _conf_columns_cache
+
+    own = conn is None
+    try:
+        if own:
+            conn = get_pam_db_connection()
+        rows = conn.execute(text(
+            "SELECT model_id, conf_column FROM models WHERE conf_column IS NOT NULL"
+        )).fetchall()
+        # Defence in depth: the CHECK constraint should make this unreachable.
+        _conf_columns_cache = {
+            int(r.model_id): r.conf_column
+            for r in rows if _CONF_COLUMN_RE.match(r.conf_column or '')
+        }
+        return _conf_columns_cache
+    except Exception as e:
+        current_app.logger.error(f"PAM DB Error (get_model_conf_columns): {e}")
+        return _conf_columns_cache if _conf_columns_cache is not None else {}
+    finally:
+        if own and conn is not None:
+            conn.close()
+
+
+def _resolve_conf_column(model_id, columns=None):
+    """conf_column for model_id, or None if the model cannot store a score.
+
+    ``columns`` overrides the cached lookup — used by unit tests so the SQL
+    builders stay callable without a database.
+    """
+    if model_id is None:
+        return None
+    if columns is None:
+        columns = get_model_conf_columns()
+        if model_id not in columns:
+            columns = get_model_conf_columns(refresh=True)
+    return columns.get(int(model_id))
+
+def _normalize_model_mode(mode, model_id, params=None):
+    """Validate (mode, model_id) and return the effective mode.
+
+    Falls back to 'birdnet' for anything invalid: an unknown mode, 'model'
+    without a model_id, or a model_id that has no conf_column (a disabled model
+    such as Nocmig — it cannot store scores, so filtering by it is meaningless).
+    Callers therefore always get safe, behaviour-preserving defaults.
+
+    ``params`` is accepted for call-site compatibility but no longer written to:
+    since migration 0006 the model selects a COLUMN NAME, which is interpolated
+    from models.conf_column rather than passed as a bind parameter.
     """
     if mode == 'combined':
         return 'combined'
     if mode == 'model' and model_id is not None:
-        if params is not None:
-            params['model_id'] = model_id
-        return 'model'
+        if _resolve_conf_column(model_id):
+            return 'model'
     return 'birdnet'
 
 
-def _confidence_filter_sql(mode='birdnet', model_id=None, alias='d'):
+def _confidence_filter_sql(mode='birdnet', model_id=None, alias='d', columns=None):
     """WHERE predicate filtering detections by confidence for the active mode.
 
-    Consumes the already-bound :confidence param; 'model' mode also uses
-    :model_id (bind it via _normalize_model_mode first).
+    Consumes the already-bound :confidence param. Column names come from
+    models.conf_column (validated against _CONF_COLUMN_RE), never from request
+    data. An unknown model_id degrades to the reference column, so a hand-crafted
+    query string cannot produce an empty result set or reach unmapped SQL.
+
+    'combined' uses OR rather than GREATEST(...) >= so each disjunct can still
+    use its own (species_id, <score>) index; GREATEST() would not be indexable.
     """
-    if mode == 'model' and model_id is not None:
-        return (f"EXISTS (SELECT 1 FROM detection_models dm "
-                f"WHERE dm.detection_id = {alias}.detection_id "
-                f"AND dm.model_id = :model_id AND dm.confidence >= :confidence)")
-    if mode == 'combined':
-        return (f"EXISTS (SELECT 1 FROM detection_models dm "
-                f"WHERE dm.detection_id = {alias}.detection_id "
-                f"AND dm.confidence >= :confidence)")
-    return f"{alias}.confidence >= :confidence"
+    if mode == 'model':
+        col = _resolve_conf_column(model_id, columns)
+        if col:
+            return f"{alias}.{col} >= :confidence"
+    elif mode == 'combined':
+        cols = sorted(set((columns if columns is not None
+                           else get_model_conf_columns()).values()))
+        if len(cols) > 1:
+            return "(" + " OR ".join(f"{alias}.{c} >= :confidence" for c in cols) + ")"
+        if cols:
+            return f"{alias}.{cols[0]} >= :confidence"
+    return f"{alias}.{_REFERENCE_CONF_COLUMN} >= :confidence"
 
 
 _CONSENSUS_THRESHOLD = 2.0 / 3.0  # mirrors update_segment_stats() (migration 0004)
@@ -402,34 +485,55 @@ def _verification_display_status(consensus_result, total_votes, positive_votes):
     return 'unverified'
 
 
-def _confidence_value_sql(mode='birdnet', model_id=None, alias='d'):
-    """SELECT expression for the confidence value to DISPLAY in the active mode."""
-    if mode == 'model' and model_id is not None:
-        return (f"(SELECT dm.confidence FROM detection_models dm "
-                f"WHERE dm.detection_id = {alias}.detection_id AND dm.model_id = :model_id)")
-    if mode == 'combined':
-        return (f"(SELECT MAX(dm.confidence) FROM detection_models dm "
-                f"WHERE dm.detection_id = {alias}.detection_id)")
-    return f"{alias}.confidence"
+def _confidence_value_sql(mode='birdnet', model_id=None, alias='d', columns=None):
+    """SELECT expression for the confidence value to DISPLAY in the active mode.
+
+    'combined' shows the best score any model gave the event. GREATEST() ignores
+    NULLs and yields NULL only when every model is silent, which is exactly the
+    old MAX(dm.confidence) semantics.
+    """
+    if mode == 'model':
+        col = _resolve_conf_column(model_id, columns)
+        if col:
+            return f"{alias}.{col}"
+    elif mode == 'combined':
+        cols = sorted(set((columns if columns is not None
+                           else get_model_conf_columns()).values()))
+        if len(cols) > 1:
+            return "GREATEST(" + ", ".join(f"{alias}.{c}" for c in cols) + ")"
+        if cols:
+            return f"{alias}.{cols[0]}"
+    return f"{alias}.{_REFERENCE_CONF_COLUMN}"
 
 
 def get_models_list():
     """Return classifier models for the dashboard model switcher (Task B).
 
-    Each item: {'model_id', 'label', 'is_reference'}; is_reference marks the
-    BirdNET 2.4 reference model whose confidence lives in detections.confidence.
+    Each item: {'model_id', 'label', 'is_reference', 'conf_column'}.
+
+    Only models that can actually store a score (conf_column IS NOT NULL) are
+    returned. A model without a column has nowhere to put confidences, so
+    offering it would let someone start an import that has nowhere to land —
+    this is how Nocmig / Nocmig V2 Beta stay out of both the import form and the
+    dashboard switcher, without deleting their catalogue rows.
+
+    is_reference identifies the model owning the historically-named
+    `detections.confidence` column; it is derived from data, not from a
+    hardcoded model name, so changing the reference is a data change.
     Returns [] if the models table is empty/absent, so callers can hide the switch.
     """
     conn = None
     try:
         conn = get_pam_db_connection()
         rows = conn.execute(text(
-            "SELECT model_id, name, version FROM models ORDER BY model_id"
+            "SELECT model_id, name, version, conf_column FROM models "
+            "WHERE conf_column IS NOT NULL ORDER BY model_id"
         )).fetchall()
         return [
             {'model_id': r.model_id,
              'label': (f"{r.name} {r.version}".strip() if r.version else r.name),
-             'is_reference': (r.name == 'BirdNET' and (r.version or '') == '2.4')}
+             'is_reference': (r.conf_column == _REFERENCE_CONF_COLUMN),
+             'conf_column': r.conf_column}
             for r in rows
         ]
     except Exception as e:
@@ -441,19 +545,24 @@ def get_models_list():
 
 
 def get_reference_model_id(conn=None):
-    """model_id of the BirdNET 2.4 reference model, or None if not seeded.
+    """model_id of the reference model (currently BirdNET 2.4), or None.
 
-    The reference is the model whose confidence lives in detections.confidence;
-    it is the default everywhere a model must be chosen (sampling, evaluation
-    view) so behaviour is unchanged when the user makes no explicit choice.
+    The reference is the model owning the historically-named
+    `detections.confidence` column — identified through models.conf_column, so
+    no model name is hardcoded here. It is the default everywhere a model must
+    be chosen (sampling, evaluation view), so behaviour is unchanged when the
+    user makes no explicit choice.
+
+    To move the reference to another model: give that model the 'confidence'
+    column and rename the old one — a data migration, not a code change.
     """
     own = conn is None
     try:
         if own:
             conn = get_pam_db_connection()
         row = conn.execute(text(
-            "SELECT model_id FROM models WHERE name = 'BirdNET' AND version = '2.4'"
-        )).fetchone()
+            "SELECT model_id FROM models WHERE conf_column = :col"
+        ), {'col': _REFERENCE_CONF_COLUMN}).fetchone()
         return int(row[0]) if row else None
     except Exception as e:
         current_app.logger.error(f"PAM DB Error (get_reference_model_id): {e}")

@@ -17,9 +17,28 @@ The PAM module uses its own PostgreSQL database (`pam_db`, configured via `PAM_D
 | `species` | `species_id`, `scientific_name`, `common_name_en`, `common_name_uk`, `required_role` | Species catalogue; `required_role` gates access per species |
 | `locations` | `location_id`, `name`, `latitude`, `longitude` | Acoustic monitoring stations |
 | `recordings` | `recording_id`, `filename`, `location_id`, `datetime_start`, `duration_minutes` | One row per audio file processed by BirdNET |
-| `detections` | `detection_id`, `recording_id`, `species_id`, `start_s`, `end_s`, `confidence` | One row per biological event `(recording_id, species_id, start_s, end_s)`; `confidence` holds the **reference model** (BirdNET 2.4) score and is never a cross-model max |
-| `models` | `model_id`, `name`, `version`, `program` | Classifier-model catalogue (BirdNET 2.4, Perch v2, Nocmig, Nocmig V2 Beta); BirdNET 2.4 is the reference model |
-| `detection_models` | `detection_id`, `model_id`, `confidence` | Which model(s) produced each detection, with that model's own confidence; PK `(detection_id, model_id)` lets several models share one event |
+| `detections` | `detection_id`, `recording_id`, `species_id`, `start_s`, `end_s`, `confidence`, `conf_perch_v2`, … | One row per biological event `(recording_id, species_id, start_s, end_s)`, with **one score column per classifier**. `confidence` is BirdNET 2.4's column — a historical name, not a special case. A NULL means that model did not report the event |
+| `models` | `model_id`, `name`, `version`, `program`, `conf_column` | Classifier-model catalogue. `conf_column` names the `detections` column holding that model's score and is the **only** source of the model → column mapping. `conf_column IS NULL` disables a model: it is neither offered for import nor shown in the dashboard switcher (this is how Nocmig / Nocmig V2 Beta are turned off) |
+
+> **Why the scores are inline** (migration 0006). They used to live in a
+> `detection_models(detection_id, model_id, confidence)` link table, where a
+> 4-byte score cost ~84 bytes of storage: a 23-byte tuple header, an 8-byte
+> `detection_id`, and a primary-key entry. On production that table held
+> 1979 MB for 378 MB of numbers, of which 24,728,562 of 24,772,161 rows were a
+> byte-identical copy of `detections.confidence`.
+>
+> The decisive reason is not size, though. Dashboards filter on "one species,
+> score above a threshold", and a composite index `(species_id, <score>)` can
+> only cover that while both columns live in the same table. With the score in a
+> separate table the filter is split across two tables, which no index can
+> cover — measured 90 ms → 610…1452 ms per dashboard query, unchanged by
+> `random_page_cost` tuning or by rewriting the join as `EXISTS`.
+>
+> Adding a classifier is `ALTER TABLE detections ADD COLUMN conf_<model> real`
+> (metadata-only and instant in PostgreSQL 11+) plus a `models.conf_column`
+> value. Prefer adding the column only once that model has data: `detections`
+> has 7 columns, and the 9th widens the NULL bitmap from 1 byte to 2, making
+> every new row 8 bytes larger.
 
 > Import supports two formats (see `pam_import_utils.py`): **BirdNET CSV** (species resolved by scientific name) and **Raven Selection Table** (`.txt` from BirdNET Analyzer / Chirpity; species resolved by English common name, using the per-recording **File Offset** for `start_s`). Schema migrations live in [`migrations/`](migrations/).
 

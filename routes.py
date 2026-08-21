@@ -4611,21 +4611,23 @@ def api_pam_import(lang_code):
 
         is_admin = current_user.has_role('admin')
 
-        # Validate model_id against the models table, resolve the reference
-        # model (BirdNET 2.4), and — for non-admins — verify location access.
+        # Resolve the model's score column and — for non-admins — verify
+        # location access. Only models with a conf_column are importable: a
+        # model without one has nowhere to store confidences (migration 0006),
+        # and get_models_list() already keeps those out of the form, so this is
+        # the guard for a hand-crafted request.
         conn = get_pam_db_connection()
         try:
             model_rows = conn.execute(text(
-                "SELECT model_id, name, version FROM models"
+                "SELECT model_id, conf_column FROM models WHERE conf_column IS NOT NULL"
             )).fetchall()
-            valid_model_ids = {r.model_id for r in model_rows}
-            reference_model_id = next(
-                (r.model_id for r in model_rows
-                 if r.name == 'BirdNET' and (r.version or '') == '2.4'),
-                None
-            )
-            if model_id is None or model_id not in valid_model_ids:
-                return jsonify({'success': False, 'error': 'Invalid or missing model_id'}), 400
+            conf_columns = {r.model_id: r.conf_column for r in model_rows}
+            if model_id is None or model_id not in conf_columns:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid model_id, or this model cannot store confidences'
+                }), 400
+            conf_column = conf_columns[model_id]
 
             if not is_admin:
                 user_inst_ids = [i.id for i in current_user.institutions]
@@ -4643,7 +4645,7 @@ def api_pam_import(lang_code):
         processor = PAMImportProcessor(engine, location_id, importer,
                                        duration_minutes=duration_minutes,
                                        model_id=model_id,
-                                       reference_model_id=reference_model_id,
+                                       conf_column=conf_column,
                                        confidence_threshold=confidence_threshold)
         stats = processor.process_batch(files)
 
@@ -4835,13 +4837,19 @@ def api_sample_prepare(lang_code):
             requested_model_id = int(requested_model_id) if requested_model_id is not None else None
         except (TypeError, ValueError):
             requested_model_id = None
-        model_id, is_reference = _resolve_model_choice(requested_model_id)
+        model_id, _is_reference = _resolve_model_choice(requested_model_id)
+
+        # The column holding this model's score (migration 0006). _resolve_model_choice
+        # only returns models present in get_models_list(), i.e. ones that have a
+        # column, so the fallback below is belt-and-braces.
+        from .utils import get_model_conf_columns
+        conf_column = get_model_conf_columns(conn).get(model_id, 'confidence')
 
         segments = run_stratified_sample(
             species_name, location_ids,
             confidence_threshold=conf_thr, n_strata=n_strata,
             sample_size=sample_size, conn=conn,
-            model_id=model_id, is_reference=is_reference,
+            model_id=model_id, conf_column=conf_column,
         )
         return jsonify({'success': True, 'count': len(segments),
                         'model_id': model_id, 'segments': segments})
