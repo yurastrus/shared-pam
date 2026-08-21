@@ -4535,8 +4535,14 @@ def pam_import(lang_code):
 
         # Classifier models (for the "Model" dropdown). The display label is
         # "<name> <version>" (version omitted when blank).
+        #
+        # Only models with a conf_column are offered: one without it has nowhere
+        # to store its scores (migration 0006), so selecting it could only ever
+        # end in the 400 the POST route returns. This mirrors get_models_list();
+        # the query is inline because this route already holds a connection.
         model_rows = conn.execute(text(
-            "SELECT model_id, name, version FROM models ORDER BY model_id"
+            "SELECT model_id, name, version FROM models "
+            "WHERE conf_column IS NOT NULL ORDER BY model_id"
         )).fetchall()
         models = [
             {'model_id': r.model_id,
