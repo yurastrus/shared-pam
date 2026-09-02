@@ -26,6 +26,8 @@ from matplotlib.ticker import FuncFormatter
 from flask import current_app
 from flask_login import current_user
 
+from . import access as pam_access
+
 # SQLAlchemy
 from sqlalchemy import create_engine, table, text, column
 from sqlalchemy.dialects.postgresql import insert, JSONB
@@ -580,7 +582,7 @@ def get_filtered_detections(species_name, start_date=None, end_date=None, confid
         params = {'species_name': species_name, 'confidence': confidence}
         mode = _normalize_model_mode(mode, model_id, params)
 
-        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
@@ -661,7 +663,7 @@ def get_daily_detection_counts(species_name, start_date, end_date, confidence, l
         }
         mode = _normalize_model_mode(mode, model_id, params)
 
-        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
@@ -742,7 +744,7 @@ def get_time_scatter_data(species_name, start_date, end_date, confidence, locati
             'end_date': end_date_obj
         }
 
-        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
@@ -859,7 +861,7 @@ def get_species_summary(species_name, start_date=None, end_date=None, confidence
             'min_detections': min_detections
         }
 
-        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
@@ -1003,7 +1005,7 @@ def get_unique_detection_points(lang_code, species_name, start_date=None, end_da
         is_admin = False
         if current_user.is_authenticated:
             # Collect IDs of all institutions the user belongs to.
-            user_inst_ids = [inst.id for inst in current_user.institutions]
+            user_inst_ids = pam_access.allowed_institution_ids(current_user)
             is_admin = current_user.has_role('admin')
 
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
@@ -1091,7 +1093,7 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
             'min_detections': min_detections
         }
         
-        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
@@ -1208,7 +1210,7 @@ def get_overview_statistics(lang_code, start_date=None, end_date=None, confidenc
             'min_detections': min_detections
         }
 
-        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
@@ -1345,7 +1347,7 @@ def get_locations_for_map(lang_code, start_date=None, end_date=None, confidence=
             'min_detections': min_detections
         }
 
-        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
         params.update(inst_params)
@@ -1556,10 +1558,7 @@ def get_occurrence_data(filters, limit=None):
         # membership: a user exports only from institutions where that flag is set
         # (same rule as the camera-traps module). Admin is unrestricted.
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        user_inst_ids = (
-            [inst.id for inst in current_user.export_institutions]
-            if current_user.is_authenticated else []
-        )
+        user_inst_ids = pam_access.export_institution_ids(current_user)
         if not is_admin and not user_inst_ids:
             # No export rights anywhere → export nothing. Without this guard
             # get_institution_filter would fall back to public locations.

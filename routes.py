@@ -15,6 +15,7 @@ from .pam_segment_sampling import (
 )
 from app.utils.decorators import role_required
 from . import pam_bp
+from . import access as pam_access
 from .utils import get_pam_db_connection, get_pam_engine, generate_spectrogram_image, get_occurrence_data, get_institution_filter, get_models_list, get_reference_model_id
 import io
 import csv
@@ -51,7 +52,7 @@ def _segment_access_sql(seg_alias='seg'):
     """
     if current_user.is_authenticated and current_user.has_role('admin'):
         return "TRUE", {}
-    inst_ids = [i.id for i in current_user.institutions] if current_user.is_authenticated else []
+    inst_ids = pam_access.allowed_institution_ids(current_user)
 
     public_cond = (f"EXISTS (SELECT 1 FROM recordings r_pub "
                    f"JOIN locations l_pub ON l_pub.location_id = r_pub.location_id "
@@ -79,7 +80,7 @@ def has_pam_export_access():
         return False
     if current_user.has_role('admin'):
         return True
-    return current_user.has_role('analyst') and bool(current_user.export_institutions)
+    return current_user.has_role('analyst') and bool(pam_access.export_institution_ids(current_user))
 
 
 # --- PAM MODULE STATIC FILES ---
@@ -724,7 +725,7 @@ def verification_interface(lang_code):
         inst_cond = ["seg.status = 'pending'"]
         inst_params = {}
         if not current_user.has_role('admin'):
-            allowed = [i.id for i in current_user.institutions]
+            allowed = pam_access.allowed_institution_ids(current_user)
             if allowed:
                 inst_cond.append("i.id = ANY(:allowed)")
                 inst_params['allowed'] = allowed
@@ -1151,7 +1152,7 @@ def api_get_pam_filters_data(lang_code):
             params['end_date'] = end_date
 
         # Base access rights.
-        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         base_inst_condition, base_inst_params = get_institution_filter(user_inst_ids, is_admin)
         params.update(base_inst_params)
@@ -1952,7 +1953,7 @@ def api_verification_filter_options(lang_code):
         institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
 
         is_admin = current_user.has_role('admin')
-        allowed_inst = [] if is_admin else [i.id for i in current_user.institutions]
+        allowed_inst = [] if is_admin else pam_access.allowed_institution_ids(current_user)
         acc_sql, acc_params = _segment_access_sql('seg')
 
         # Reusable institution join + condition builder (segment → recording →
@@ -2609,7 +2610,7 @@ def manage_pam_locations(lang_code):
         if is_admin:
             all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
         else:
-            all_inst_objects = current_user.institutions
+            all_inst_objects = pam_access.allowed_institutions(current_user)
         
         # Institution bilingual names: build a name map for the current language.
         if lang_code == 'uk':
@@ -2661,7 +2662,7 @@ def manage_pam_locations(lang_code):
             loc['biotope_ids'] = loc_biotope_map.get(lid, [])
 
         # 4. Filter to what the manager can see.
-        user_inst_ids =[i.id for i in current_user.institutions]
+        user_inst_ids =pam_access.allowed_institution_ids(current_user)
         if is_admin:
             final_locations = list(locations_dict.values())
         else:
@@ -2757,7 +2758,7 @@ def pam_location_coverage(lang_code, location_id):
 
         # Access: admin sees everything; otherwise the location must belong to the user's institution.
         if not current_user.has_role('admin'):
-            user_inst_ids = [i.id for i in current_user.institutions]
+            user_inst_ids = pam_access.allowed_institution_ids(current_user)
             allowed = False
             if user_inst_ids:
                 allowed = conn.execute(text(
@@ -2829,7 +2830,7 @@ def api_create_pam_location(lang_code):
             return jsonify({'success': False, 'error': 'Некоректні координати.'}), 400
 
         is_admin = current_user.has_role('admin')
-        user_inst_ids = [inst.id for inst in current_user.institutions]
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
 
         if not is_admin and institution_ids and not all(i_id in user_inst_ids for i_id in institution_ids):
             return jsonify({'success': False, 'error': 'Доступ заборонено: можна призначати лише свої установи.'}), 403
@@ -2892,7 +2893,7 @@ def update_pam_location(lang_code, location_id):
         conn = get_pam_db_connection()
         new_inst_ids = data.get('institution_ids', [])
         is_admin = current_user.has_role('admin')
-        user_inst_ids = [inst.id for inst in current_user.institutions]
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
 
         if not is_admin and not all(i_id in user_inst_ids for i_id in new_inst_ids):
             return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
@@ -3285,7 +3286,7 @@ def pam_data_export(lang_code):
         if is_admin:
             all_inst = Institution.query.order_by(Institution.name_uk).all()
         else:
-            all_inst = current_user.export_institutions
+            all_inst = pam_access.export_institutions(current_user)
         institutions = [
             {
                 'id': i.id,
@@ -3483,7 +3484,7 @@ def api_get_trends_filters(lang_code):
         }
 
         # 2. Base access rights + selected institution.
-        user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         is_admin = current_user.is_authenticated and current_user.has_role('admin')
         
         # Use the universal institution filter helper.
@@ -3741,7 +3742,7 @@ def api_get_pam_locations_with_status(lang_code):
     g.lang_code = lang_code
 
     is_admin = current_user.has_role('admin')
-    user_inst_ids = [inst.id for inst in current_user.institutions]
+    user_inst_ids = pam_access.allowed_institution_ids(current_user)
     selected_inst_id = request.args.get('institution_id', '')
 
     # Build the SQL condition for institution-based access control.
@@ -3891,7 +3892,7 @@ def api_get_pam_service_history(lang_code, location_id):
         conn = get_pam_db_connection()
         # Access check: admin or a user whose institution is linked to the location.
         if not current_user.has_role('admin'):
-            user_inst_ids = [inst.id for inst in current_user.institutions]
+            user_inst_ids = pam_access.allowed_institution_ids(current_user)
             if not user_inst_ids:
                 return jsonify({'error': 'Доступ заборонено'}), 403
             has_access = conn.execute(text("""
@@ -3986,7 +3987,7 @@ def api_create_pam_service_visit(lang_code):
         conn = get_pam_db_connection()
         # Access check: admin or a user whose institution is linked to the location.
         if not current_user.has_role('admin'):
-            user_inst_ids = [inst.id for inst in current_user.institutions]
+            user_inst_ids = pam_access.allowed_institution_ids(current_user)
             if not user_inst_ids:
                 return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
             has_access = conn.execute(text("""
@@ -4050,7 +4051,7 @@ def api_update_pam_service_visit(lang_code, visit_id):
             return jsonify({'success': False, 'error': 'Запис не знайдено.'}), 404
 
         if not current_user.has_role('admin'):
-            user_inst_ids = [inst.id for inst in current_user.institutions]
+            user_inst_ids = pam_access.allowed_institution_ids(current_user)
             if not user_inst_ids:
                 return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
             has_access = conn.execute(text("""
@@ -4132,7 +4133,7 @@ def api_get_weather_overlay(lang_code):
         try:
             conn = get_pam_db_connection()
 
-            user_inst_ids = [inst.id for inst in current_user.institutions] if current_user.is_authenticated else []
+            user_inst_ids = pam_access.allowed_institution_ids(current_user)
             is_admin = current_user.is_authenticated and current_user.has_role('admin')
             inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
             params.update(inst_params)
@@ -4484,7 +4485,7 @@ def pam_import(lang_code):
         if is_admin:
             all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
         else:
-            all_inst_objects = current_user.institutions
+            all_inst_objects = pam_access.allowed_institutions(current_user)
 
         if lang_code == 'uk':
             inst_names_map = {i.id: i.name_uk for i in all_inst_objects}
@@ -4517,7 +4518,7 @@ def pam_import(lang_code):
             if row.institution_id:
                 locations_dict[lid]['inst_ids'].append(row.institution_id)
 
-        user_inst_ids = [i.id for i in current_user.institutions]
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         if is_admin:
             final_locations = list(locations_dict.values())
         else:
@@ -4636,7 +4637,7 @@ def api_pam_import(lang_code):
             conf_column = conf_columns[model_id]
 
             if not is_admin:
-                user_inst_ids = [i.id for i in current_user.institutions]
+                user_inst_ids = pam_access.allowed_institution_ids(current_user)
                 row = conn.execute(text("""
                     SELECT 1 FROM location_institutions
                     WHERE location_id = :loc AND institution_id = ANY(:insts)
@@ -4694,7 +4695,7 @@ def _user_location_ids_allowed(conn, location_ids):
     """Filter location_ids to those the current user may access (admins: all)."""
     if current_user.has_role('admin'):
         return list(location_ids)
-    user_inst_ids = [i.id for i in current_user.institutions]
+    user_inst_ids = pam_access.allowed_institution_ids(current_user)
     if not user_inst_ids:
         return []
     rows = conn.execute(text("""
