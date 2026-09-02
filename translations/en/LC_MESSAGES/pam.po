@@ -1191,12 +1191,11 @@ msgstr "Click on the map to set coordinates"
 
 #: app/pam/templates/pam_import.html:114
 msgid "Формат і модель"
-msgstr ""
+msgstr "Format & model"
 
 #: app/pam/templates/pam_import.html:117
-#, fuzzy
 msgid "Формат"
-msgstr "Formula: "
+msgstr "Format"
 
 #: app/pam/templates/pam_import.html:125 app/pam/templates/pam_import.html:599
 msgid ""
@@ -1208,7 +1207,7 @@ msgstr ""
 
 #: app/pam/templates/pam_import.html:137
 msgid "Модель-класифікатор, що згенерувала ці детекції."
-msgstr ""
+msgstr "The classifier model that produced these detections."
 
 #: app/pam/templates/pam_import.html:142
 msgid "Тривалість файлу, хв"
@@ -1291,12 +1290,11 @@ msgstr "Already existed"
 
 #: app/pam/templates/pam_import.html:238
 msgid "Нових детекцій-подій"
-msgstr ""
+msgstr "New detection events"
 
 #: app/pam/templates/pam_import.html:239
-#, fuzzy
 msgid "Подій уже існувало"
-msgstr "Already existed"
+msgstr "Events already existed"
 
 #: app/pam/templates/pam_import.html:240
 msgid "Відсіяно за впевненістю"
@@ -1308,7 +1306,7 @@ msgstr "Unique species"
 
 #: app/pam/templates/pam_import.html:243
 msgid "Рядків пропущено (невідомий вид)"
-msgstr ""
+msgstr "Rows skipped (unknown species)"
 
 #: app/pam/templates/pam_import.html:250
 msgid "Новий імпорт"
@@ -1358,9 +1356,8 @@ msgid "клієнт"
 msgstr "client"
 
 #: app/pam/templates/pam_import.html:714
-#, fuzzy
 msgid "Пропущені назви:"
-msgstr "Skipped"
+msgstr "Skipped names:"
 
 #: app/pam/templates/pam_location_coverage.html:3
 msgid "Календар покриття"
@@ -2347,11 +2344,11 @@ msgstr "Your browser does not support the audio player."
 
 #: app/pam/templates/pam_verification_interface.html:135
 msgid "Аудіо грає по колу; після вашого вибору наступне вмикається автоматично"
-msgstr ""
+msgstr "Audio loops; after your choice the next one starts automatically"
 
 #: app/pam/templates/pam_verification_interface.html:137
 msgid "Цикл (автоповтор)"
-msgstr ""
+msgstr "Loop (autoreplay)"
 
 #: app/pam/templates/pam_verification_interface.html:145
 msgid "ТАК - правильно"
@@ -2873,29 +2870,11 @@ msgstr "RAI (detections per hour)"
 #~ msgid "Дублікатів (пропущено)"
 #~ msgstr "Empty (skipped)"
 
-#~ msgid "Формат і модель"
-#~ msgstr "Format & model"
-
-#~ msgid "Формат"
-#~ msgstr "Format"
-
-#~ msgid "Модель-класифікатор, що згенерувала ці детекції."
-#~ msgstr "The classifier model that produced these detections."
-
-#~ msgid "Нових детекцій-подій"
-#~ msgstr "New detection events"
-
-#~ msgid "Подій уже існувало"
-#~ msgstr "Events already existed"
-
 #~ msgid "Нових зв’язків з моделлю"
 #~ msgstr ""
 
 #~ msgid "Зв’язків оновлено"
 #~ msgstr ""
-
-#~ msgid "Рядків пропущено (невідомий вид)"
-#~ msgstr "Rows skipped (unknown species)"
 
 #~ msgid ""
 #~ "Raven Selection Table (.txt) з BirdNET"
@@ -2907,9 +2886,6 @@ msgstr "RAI (detections per hour)"
 #~ "BirdNET Analyzer or Chirpity. One file"
 #~ " may contain several recordings; species"
 #~ " are matched by English common name."
-
-#~ msgid "Пропущені назви:"
-#~ msgstr "Skipped names:"
 
 #~ msgid "Підтверджено людиною"
 #~ msgstr "Confirmed by human"
