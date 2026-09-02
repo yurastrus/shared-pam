@@ -3403,6 +3403,10 @@ def api_data_preview(lang_code):
             'preview_data': result['data'],
             'total_count': result['total_count']
         })
+    except ValueError as e:
+        # Bad or missing filter values are the caller's mistake, not a server
+        # failure — answering 500 hid a plain "no dates given" behind an alarm.
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         current_app.logger.error(f"Preview error: {e}")
         return jsonify({'error': 'Помилка на сервері при підготовці даних.'}), 500
@@ -3446,6 +3450,8 @@ def api_data_download(lang_code):
             
         output.seek(0)
         return Response(output, mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=occurrence_data_export.csv"})
+    except ValueError as e:
+        return str(e), 400
     except Exception as e:
         current_app.logger.error(f"Download error: {e}")
         return "Помилка на сервері при генерації файлу.", 500

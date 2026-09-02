@@ -1528,8 +1528,30 @@ def generate_spectrogram_image(audio_path, spectrogram_type='linear', force_rege
         print(f"Error generating spectrogram: {e}")
         return False
 
+def _require_export_date(value, field):
+    """Return ``value`` as a YYYY-MM-DD string, or raise ``ValueError``.
+
+    The export query builds its timestamp bounds by string interpolation (that
+    is what lets PostgreSQL use the ``datetime_start`` index), so an absent or
+    malformed date cannot be passed through: it would reach the database as
+    ``"None 00:00:00"`` and surface as a server error. Callers turn this
+    exception into a 400.
+    """
+    text = (str(value).strip() if value is not None else '')
+    if not text or text.lower() == 'none':
+        raise ValueError(f'{field} is required (YYYY-MM-DD)')
+    try:
+        return date.fromisoformat(text).isoformat()
+    except ValueError:
+        raise ValueError(f'{field} must be a date in YYYY-MM-DD format, got {text!r}')
+
+
 def get_occurrence_data(filters, limit=None):
-    """Fetch occurrence data, optimised with UNION ALL for Smart Filter and timestamp index comparisons."""
+    """Fetch occurrence data, optimised with UNION ALL for Smart Filter and timestamp index comparisons.
+
+    Raises:
+        ValueError: when ``start_date`` / ``end_date`` are missing or malformed.
+    """
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -1543,10 +1565,15 @@ def get_occurrence_data(filters, limit=None):
             agg_minutes = 60
 
         # --- DATE OPTIMISATION ---
-        # Use timestamp bounds so SQL can use the datetime_start index.
-        start_date_str = filters.get('start_date')
-        end_date_str = filters.get('end_date')
-        
+        # Use timestamp bounds so SQL can use the datetime_start index. The
+        # bounds are string-interpolated, so a missing or malformed date used to
+        # reach PostgreSQL as "None 00:00:00" and come back as a 500 — validate
+        # here and let the caller answer 400 instead.
+        start_date_str = _require_export_date(filters.get('start_date'), 'start_date')
+        end_date_str = _require_export_date(filters.get('end_date'), 'end_date')
+        if start_date_str > end_date_str:
+            raise ValueError('start_date must not be later than end_date')
+
         params = {
             'start_ts': f"{start_date_str} 00:00:00",
             'end_ts': f"{end_date_str} 23:59:59",
