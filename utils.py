@@ -1551,7 +1551,17 @@ def get_occurrence_data(filters, limit=None):
 
     Raises:
         ValueError: when ``start_date`` / ``end_date`` are missing or malformed.
+            Checked before the connection is opened, so a bad request costs
+            nothing and the caller can answer 400 without a database at hand.
     """
+    # The bounds are string-interpolated (that is what lets PostgreSQL use the
+    # datetime_start index), so they must be validated, and there is no reason
+    # to take a connection first.
+    start_date_str = _require_export_date(filters.get('start_date'), 'start_date')
+    end_date_str = _require_export_date(filters.get('end_date'), 'end_date')
+    if start_date_str > end_date_str:
+        raise ValueError('start_date must not be later than end_date')
+
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -1565,15 +1575,8 @@ def get_occurrence_data(filters, limit=None):
             agg_minutes = 60
 
         # --- DATE OPTIMISATION ---
-        # Use timestamp bounds so SQL can use the datetime_start index. The
-        # bounds are string-interpolated, so a missing or malformed date used to
-        # reach PostgreSQL as "None 00:00:00" and come back as a 500 — validate
-        # here and let the caller answer 400 instead.
-        start_date_str = _require_export_date(filters.get('start_date'), 'start_date')
-        end_date_str = _require_export_date(filters.get('end_date'), 'end_date')
-        if start_date_str > end_date_str:
-            raise ValueError('start_date must not be later than end_date')
-
+        # Timestamp bounds (validated above) so SQL can use the
+        # datetime_start index.
         params = {
             'start_ts': f"{start_date_str} 00:00:00",
             'end_ts': f"{end_date_str} 23:59:59",
