@@ -27,6 +27,7 @@ import os
 import re
 import math
 import shutil
+import time
 from collections import defaultdict
 from datetime import datetime
 
@@ -44,6 +45,16 @@ _RECORDING_STEM_RE = re.compile(r'^([A-Za-z0-9\-]+)_(\d{8})_(\d{6})$')
 ALLOWED_SEGMENT_DURATIONS = (3, 5, 10)
 MAX_SAMPLE_PER_SPECIES = 5000
 
+# Earliest recording year, cached for the process lifetime. The floor moves only
+# when a *historical* import lands, which is rare, so the page must not pay a
+# MIN() over recordings on every render. The TTL means such an import shows up
+# without a restart.
+EARLIEST_YEAR_TTL_SECONDS = 24 * 3600
+# A garbage datetime_start (bad import) must not drag the year selector back to
+# year 1. Recording hardware older than this is not a case we have to serve.
+EARLIEST_YEAR_FLOOR = 1990
+_earliest_year_cache = None      # (year, cached_at_monotonic)
+
 # conf_column is interpolated into SQL text, so it is validated before use. It
 # comes from models.conf_column (constrained by ck_models_conf_column in
 # migration 0006), never from request data.
@@ -52,7 +63,9 @@ _CONF_COLUMN_RE = re.compile(r'^[a-z][a-z0-9_]*$')
 
 # ── sampling ──────────────────────────────────────────────────────────────────
 
-def build_sampling_query(n_strata, conf_column='confidence'):
+def build_sampling_query(n_strata, conf_column='confidence',
+                         with_conf_max=False, month_mode=None,
+                         with_year_range=False):
     """Return the parameterised stratified-sampling SQL.
 
     Kept as a pure function (no DB, no I/O) so it is unit-testable. ``n_strata``
@@ -70,15 +83,58 @@ def build_sampling_query(n_strata, conf_column='confidence'):
     THIS model is skipped, but the same biological event can still be sampled
     (and separately verified) for a different model.
 
+    The three optional filters are *shape* switches, not values — the values
+    themselves stay bound params. They exist so the SQL carries no clause the
+    caller did not ask for:
+
+    ``with_conf_max``
+        add an upper confidence bound (``:conf_max``), so a run can target a
+        band (e.g. 0.3–0.6) rather than "everything above the floor".
+    ``month_mode``
+        ``None`` — no seasonal filter. ``'range'`` — months
+        ``:month_start … :month_end`` within a calendar year (Feb–Apr).
+        ``'wrap'`` — the range crosses New Year (Nov–Feb), which is one
+        biological season but two calendar spans, so it becomes OR, not
+        BETWEEN. The caller picks the mode from the values it holds.
+    ``with_year_range``
+        restrict to years ``:year_start … :year_end`` **inclusive**. Written as
+        half-open timestamp bounds (``>= Jan 1 of year_start``,
+        ``< Jan 1 of year_end + 1``) rather than ``EXTRACT(YEAR …)`` so the
+        ``datetime_start`` index still applies. The month filter cannot avoid
+        ``EXTRACT`` — it is inherently non-contiguous across years — so pairing
+        the two keeps the scan bounded by the years.
+
     Bind params expected by the returned SQL:
         :species_name, :location_ids (list), :conf_thr, :per_stratum,
-        :seg_model_id  (the model to tag the sample with / dedup against)
+        :seg_model_id  (the model to tag the sample with / dedup against),
+        plus :conf_max / :month_start, :month_end / :year_start, :year_end
+        for whichever optional filters were switched on.
     """
     n_strata = max(1, int(n_strata))
     if not _CONF_COLUMN_RE.match(conf_column or ''):
         raise ValueError(f"Invalid conf_column: {conf_column!r}")
+    if month_mode not in (None, 'range', 'wrap'):
+        raise ValueError(f"Invalid month_mode: {month_mode!r}")
     conf_expr = f"d.{conf_column}"
     model_join = ""
+
+    extra = []
+    if with_conf_max:
+        extra.append(f"AND {conf_expr} <= :conf_max")
+    if with_year_range:
+        extra.append("AND r.datetime_start >= make_date(:year_start, 1, 1)")
+        extra.append("AND r.datetime_start <  make_date(:year_end, 1, 1)"
+                     " + INTERVAL '1 year'")
+    if month_mode == 'range':
+        extra.append("AND EXTRACT(MONTH FROM r.datetime_start)"
+                     " BETWEEN :month_start AND :month_end")
+    elif month_mode == 'wrap':
+        # Nov-Feb: two calendar spans, one season.
+        extra.append("AND (EXTRACT(MONTH FROM r.datetime_start) >= :month_start"
+                     " OR EXTRACT(MONTH FROM r.datetime_start) <= :month_end)")
+    indent = "\n              "
+    extra_sql = (indent + indent.join(extra)) if extra else ""
+
     return text(f"""
         WITH candidates AS (
             SELECT d.detection_id,
@@ -99,7 +155,7 @@ def build_sampling_query(n_strata, conf_column='confidence'):
             WHERE s.scientific_name = :species_name
               AND r.location_id = ANY(:location_ids)
               AND {conf_expr} IS NOT NULL
-              AND {conf_expr} >= :conf_thr
+              AND {conf_expr} >= :conf_thr{extra_sql}
               AND NOT EXISTS (
                     SELECT 1 FROM segments sg
                     WHERE sg.detection_id = d.detection_id
@@ -121,7 +177,9 @@ def build_sampling_query(n_strata, conf_column='confidence'):
 
 def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
                           n_strata=10, sample_size=700, conn=None,
-                          model_id=None, conf_column='confidence'):
+                          model_id=None, conf_column='confidence',
+                          confidence_max=None, month_start=None, month_end=None,
+                          year_start=None, year_end=None):
     """Draw a confidence-stratified detection sample for one species + model.
 
     Mirrors ``produce_random_segments.R``: split the confidence range into
@@ -135,6 +193,23 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
     (``models.conf_column``); it defaults to the reference model's historical
     ``'confidence'``. The chosen ``model_id`` is echoed into every result dict so
     the client sends it back on upload and the segment is tagged with it.
+
+    Optional narrowing, each ``None`` by default so an omitted filter changes
+    nothing about the query:
+
+    ``confidence_max``
+        upper bound on the model's score, for sampling a band (0.3–0.6) rather
+        than everything above the floor.
+    ``month_start`` / ``month_end``
+        seasonal window, both required together, 1–12. **Year-agnostic**: a
+        Feb–Apr window pulls every February–April in range, across all years,
+        which is what a phenological sample needs and what a plain date range
+        cannot express. ``month_start > month_end`` means the window crosses
+        New Year (Nov–Feb) and is read as one season.
+    ``year_start`` / ``year_end``
+        inclusive year bounds, both required together. Cheap to apply (index on
+        ``datetime_start``), so it also keeps the month filter's ``EXTRACT``
+        from scanning the whole table.
 
     Returns a list of plain dicts (JSON-serialisable) — one per sampled
     detection — carrying everything the browser needs to cut + label the clip.
@@ -153,12 +228,36 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
         'seg_model_id': model_id,
     }
 
+    with_conf_max = confidence_max is not None
+    if with_conf_max:
+        params['conf_max'] = float(confidence_max)
+
+    # Both bounds or neither: a half-given window would silently mean something
+    # other than what the operator asked for.
+    with_year_range = year_start is not None and year_end is not None
+    if with_year_range:
+        params['year_start'] = int(year_start)
+        params['year_end'] = int(year_end)
+
+    month_mode = None
+    if month_start is not None and month_end is not None:
+        month_start, month_end = int(month_start), int(month_end)
+        # A full Jan–Dec window is every month, so skip the EXTRACT entirely.
+        if not (month_start == 1 and month_end == 12):
+            month_mode = 'range' if month_start <= month_end else 'wrap'
+            params['month_start'] = month_start
+            params['month_end'] = month_end
+
     own_conn = conn is None
     if own_conn:
         conn = get_pam_db_connection()
     try:
         rows = conn.execute(
-            build_sampling_query(n_strata, conf_column=conf_column), params
+            build_sampling_query(
+                n_strata, conf_column=conf_column,
+                with_conf_max=with_conf_max, month_mode=month_mode,
+                with_year_range=with_year_range,
+            ), params
         ).mappings().fetchall()
     finally:
         if own_conn and conn is not None:
@@ -196,6 +295,56 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
             'recorded_time': dt.time().isoformat() if dt else None,
         })
     return result
+
+
+
+def get_earliest_recording_year(conn=None, refresh=False):
+    """Earliest year present in ``recordings.datetime_start`` (cached).
+
+    Used only to seed the year selector on the sample-upload page, so it is
+    deliberately global rather than per-institution: the page is admin-only, and
+    a per-user floor would defeat the cache for no gain.
+
+    The value is cached in-process for ``EARLIEST_YEAR_TTL_SECONDS`` — a MIN()
+    over every recording is not worth paying on each page render, and the answer
+    changes only when someone imports older material. Returns the current year on
+    an empty table or a DB error, which degrades to "this year only" rather than
+    to a broken page.
+    """
+    global _earliest_year_cache
+    now = time.monotonic()
+    if not refresh and _earliest_year_cache is not None:
+        year, cached_at = _earliest_year_cache
+        if now - cached_at < EARLIEST_YEAR_TTL_SECONDS:
+            return year
+
+    this_year = datetime.now().year
+    own = conn is None
+    try:
+        if own:
+            conn = get_pam_db_connection()
+        row = conn.execute(text(
+            "SELECT MIN(datetime_start) AS earliest FROM recordings"
+        )).fetchone()
+        earliest = row.earliest if row else None
+        year = earliest.year if earliest else this_year
+        year = max(EARLIEST_YEAR_FLOOR, min(int(year), this_year))
+        _earliest_year_cache = (year, now)
+        return year
+    except Exception as e:
+        current_app.logger.error(f"PAM DB Error (get_earliest_recording_year): {e}")
+        if _earliest_year_cache is not None:
+            return _earliest_year_cache[0]
+        return this_year
+    finally:
+        if own and conn is not None:
+            conn.close()
+
+
+def reset_earliest_year_cache():
+    """Drop the cached earliest year — for tests and after a historical import."""
+    global _earliest_year_cache
+    _earliest_year_cache = None
 
 
 # ── filename helpers ────────────────────────────────────────────────────────

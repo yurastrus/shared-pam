@@ -11,7 +11,7 @@ from .pam_upload_utils import process_zip_archive, get_upload_statistics
 from .pam_import_utils import IMPORTERS, PAMImportProcessor
 from .pam_segment_sampling import (
     run_stratified_sample, save_and_register_segment,
-    ALLOWED_SEGMENT_DURATIONS,
+    get_earliest_recording_year, ALLOWED_SEGMENT_DURATIONS,
 )
 from app.utils.decorators import role_required
 from . import pam_bp
@@ -30,6 +30,31 @@ def _parse_id_list(raw):
     if not raw:
         return []
     return [int(x) for x in str(raw).split(',') if x.strip().lstrip('-').isdigit()]
+
+
+def _optional_int(value):
+    """int(value), or None when the client omitted / blanked the field.
+
+    An absent filter and a garbage filter both mean "do not filter" here: the
+    callers validate the resulting range themselves, so a silent None can never
+    widen a bound past what the caller checks.
+    """
+    if value is None or value == '':
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value):
+    """float(value), or None when the client omitted / blanked the field."""
+    if value is None or value == '':
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _segment_access_sql(seg_alias='seg'):
@@ -4752,6 +4777,11 @@ def sample_upload(lang_code):
 
         models = get_models_list()
         reference_id = get_reference_model_id(conn)
+        # Year selector spans the whole archive by default. The floor is cached
+        # in-process (see get_earliest_recording_year), so this costs nothing
+        # per render.
+        earliest_year = get_earliest_recording_year(conn)
+        current_year = datetime.now().year
         return render_template(
             'pam_sample_upload.html',
             institutions=institutions,
@@ -4759,6 +4789,9 @@ def sample_upload(lang_code):
             segment_durations=list(ALLOWED_SEGMENT_DURATIONS),
             models=models,
             reference_model_id=reference_id,
+            earliest_year=earliest_year,
+            current_year=current_year,
+            year_options=list(range(earliest_year, current_year + 1)),
         )
     except Exception as e:
         current_app.logger.error(f"PAM sample-upload page error: {e}", exc_info=True)
@@ -4823,8 +4856,13 @@ def api_sample_species(lang_code):
 def api_sample_prepare(lang_code):
     """Draw a confidence-stratified detection sample for a species + locations.
 
-    JSON body: species_name, location_ids[], confidence_threshold, n_strata,
-    sample_size. Returns the list of detections to cut client-side.
+    JSON body: species_name, location_ids[], confidence_threshold,
+    confidence_max, n_strata, sample_size, month_start, month_end, year_start,
+    year_end. Returns the list of detections to cut client-side.
+
+    The season/year window is a month range plus a year range rather than two
+    dates: an operator sampling, say, the spring chorus wants every February to
+    April on record, not one contiguous span. See run_stratified_sample.
     """
     conn = None
     try:
@@ -4837,6 +4875,36 @@ def api_sample_prepare(lang_code):
         conf_thr = min(max(float(data.get('confidence_threshold', 0.1) or 0.1), 0.0), 1.0)
         n_strata = min(max(int(data.get('n_strata', 10) or 10), 1), 50)
         sample_size = int(data.get('sample_size', 700) or 700)
+
+        # Upper confidence bound. 1.0 is the whole range, so it is dropped
+        # rather than turned into a redundant `<= 1.0` clause.
+        conf_max = _optional_float(data.get('confidence_max'))
+        if conf_max is not None:
+            conf_max = min(max(conf_max, 0.0), 1.0)
+            if conf_max >= 1.0:
+                conf_max = None
+        if conf_max is not None and conf_max < conf_thr:
+            return jsonify({'success': False,
+                            'error': 'confidence_max must be >= confidence_threshold'}), 400
+
+        month_start = _optional_int(data.get('month_start'))
+        month_end = _optional_int(data.get('month_end'))
+        if (month_start is None) != (month_end is None):
+            return jsonify({'success': False,
+                            'error': 'month_start and month_end must be given together'}), 400
+        for m in (month_start, month_end):
+            if m is not None and not 1 <= m <= 12:
+                return jsonify({'success': False,
+                                'error': 'month bounds must be 1..12'}), 400
+
+        year_start = _optional_int(data.get('year_start'))
+        year_end = _optional_int(data.get('year_end'))
+        if (year_start is None) != (year_end is None):
+            return jsonify({'success': False,
+                            'error': 'year_start and year_end must be given together'}), 400
+        if year_start is not None and year_start > year_end:
+            return jsonify({'success': False,
+                            'error': 'year_start must not be later than year_end'}), 400
 
         conn = get_pam_db_connection()
         location_ids = _user_location_ids_allowed(conn, location_ids)
@@ -4863,6 +4931,9 @@ def api_sample_prepare(lang_code):
             confidence_threshold=conf_thr, n_strata=n_strata,
             sample_size=sample_size, conn=conn,
             model_id=model_id, conf_column=conf_column,
+            confidence_max=conf_max,
+            month_start=month_start, month_end=month_end,
+            year_start=year_start, year_end=year_end,
         )
         return jsonify({'success': True, 'count': len(segments),
                         'model_id': model_id, 'segments': segments})

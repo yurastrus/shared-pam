@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-21 11:48+0300\n"
+"POT-Creation-Date: 2026-09-04 09:56+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: uk\n"
@@ -368,7 +368,7 @@ msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:691
 #: app/pam/templates/manage_pam_locations.html:821
-#: app/pam/templates/pam_sample_upload.html:252
+#: app/pam/templates/pam_sample_upload.html:331
 #: app/pam/templates/pam_species_detailed.html:182
 msgid "Помилка:"
 msgstr ""
@@ -377,7 +377,7 @@ msgstr ""
 #: app/pam/templates/pam_data_export.html:92
 #: app/pam/templates/pam_evaluation_results.html:184
 #: app/pam/templates/pam_import.html:216
-#: app/pam/templates/pam_sample_upload.html:182
+#: app/pam/templates/pam_sample_upload.html:226
 #: app/pam/templates/pam_service_log.html:242
 #: app/pam/templates/pam_verification_interface.html:122
 #: app/pam/templates/pam_verification_interface.html:173
@@ -840,7 +840,7 @@ msgid "Модель:"
 msgstr ""
 
 #: app/pam/templates/pam_evaluation_results.html:149
-#: app/pam/templates/pam_sample_upload.html:62
+#: app/pam/templates/pam_sample_upload.html:65
 msgid "еталон"
 msgstr ""
 
@@ -1593,7 +1593,7 @@ msgid "Детекцій:"
 msgstr ""
 
 #: app/pam/templates/pam_overview.html:431
-#: app/pam/templates/pam_sample_upload.html:220
+#: app/pam/templates/pam_sample_upload.html:264
 msgid "Видів:"
 msgstr ""
 
@@ -1654,119 +1654,203 @@ msgid "Пошук виду..."
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:47
-#: app/pam/templates/pam_sample_upload.html:185
+#: app/pam/templates/pam_sample_upload.html:229
 msgid "— Спершу виберіть локації —"
 msgstr ""
 
+#: app/pam/templates/pam_sample_upload.html:53
+msgid "Січень"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:53
+msgid "Лютий"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:53
+msgid "Березень"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:53
+msgid "Квітень"
+msgstr ""
+
 #: app/pam/templates/pam_sample_upload.html:54
+msgid "Травень"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:54
+msgid "Червень"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:54
+msgid "Липень"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:54
+msgid "Серпень"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:55
+msgid "Вересень"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:55
+msgid "Жовтень"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:55
+msgid "Листопад"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:55
+msgid "Грудень"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:57
 msgid "Параметри вибірки та нарізки"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:58
+#: app/pam/templates/pam_sample_upload.html:61
 msgid "Модель класифікатора"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:66
+#: app/pam/templates/pam_sample_upload.html:69
 msgid ""
 "Вибірка стратифікується за конфіденсом обраної моделі; сегменти "
 "позначаються нею."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:74
+#: app/pam/templates/pam_sample_upload.html:77
 msgid "Довжина сегмента (с)"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:82
+#: app/pam/templates/pam_sample_upload.html:85
 msgid "Зсув старту (с)"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:86
+#: app/pam/templates/pam_sample_upload.html:89
 msgid "Мін. конфіденс"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:90
+#: app/pam/templates/pam_sample_upload.html:93
+msgid "Макс. конфіденс"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:97
 msgid "К-сть страт"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:94
+#: app/pam/templates/pam_sample_upload.html:103
 msgid "Розмір вибірки"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:99
-msgid "Сформувати вибірку"
+#: app/pam/templates/pam_sample_upload.html:107
+msgid "Місяць від"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:106
-msgid "Локальна папка із записами"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:113
-msgid "Нарізати та завантажити"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:114
-msgid "Старт"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:119
-msgid "Знайдено файлів:"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:120
-#: app/pam/templates/pam_sample_upload.html:467
-msgid "Завантажено:"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:121
-msgid "Дублікати:"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:122
-msgid "Пропущено (нема файлу):"
+#: app/pam/templates/pam_sample_upload.html:115
+msgid "Місяць до"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:123
+msgid "Рік від"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:131
+msgid "Рік до"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:140
+msgid ""
+"Місяці не залежать від року. Період «лютий, квітень» дає всі записи за "
+"лютий, березень і квітень кожного з вибраних років. Якщо місяць «від» "
+"пізніший за місяць «до» (напр. листопад і лютий), період читається через "
+"новий рік як один сезон."
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:143
+msgid "Сформувати вибірку"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:150
+msgid "Локальна папка із записами"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:157
+msgid "Нарізати та завантажити"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:158
+msgid "Старт"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:163
+msgid "Знайдено файлів:"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:164
+#: app/pam/templates/pam_sample_upload.html:546
+msgid "Завантажено:"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:165
+msgid "Дублікати:"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:166
+msgid "Пропущено (нема файлу):"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:167
 msgid "Помилки:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:198
+#: app/pam/templates/pam_sample_upload.html:242
 msgid "Помилка завантаження видів"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:211
+#: app/pam/templates/pam_sample_upload.html:255
 msgid "— Виберіть вид —"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:230
+#: app/pam/templates/pam_sample_upload.html:285
+msgid "Макс. конфіденс менший за мін. конфіденс."
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:290
+msgid "Рік «від» пізніший за рік «до»."
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:302
 msgid "Формування вибірки..."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:248
-#: app/pam/templates/pam_sample_upload.html:249
+#: app/pam/templates/pam_sample_upload.html:327
+#: app/pam/templates/pam_sample_upload.html:328
 msgid "Відібрано детекцій:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:270
+#: app/pam/templates/pam_sample_upload.html:349
 msgid "Аудіофайлів у папці:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:453
+#: app/pam/templates/pam_sample_upload.html:532
 msgid "Старт нарізки та завантаження..."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:466
+#: app/pam/templates/pam_sample_upload.html:545
 msgid "Готово."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:468
+#: app/pam/templates/pam_sample_upload.html:547
 msgid "дублікати:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:469
+#: app/pam/templates/pam_sample_upload.html:548
 msgid "без файлу:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:470
+#: app/pam/templates/pam_sample_upload.html:549
 msgid "помилки:"
 msgstr ""
 

@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-21 11:48+0300\n"
+"POT-Creation-Date: 2026-09-04 09:56+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -367,7 +367,7 @@ msgstr "Enter coordinates: click on the map or enter manually."
 
 #: app/pam/templates/manage_pam_locations.html:691
 #: app/pam/templates/manage_pam_locations.html:821
-#: app/pam/templates/pam_sample_upload.html:252
+#: app/pam/templates/pam_sample_upload.html:331
 #: app/pam/templates/pam_species_detailed.html:182
 msgid "Помилка:"
 msgstr "Error:"
@@ -376,7 +376,7 @@ msgstr "Error:"
 #: app/pam/templates/pam_data_export.html:92
 #: app/pam/templates/pam_evaluation_results.html:184
 #: app/pam/templates/pam_import.html:216
-#: app/pam/templates/pam_sample_upload.html:182
+#: app/pam/templates/pam_sample_upload.html:226
 #: app/pam/templates/pam_service_log.html:242
 #: app/pam/templates/pam_verification_interface.html:122
 #: app/pam/templates/pam_verification_interface.html:173
@@ -859,7 +859,7 @@ msgid "Модель:"
 msgstr "Model:"
 
 #: app/pam/templates/pam_evaluation_results.html:149
-#: app/pam/templates/pam_sample_upload.html:62
+#: app/pam/templates/pam_sample_upload.html:65
 msgid "еталон"
 msgstr "reference"
 
@@ -1629,7 +1629,7 @@ msgid "Детекцій:"
 msgstr "Detections:"
 
 #: app/pam/templates/pam_overview.html:431
-#: app/pam/templates/pam_sample_upload.html:220
+#: app/pam/templates/pam_sample_upload.html:264
 msgid "Видів:"
 msgstr "Species:"
 
@@ -1694,19 +1694,67 @@ msgid "Пошук виду..."
 msgstr "Search species..."
 
 #: app/pam/templates/pam_sample_upload.html:47
-#: app/pam/templates/pam_sample_upload.html:185
+#: app/pam/templates/pam_sample_upload.html:229
 msgid "— Спершу виберіть локації —"
 msgstr "— Select locations first —"
 
+#: app/pam/templates/pam_sample_upload.html:53
+msgid "Січень"
+msgstr "January"
+
+#: app/pam/templates/pam_sample_upload.html:53
+msgid "Лютий"
+msgstr "February"
+
+#: app/pam/templates/pam_sample_upload.html:53
+msgid "Березень"
+msgstr "March"
+
+#: app/pam/templates/pam_sample_upload.html:53
+msgid "Квітень"
+msgstr "April"
+
 #: app/pam/templates/pam_sample_upload.html:54
+msgid "Травень"
+msgstr "May"
+
+#: app/pam/templates/pam_sample_upload.html:54
+msgid "Червень"
+msgstr "June"
+
+#: app/pam/templates/pam_sample_upload.html:54
+msgid "Липень"
+msgstr "July"
+
+#: app/pam/templates/pam_sample_upload.html:54
+msgid "Серпень"
+msgstr "August"
+
+#: app/pam/templates/pam_sample_upload.html:55
+msgid "Вересень"
+msgstr "September"
+
+#: app/pam/templates/pam_sample_upload.html:55
+msgid "Жовтень"
+msgstr "October"
+
+#: app/pam/templates/pam_sample_upload.html:55
+msgid "Листопад"
+msgstr "November"
+
+#: app/pam/templates/pam_sample_upload.html:55
+msgid "Грудень"
+msgstr "December"
+
+#: app/pam/templates/pam_sample_upload.html:57
 msgid "Параметри вибірки та нарізки"
 msgstr "Sampling and cutting parameters"
 
-#: app/pam/templates/pam_sample_upload.html:58
+#: app/pam/templates/pam_sample_upload.html:61
 msgid "Модель класифікатора"
 msgstr "Classifier model"
 
-#: app/pam/templates/pam_sample_upload.html:66
+#: app/pam/templates/pam_sample_upload.html:69
 msgid ""
 "Вибірка стратифікується за конфіденсом обраної моделі; сегменти "
 "позначаються нею."
@@ -1714,101 +1762,137 @@ msgstr ""
 "The sample is stratified by the chosen model's confidence; segments are "
 "tagged with it."
 
-#: app/pam/templates/pam_sample_upload.html:74
+#: app/pam/templates/pam_sample_upload.html:77
 msgid "Довжина сегмента (с)"
 msgstr "Segment length (s)"
 
-#: app/pam/templates/pam_sample_upload.html:82
+#: app/pam/templates/pam_sample_upload.html:85
 msgid "Зсув старту (с)"
 msgstr "Start offset (s)"
 
-#: app/pam/templates/pam_sample_upload.html:86
+#: app/pam/templates/pam_sample_upload.html:89
 msgid "Мін. конфіденс"
 msgstr "Min. confidence"
 
-#: app/pam/templates/pam_sample_upload.html:90
+#: app/pam/templates/pam_sample_upload.html:93
+msgid "Макс. конфіденс"
+msgstr "Max. confidence"
+
+#: app/pam/templates/pam_sample_upload.html:97
 msgid "К-сть страт"
 msgstr "Strata count"
 
-#: app/pam/templates/pam_sample_upload.html:94
+#: app/pam/templates/pam_sample_upload.html:103
 msgid "Розмір вибірки"
 msgstr "Sample size"
 
-#: app/pam/templates/pam_sample_upload.html:99
+#: app/pam/templates/pam_sample_upload.html:107
+msgid "Місяць від"
+msgstr "Month from"
+
+#: app/pam/templates/pam_sample_upload.html:115
+msgid "Місяць до"
+msgstr "Month to"
+
+#: app/pam/templates/pam_sample_upload.html:123
+msgid "Рік від"
+msgstr "Year from"
+
+#: app/pam/templates/pam_sample_upload.html:131
+msgid "Рік до"
+msgstr "Year to"
+
+#: app/pam/templates/pam_sample_upload.html:140
+msgid ""
+"Місяці не залежать від року. Період «лютий, квітень» дає всі записи за "
+"лютий, березень і квітень кожного з вибраних років. Якщо місяць «від» "
+"пізніший за місяць «до» (напр. листопад і лютий), період читається через "
+"новий рік як один сезон."
+msgstr "Months are year-independent. A \"February, April\" window returns every February, March and April of each selected year. When the \"from\" month is later than the \"to\" month (November and February, say), the window is read across New Year as a single season."
+
+#: app/pam/templates/pam_sample_upload.html:143
 msgid "Сформувати вибірку"
 msgstr "Build sample"
 
-#: app/pam/templates/pam_sample_upload.html:106
+#: app/pam/templates/pam_sample_upload.html:150
 msgid "Локальна папка із записами"
 msgstr "Local folder with recordings"
 
-#: app/pam/templates/pam_sample_upload.html:113
+#: app/pam/templates/pam_sample_upload.html:157
 msgid "Нарізати та завантажити"
 msgstr "Cut and upload"
 
-#: app/pam/templates/pam_sample_upload.html:114
+#: app/pam/templates/pam_sample_upload.html:158
 msgid "Старт"
 msgstr "Start"
 
-#: app/pam/templates/pam_sample_upload.html:119
+#: app/pam/templates/pam_sample_upload.html:163
 msgid "Знайдено файлів:"
 msgstr "Files found:"
 
-#: app/pam/templates/pam_sample_upload.html:120
-#: app/pam/templates/pam_sample_upload.html:467
+#: app/pam/templates/pam_sample_upload.html:164
+#: app/pam/templates/pam_sample_upload.html:546
 msgid "Завантажено:"
 msgstr "Uploaded:"
 
-#: app/pam/templates/pam_sample_upload.html:121
+#: app/pam/templates/pam_sample_upload.html:165
 msgid "Дублікати:"
 msgstr "Duplicates:"
 
-#: app/pam/templates/pam_sample_upload.html:122
+#: app/pam/templates/pam_sample_upload.html:166
 msgid "Пропущено (нема файлу):"
 msgstr "Skipped (no file):"
 
-#: app/pam/templates/pam_sample_upload.html:123
+#: app/pam/templates/pam_sample_upload.html:167
 msgid "Помилки:"
 msgstr "Errors:"
 
-#: app/pam/templates/pam_sample_upload.html:198
+#: app/pam/templates/pam_sample_upload.html:242
 msgid "Помилка завантаження видів"
 msgstr "Error loading species"
 
-#: app/pam/templates/pam_sample_upload.html:211
+#: app/pam/templates/pam_sample_upload.html:255
 msgid "— Виберіть вид —"
 msgstr "— Select species —"
 
-#: app/pam/templates/pam_sample_upload.html:230
+#: app/pam/templates/pam_sample_upload.html:285
+msgid "Макс. конфіденс менший за мін. конфіденс."
+msgstr "Max. confidence is lower than min. confidence."
+
+#: app/pam/templates/pam_sample_upload.html:290
+msgid "Рік «від» пізніший за рік «до»."
+msgstr "Year \"from\" is later than year \"to\"."
+
+#: app/pam/templates/pam_sample_upload.html:302
 msgid "Формування вибірки..."
 msgstr "Building sample..."
 
-#: app/pam/templates/pam_sample_upload.html:248
-#: app/pam/templates/pam_sample_upload.html:249
+#: app/pam/templates/pam_sample_upload.html:327
+#: app/pam/templates/pam_sample_upload.html:328
 msgid "Відібрано детекцій:"
 msgstr "Detections selected:"
 
-#: app/pam/templates/pam_sample_upload.html:270
+#: app/pam/templates/pam_sample_upload.html:349
 msgid "Аудіофайлів у папці:"
 msgstr "Audio files in folder:"
 
-#: app/pam/templates/pam_sample_upload.html:453
+#: app/pam/templates/pam_sample_upload.html:532
 msgid "Старт нарізки та завантаження..."
 msgstr "Starting cutting and upload..."
 
-#: app/pam/templates/pam_sample_upload.html:466
+#: app/pam/templates/pam_sample_upload.html:545
 msgid "Готово."
 msgstr "Done."
 
-#: app/pam/templates/pam_sample_upload.html:468
+#: app/pam/templates/pam_sample_upload.html:547
 msgid "дублікати:"
 msgstr "duplicates:"
 
-#: app/pam/templates/pam_sample_upload.html:469
+#: app/pam/templates/pam_sample_upload.html:548
 msgid "без файлу:"
 msgstr "no file:"
 
-#: app/pam/templates/pam_sample_upload.html:470
+#: app/pam/templates/pam_sample_upload.html:549
 msgid "помилки:"
 msgstr "errors:"
 
