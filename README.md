@@ -146,14 +146,19 @@ The blueprint's `__init__.py` injects `_` / `gettext` / `ngettext` into every te
 To update translations (run from the **biomon repo root**):
 
 ```bash
-# 1. Extract
-venv/Scripts/pybabel extract -F app/pam/babel.cfg -k _l -k lazy_gettext -D pam -o app/pam/messages.pot .
+# 1. Extract  (no -D here: pybabel extract has no such option, the domain is
+#              set on update/compile)
+venv/Scripts/pybabel extract -F app/pam/babel.cfg -k _l -k lazy_gettext -o app/pam/messages.pot .
 
 # 2. Merge
 venv/Scripts/pybabel update -i app/pam/messages.pot -d app/pam/translations -D pam
 
 # 3. Translate new msgstr in translations/en/LC_MESSAGES/pam.po and remove #, fuzzy markers.
 #    The uk catalog needs no changes (msgids are already in Ukrainian).
+#    Read every fuzzy msgstr before clearing the flag: pybabel guesses from the
+#    nearest existing msgid, and the guesses can be plain wrong (it once
+#    rendered "Квітень" as "Wind" from a weather column). Step 4 uses -f, so a
+#    fuzzy guess left in place ships to users.
 
 # 4. Compile (-f required)
 venv/Scripts/pybabel compile -f -d app/pam/translations -D pam
