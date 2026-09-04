@@ -2117,6 +2117,14 @@ main .container:not(.maplistcontainer) {
     border-radius: 8px;
     border: 1px solid var(--border-color);
 }
+/* Глобальний style.css дає `main p { max-width: 700px }`. Без auto-марджинів
+   абзац лишається блоком на 700px, притиснутим до лівого краю, і його текст
+   центрується всередині цих 700px, а не всередині плашки. */
+.no-segment-message h4,
+.no-segment-message p {
+    margin-left: auto;
+    margin-right: auto;
+}
 
 /* pam_verification_interface: HTML5 audio player size */
 .verification-container audio {
