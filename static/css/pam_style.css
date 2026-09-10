@@ -3267,6 +3267,7 @@ select.select2-hidden-accessible { width: 1px !important; }
 .cooc-swatch-radius { background: transparent; border: 2px dashed #d62728; }
 .cooc-swatch-rejected { background: #b30000; }
 .cooc-popup-sep { margin: 6px 0; border: 0; border-top: 1px solid #ddd; }
+.cooc-popup-alt { display: inline-block; margin-top: 4px; font-size: 0.85em; }
 .leaflet-popup-content .btn { padding: 3px 8px; font-size: 0.85em; }
 /* Градієнт зелених у легенді: відтінок читається як кількість
    позитивних голосів людей, тому це смужка, а не набір квадратиків. */
@@ -3322,4 +3323,25 @@ body.dark-theme .cooc-windows-table tbody tr.active { background: rgba(40,167,69
 .pam-scope-banner a { margin-left: 6px; }
 body.dark-theme .pam-scope-banner {
     background: rgba(255, 224, 130, 0.12); border-color: rgba(255, 224, 130, 0.4);
+}
+
+/* ── pam_segment_window: targeted cutter for one time window ─────────────── */
+.sw-page { max-width: 900px; }
+.sw-title-main { font-size: 1.2rem; margin-bottom: 8px; }
+.sw-plan-wrap { max-height: 320px; overflow-y: auto; margin-top: 8px; }
+.sw-plan-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+.sw-plan-table th, .sw-plan-table td {
+    padding: 4px 8px; border-bottom: 1px solid #eee; text-align: right;
+}
+.sw-plan-table th:nth-child(-n+2), .sw-plan-table td:nth-child(-n+2) { text-align: left; }
+.sw-run-row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.sw-duration { display: flex; gap: 6px; align-items: center; margin: 0; }
+.sw-duration .form-control { width: auto; }
+#sw-log {
+    font-family: monospace; font-size: 0.78rem; max-height: 220px;
+    overflow-y: auto; background: #0d1117; color: #c9d1d9; border-radius: 6px;
+    padding: 10px; white-space: pre-wrap;
+}
+body.dark-theme .sw-plan-table th, body.dark-theme .sw-plan-table td {
+    border-bottom-color: var(--border-color);
 }

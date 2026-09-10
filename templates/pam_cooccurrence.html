@@ -719,6 +719,7 @@ $(document).ready(function () {
     const CAN_SAMPLE = {{ 'true' if can_sample else 'false' }};
     const VERIFY_URL = '{{ url_for("pam.verification_interface", lang_code=g.lang_code) if can_verify else "" }}';
     const SAMPLE_URL = '{{ url_for("pam.sample_upload", lang_code=g.lang_code) if can_sample else "" }}';
+    const WINDOW_CUT_URL = '{{ url_for("pam.segment_window", lang_code=g.lang_code) if can_sample else "" }}';
 
     function windowBounds() {
         const from = new Date(currentWindow);
@@ -754,7 +755,20 @@ $(document).ready(function () {
         }
         if (CAN_SAMPLE) {
             const d = new Date(currentWindow);
-            const q = new URLSearchParams({
+            // Two ways to get segments, deliberately both kept.
+            // Targeted: cut exactly these detections, one folder and one
+            // button. Sample: the stratified sampler, which can only narrow to
+            // month + year, so it offers far more than this window -- worth
+            // having when the point is a reason to sample that site properly.
+            const targeted = new URLSearchParams({
+                location_ids: p.location_id,
+                species: runData.species.name,
+                from_ts: b.from,
+                to_ts: b.to,
+                conf: runData.params.min_conf,
+                scope_label: label
+            });
+            const sample = new URLSearchParams({
                 location_ids: p.location_id,
                 species: runData.species.name,
                 year_start: d.getUTCFullYear(), year_end: d.getUTCFullYear(),
@@ -763,8 +777,10 @@ $(document).ready(function () {
             });
             return '<hr class="cooc-popup-sep">'
                  + '<span class="cooc-muted">{{ _("Верифікувати нічого: сегментів немає.") }}</span><br>'
-                 + `<a class="btn btn-sm btn-secondary" target="_blank" rel="noopener" href="${SAMPLE_URL}?${q}">`
-                 + '{{ _("Підготувати сегменти") }}</a>';
+                 + `<a class="btn btn-sm" target="_blank" rel="noopener" href="${WINDOW_CUT_URL}?${targeted}">`
+                 + '{{ _("Нарізати саме ці детекції") }}</a><br>'
+                 + `<a class="cooc-muted cooc-popup-alt" target="_blank" rel="noopener" href="${SAMPLE_URL}?${sample}">`
+                 + '{{ _("або вибірка за весь місяць") }}</a>';
         }
         return '<hr class="cooc-popup-sep">'
              + '<span class="cooc-muted">{{ _("Верифікувати нічого: сегментів немає.") }}</span>';

@@ -1,0 +1,309 @@
+{% extends "pam_base.html" %}
+
+{% block title %}{{ _('Нарізка сегментів для вікна') }}{% endblock %}
+
+{#
+  Targeted counterpart of pam_sample_upload.html, reached only from a popup on
+  the co-occurrence map. That page draws a stratified SAMPLE over a period, to
+  measure a model's precision; this one cuts EXACTLY the detections behind one
+  point in one time window, so a single co-occurrence can be confirmed.
+
+  Everything it needs comes in the query string, so there are no filters to
+  fill in: pick the folder with the recordings, press one button, done. The
+  page is not in the PAM hub for the same reason — opened cold it would have
+  nothing to work on.
+#}
+
+{% block pam_content %}
+<input type="hidden" id="csrf_token" value="{{ csrf_token() }}"/>
+
+<div class="container-fluid px-3 py-2 sw-page">
+
+    <h4 class="sw-title-main">{{ _('Нарізка сегментів для одного вікна') }}</h4>
+    <p class="su-help mb-3">
+        {{ _('Ці детекції стоять за однією точкою на карті одночасних детекцій. Вибірки тут немає: нарізаються саме вони. Виберіть папку із записами й натисніть кнопку.') }}
+    </p>
+
+    <div id="sw-scope" class="pam-scope-banner"></div>
+    <div id="sw-error" class="cooc-error" style="display:none;"></div>
+
+    <!-- STEP 1: what will be cut -->
+    <div class="su-card">
+        <div class="su-title"><span class="su-step-num">1</span>{{ _('Детекції вікна') }}</div>
+        <div id="sw-plan-info" class="su-help">{{ _('Завантаження…') }}</div>
+        <div class="sw-plan-wrap">
+            <table class="sw-plan-table" id="sw-plan-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>{{ _('Час детекції (UTC)') }}</th>
+                        <th>{{ _('Запис') }}</th>
+                        <th>{{ _('Секунда') }}</th>
+                        <th>{{ _('Confidence') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="sw-plan-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- STEP 2: local folder -->
+    <div class="su-card">
+        <div class="su-title"><span class="su-step-num">2</span>{{ _('Папка із записами') }}</div>
+        <input type="file" id="sw-folder" class="form-control" webkitdirectory directory multiple>
+        <div id="sw-folder-info" class="su-help mt-1"></div>
+        <div class="su-help">
+            {{ _('Потрібні лише ті файли, що названі у таблиці вище; зайві в папці нікому не шкодять.') }}
+        </div>
+    </div>
+
+    <!-- STEP 3: cut and upload -->
+    <div class="su-card">
+        <div class="su-title"><span class="su-step-num">3</span>{{ _('Нарізати й завантажити') }}</div>
+        <div class="sw-run-row">
+            <button type="button" id="sw-run" class="btn" disabled>
+                {{ _('Нарізати й завантажити') }}
+            </button>
+            <label class="su-help sw-duration">
+                {{ _('Тривалість сегмента, с:') }}
+                <select id="sw-duration" class="form-control">
+                    {% for d in segment_durations %}
+                    <option value="{{ d }}" {% if d == 3 %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            {% if models and models|length > 1 %}
+            <label class="su-help sw-duration">
+                {{ _('Модель:') }}
+                <select id="sw-model" class="form-control">
+                    {% for m in models %}
+                    <option value="{{ m.model_id }}" {% if m.model_id == reference_model_id %}selected{% endif %}>{{ m.label }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            {% else %}
+            <input type="hidden" id="sw-model" value="{{ reference_model_id or '' }}">
+            {% endif %}
+        </div>
+
+        <div class="su-prog-wrap mt-2">
+            <div class="su-prog-bar" id="sw-prog">0%</div>
+        </div>
+        <div class="mt-2">
+            <span class="su-stat">{{ _('Завантажено:') }} <b id="sw-stat-saved">0</b></span>
+            <span class="su-stat">{{ _('Дублікати:') }} <b id="sw-stat-dup">0</b></span>
+            <span class="su-stat">{{ _('Без файлу:') }} <b id="sw-stat-nofile">0</b></span>
+            <span class="su-stat">{{ _('Помилки:') }} <b id="sw-stat-err">0</b></span>
+        </div>
+        <pre id="sw-log" class="mt-2"></pre>
+        <div id="sw-next" class="su-help mt-2" style="display:none;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{# The WAV cutting and the upload pool are shared with pam_sample_upload.html. #}
+<script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=1"></script>
+<script>
+"use strict";
+(function () {
+    const CSRF = document.getElementById('csrf_token').value;
+    const LANG = "{{ g.lang_code }}";
+    const URL_PLAN   = "{{ url_for('pam.api_sample_plan_window', lang_code=g.lang_code) }}";
+    const URL_UPLOAD = "{{ url_for('pam.api_sample_upload_segment', lang_code=g.lang_code) }}";
+    const URL_VERIFY = "{{ url_for('pam.verification_interface', lang_code=g.lang_code) }}";
+    const CONCURRENCY = 4;
+
+    const $ = (id) => document.getElementById(id);
+    function log(msg) {
+        const el = $('sw-log');
+        el.textContent += msg + "\n";
+        el.scrollTop = el.scrollHeight;
+    }
+    function fail(msg) { $('sw-error').textContent = msg; $('sw-error').style.display = ''; }
+
+    // Everything this page works on arrives in the URL: the point's species,
+    // its location, and the window the map binned it into.
+    const Q = new URLSearchParams(window.location.search);
+    const SPECIES = Q.get('species') || '';
+    const LOCATION_IDS = (Q.get('location_ids') || '').split(',')
+                            .map(v => parseInt(v, 10)).filter(v => !isNaN(v));
+    const FROM_TS = Q.get('from_ts') || '';
+    const TO_TS = Q.get('to_ts') || '';
+    const MIN_CONF = Q.get('conf') || '';
+    const SCOPE_LABEL = Q.get('scope_label') || '';
+
+    let plan = [];
+    let fileMap = new Map();
+
+    function shortTs(v) { return (v || '').replace('T', ' ').substring(0, 19); }
+
+    $('sw-scope').innerHTML =
+        '<b>' + (SCOPE_LABEL || SPECIES) + '</b><br>'
+        + shortTs(FROM_TS) + ' … ' + shortTs(TO_TS) + ' UTC'
+        + (MIN_CONF ? ' · confidence ≥ ' + MIN_CONF : '');
+
+    // ── STEP 1: ask the server which detections are not cut yet ─────────────
+    async function loadPlan() {
+        if (!SPECIES || !LOCATION_IDS.length || !FROM_TS || !TO_TS) {
+            fail("{{ _('Посилання неповне: немає виду, локації або вікна. Відкрийте сторінку з попапа на карті одночасних детекцій.') }}");
+            $('sw-plan-info').textContent = '';
+            return;
+        }
+        try {
+            const r = await fetch(URL_PLAN, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({
+                    species_name: SPECIES,
+                    location_ids: LOCATION_IDS,
+                    from_ts: FROM_TS,
+                    to_ts: TO_TS,
+                    confidence_threshold: MIN_CONF || 0,
+                    model_id: ($('sw-model') || {}).value || null
+                })
+            });
+            const data = await r.json();
+            if (!r.ok || !data.success) {
+                fail(data.error || "{{ _('Не вдалося отримати план нарізки.') }}");
+                $('sw-plan-info').textContent = '';
+                return;
+            }
+            plan = data.segments || [];
+            renderPlan(data);
+        } catch (e) {
+            fail("{{ _('Не вдалося звʼязатися з сервером.') }}");
+        }
+    }
+
+    function renderPlan(data) {
+        if (!plan.length) {
+            // Nothing left here is a normal, informative outcome: every
+            // detection of this window already has a segment for this model.
+            $('sw-plan-info').textContent =
+                "{{ _('Усі детекції цього вікна вже нарізані для вибраної моделі — нарізати нічого.') }}";
+            $('sw-next').innerHTML =
+                '<a href="' + URL_VERIFY + '?' + new URLSearchParams({
+                    species_id: '', location_ids: LOCATION_IDS.join(','),
+                    from_ts: FROM_TS, to_ts: TO_TS, scope_label: SCOPE_LABEL
+                }) + '">{{ _("Перейти до верифікації цього вікна") }}</a>';
+            $('sw-next').style.display = '';
+            return;
+        }
+        $('sw-plan-info').textContent =
+            "{{ _('Детекцій до нарізки:') }} " + plan.length
+            + (plan.length >= (data.limit || 0)
+                ? " ({{ _('досягнуто ліміту сторінки') }})" : '');
+        const body = $('sw-plan-body');
+        body.innerHTML = '';
+        plan.forEach(seg => {
+            const tr = document.createElement('tr');
+            [
+                (seg.recorded_date || '') + ' ' + (seg.recorded_time || ''),
+                seg.recording_filename || '',
+                (seg.start_s != null ? seg.start_s.toFixed(1) : ''),
+                (seg.confidence != null ? seg.confidence.toFixed(4) : '')
+            ].forEach(v => {
+                const td = document.createElement('td');
+                td.textContent = v;
+                tr.appendChild(td);
+            });
+            body.appendChild(tr);
+        });
+        $('sw-plan-table').style.display = '';
+        // Name the files needed, so the right folder can be picked first try.
+        const needed = Array.from(new Set(plan.map(s => s.recording_filename)));
+        log("{{ _('Потрібні файли:') }}");
+        needed.forEach(n => log('  ' + n));
+        refreshRun();
+    }
+
+    // ── STEP 2: local folder ────────────────────────────────────────────────
+    $('sw-folder').addEventListener('change', function () {
+        fileMap = PamSegmentCutter.indexFolder($('sw-folder').files);
+        const needed = new Set(plan.map(s => (s.recording_filename || '').toLowerCase()));
+        let found = 0;
+        needed.forEach(n => { if (fileMap.has(n)) found++; });
+        $('sw-folder-info').textContent =
+            "{{ _('Аудіофайлів у папці:') }} " + fileMap.size
+            + " · " + "{{ _('з потрібних знайдено:') }} " + found + " / " + needed.size;
+        refreshRun();
+    });
+
+    function refreshRun() { $('sw-run').disabled = !(plan.length && fileMap.size); }
+
+    // ── STEP 3: cut + upload ────────────────────────────────────────────────
+    const stats = { saved: 0, dup: 0, nofile: 0, err: 0 };
+    function refreshStats(done, total) {
+        $('sw-stat-saved').textContent = stats.saved;
+        $('sw-stat-dup').textContent = stats.dup;
+        $('sw-stat-nofile').textContent = stats.nofile;
+        $('sw-stat-err').textContent = stats.err;
+        const pct = total ? Math.round(100 * done / total) : 0;
+        $('sw-prog').style.width = pct + '%';
+        $('sw-prog').textContent = pct + '%';
+    }
+
+    $('sw-run').addEventListener('click', async function () {
+        $('sw-run').disabled = true;
+        Object.keys(stats).forEach(k => stats[k] = 0);
+        refreshStats(0, plan.length);
+        log("{{ _('Старт нарізки та завантаження...') }}");
+
+        await PamSegmentCutter.run({
+            plan: plan,
+            fileMap: fileMap,
+            uploadUrl: URL_UPLOAD,
+            csrf: CSRF,
+            duration: parseFloat($('sw-duration').value) || 3,
+            shift: 0,
+            speciesName: SPECIES,
+            modelId: ($('sw-model') || {}).value,
+            concurrency: CONCURRENCY,
+            onResult: function (seg, outcome, done, total) {
+                if (outcome.status === 'saved') stats.saved++;
+                else if (outcome.status === 'duplicate') stats.dup++;
+                else if (outcome.status === 'nofile') {
+                    stats.nofile++;
+                    log("{{ _('Немає файлу:') }} " + seg.recording_filename);
+                } else {
+                    stats.err++;
+                    log("ERR " + seg.segment_filename + ": " + outcome.error);
+                }
+                refreshStats(done, total);
+            }
+        });
+
+        log("{{ _('Готово.') }} "
+            + "{{ _('Завантажено:') }} " + stats.saved
+            + ", {{ _('дублікати:') }} " + stats.dup
+            + ", {{ _('без файлу:') }} " + stats.nofile
+            + ", {{ _('помилки:') }} " + stats.err);
+
+        if (stats.saved) {
+            // The point of cutting these was to verify them, so offer that
+            // straight away rather than making the operator find the page.
+            $('sw-next').innerHTML =
+                '<a class="btn btn-sm" href="' + URL_VERIFY + '?' + new URLSearchParams({
+                    location_ids: LOCATION_IDS.join(','),
+                    from_ts: FROM_TS, to_ts: TO_TS, scope_label: SCOPE_LABEL
+                }) + '">{{ _("Верифікувати ці сегменти") }}</a>';
+            $('sw-next').style.display = '';
+        }
+        $('sw-run').disabled = false;
+    });
+
+    loadPlan();
+    // A different model has a different score column and its own dedup, so the
+    // plan has to be re-fetched rather than filtered client-side.
+    if ($('sw-model') && $('sw-model').tagName === 'SELECT') {
+        $('sw-model').addEventListener('change', function () {
+            $('sw-plan-table').style.display = 'none';
+            $('sw-log').textContent = '';
+            $('sw-next').style.display = 'none';
+            $('sw-plan-info').textContent = "{{ _('Завантаження…') }}";
+            loadPlan();
+        });
+    }
+})();
+</script>
+{% endblock %}

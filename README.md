@@ -387,9 +387,14 @@ actually needs:
 * **Верифікувати (N)** — for any `pam_verifier`, when the point still has
   segments this person could vote on. Links to
   `/pam/verification/verify?species_id=&location_ids=&from_ts=&to_ts=&scope_label=`.
-* **Підготувати сегменти** — admin only, shown when nothing is left to verify
-  (usually because no segments were ever cut for those detections). Links to
-  `/pam/verification/sample-upload?location_ids=&species=&year_start=&year_end=&month_start=&month_end=&conf=`.
+* **Нарізати саме ці детекції** — admin only, shown when nothing is left to
+  verify (usually because no segments were ever cut for those detections).
+  Links to the targeted cutter, `/pam/verification/segment-window`, with the
+  exact window (see below).
+* **або вибірка за весь місяць** — the same case, second link: the stratified
+  sampler at `/pam/verification/sample-upload`, which can only narrow to
+  month + year. Kept because a co-occurrence is often a reason to sample that
+  site properly, not just to cut two clips.
 
 `n_verifiable` per (window, location) comes from the window query itself:
 segments of those detections that are `pending` and carry no vote from this
@@ -423,6 +428,51 @@ One limit worth knowing: popup actions exist only for points in **listed**
 windows, i.e. those with two or more well-separated locations. A verifiable
 detection sitting in a single-location window is not reachable this way, by
 the same design decision that keeps singles out of the table.
+
+### Targeted cutting: `pam_segment_window.html`
+
+A second, hidden page (`/pam/verification/segment-window`, admin) that cuts
+**exactly** the detections of one time window. It exists because the stratified
+sampler answers a different question: its finest time unit is month + year, so
+a link from one 60-second window offered 99 detections for May at Чорні озера
+when the window itself held one.
+
+| | sample-upload | segment-window |
+| --- | --- | --- |
+| Question | "give me a representative set for measuring precision" | "cut the detections behind this point" |
+| Time unit | month + year | an exact `from_ts … to_ts` |
+| Selection | confidence-stratified random sample | every match, in time order |
+| Filling in | institution → locations → species cascade | nothing: it all arrives in the URL |
+| In the hub | yes | **no** — opened cold it would have nothing to work on |
+
+Measured on the same point: whole May 99 detections → one day 15 → one
+60-second window 1.
+
+`plan_window_segments()` in `pam_segment_sampling.py` builds the plan.
+Two things it must get right:
+
+* The window applies to the **reconstructed** detection time
+  (`recordings.datetime_start + detections.start_s`), exactly as the
+  co-occurrence page bins it. Filtering `datetime_start` alone would answer
+  "which recordings started in the window". `WINDOW_RECORDING_SLACK` equals
+  `cooccurrence.RECORDING_SLACK`, and a test pins that: a disagreement would
+  offer to cut detections the map never counted.
+* Dedup is the sampler's — a detection already cut for **this model** is
+  skipped — so a second visit to the same point offers only what is missing,
+  and "nothing to cut" is a normal, informative outcome rather than an error.
+
+`MAX_WINDOW_SEGMENTS = 200` caps it: a single window cannot legitimately hold
+hundreds of clips worth cutting, and the browser would be asked to decode that
+many files.
+
+The browser side is **shared, not copied**: `static/js/segment_cutter.js` holds
+the WAV encoder, the header parser, the byte-slice fast path, the decode
+fallback, the upload of one clip and the concurrency pool. It was moved out of
+`pam_sample_upload.html`, which now calls it too. The module carries no Jinja
+(it is a static file, so a `{{ }}` would ship verbatim); each page passes its
+own labels and counts its own stats through `onResult`. A test asserts the
+sampler template no longer defines `encodeWav` / `cutWavByBytes`, so the two
+cannot drift back apart.
 
 ### Export
 

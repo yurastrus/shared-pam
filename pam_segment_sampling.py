@@ -298,6 +298,152 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
 
 
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Targeted planning: the detections of ONE time window, not a sample
+#
+# The stratified sampler answers "give me a representative set for measuring
+# precision". The co-occurrence map asks something else: "cut exactly the
+# detections behind this point in this window, so the co-occurrence can be
+# confirmed". Stratifying two detections over ten quantile bins is meaningless,
+# and month+year is the finest window the sampler can express, so this is a
+# separate query rather than another switch on that one.
+# ──────────────────────────────────────────────────────────────────────────────
+
+#: Detection time is reconstructed, not stored, so a recording that began
+#: before the window can still carry detections inside it. Mirrors
+#: ``cooccurrence.RECORDING_SLACK`` — the two must agree or the page would
+#: offer to cut detections the map never counted.
+WINDOW_RECORDING_SLACK = "1 day"
+
+
+def build_window_query(conf_column='confidence'):
+    """Parameterised SQL for every detection inside one time window.
+
+    Pure function (no DB, no I/O) so it is unit-testable, like
+    ``build_sampling_query``. ``conf_column`` is interpolated, so it must come
+    from ``models.conf_column`` and match ``_CONF_COLUMN_RE`` — never from
+    request data.
+
+    The window is applied to the RECONSTRUCTED detection time
+    (``recordings.datetime_start + detections.start_s``), exactly as the
+    co-occurrence page bins it. Filtering ``datetime_start`` alone would answer
+    a different question: which recordings started in the window, not which
+    detections fell inside it.
+
+    Dedup is the sampler's: a detection already cut for THIS model is skipped,
+    so a second visit to the same point offers only what is missing.
+
+    Bind params: :species_name, :location_ids (list), :conf_thr, :from_ts,
+    :to_ts, :slack, :seg_model_id.
+    """
+    if not _CONF_COLUMN_RE.match(conf_column or ''):
+        raise ValueError(f"Invalid conf_column: {conf_column!r}")
+    conf_expr = f"d.{conf_column}"
+    det_ts = "r.datetime_start + (d.start_s * interval '1 second')"
+    return text(f"""
+        SELECT d.detection_id,
+               d.recording_id,
+               d.species_id,
+               r.filename       AS rec_filename,
+               r.datetime_start,
+               l.location_name,
+               d.start_s,
+               d.end_s,
+               {conf_expr}      AS confidence
+        FROM detections d
+        JOIN recordings r ON d.recording_id = r.recording_id
+        JOIN locations  l ON r.location_id  = l.location_id
+        JOIN species    s ON d.species_id   = s.species_id
+        WHERE s.scientific_name = :species_name
+          AND r.location_id = ANY(:location_ids)
+          AND {conf_expr} IS NOT NULL
+          AND {conf_expr} >= :conf_thr
+          AND r.datetime_start >= CAST(:from_ts AS timestamptz)
+                                  - CAST(:slack AS interval)
+          AND r.datetime_start <  CAST(:to_ts AS timestamptz)
+          AND {det_ts} >= CAST(:from_ts AS timestamptz)
+          AND {det_ts} <  CAST(:to_ts AS timestamptz)
+          AND NOT EXISTS (
+                SELECT 1 FROM segments sg
+                WHERE sg.detection_id = d.detection_id
+                  AND sg.model_id = :seg_model_id
+          )
+        ORDER BY {det_ts}, d.detection_id
+        LIMIT :max_rows
+    """)
+
+
+#: A single window cannot legitimately hold hundreds of detections worth
+#: cutting; a number this high means the caller passed a window far wider than
+#: the page is for, and the browser would be asked to decode that many files.
+MAX_WINDOW_SEGMENTS = 200
+
+
+def plan_window_segments(species_name, location_ids, from_ts, to_ts,
+                         confidence_threshold=0.0, conn=None, model_id=None,
+                         conf_column='confidence',
+                         max_rows=MAX_WINDOW_SEGMENTS):
+    """Every not-yet-cut detection of one species inside one window.
+
+    Returns the same plain-dict plan as ``run_stratified_sample``, so the
+    browser-side cutting and upload path is shared verbatim: the two pages
+    differ in how the plan is chosen, not in what a plan is.
+    """
+    if not location_ids or from_ts is None or to_ts is None:
+        return []
+    own_conn = conn is None
+    if own_conn:
+        conn = get_pam_db_connection()
+    try:
+        rows = conn.execute(
+            build_window_query(conf_column=conf_column),
+            {
+                'species_name': species_name,
+                'location_ids': list(location_ids),
+                'conf_thr': float(confidence_threshold),
+                'from_ts': from_ts,
+                'to_ts': to_ts,
+                'slack': WINDOW_RECORDING_SLACK,
+                'seg_model_id': model_id,
+                'max_rows': int(max_rows),
+            },
+        ).mappings().fetchall()
+    finally:
+        if own_conn and conn is not None:
+            conn.close()
+
+    # Same per-recording part counter as the sampler, so a second detection
+    # from one recording becomes _part2 and the filenames stay comparable.
+    part_counter = defaultdict(int)
+    result = []
+    for row in rows:
+        rec_filename = row['rec_filename']
+        stem = _recording_stem(rec_filename)
+        part_counter[stem] += 1
+        start_s = row['start_s']
+        conf = row['confidence']
+        dt = row['datetime_start']
+        result.append({
+            'detection_id': int(row['detection_id']),
+            'recording_id': int(row['recording_id']),
+            'species_id': int(row['species_id']),
+            'model_id': int(model_id) if model_id is not None else None,
+            'recording_filename': rec_filename,
+            'segment_filename': build_segment_filename(
+                conf, rec_filename, start_s, part_counter[stem],
+                location_name=row['location_name'],
+                datetime_start=dt,
+            ),
+            'location_name': _location_token(rec_filename, row['location_name']),
+            'start_s': float(start_s) if start_s is not None else None,
+            'end_s': float(row['end_s']) if row['end_s'] is not None else None,
+            'confidence': float(conf) if conf is not None else None,
+            'recorded_date': dt.date().isoformat() if dt else None,
+            'recorded_time': dt.time().isoformat() if dt else None,
+        })
+    return result
+
 def get_earliest_recording_year(conn=None, refresh=False):
     """Earliest year present in ``recordings.datetime_start`` (cached).
 

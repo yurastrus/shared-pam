@@ -4902,6 +4902,103 @@ def api_sample_species(lang_code):
             conn.close()
 
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TARGETED SEGMENT CUTTING for one time window (opened from the co-occurrence map)
+#
+# The stratified sampler answers "give me a representative set". This answers
+# "cut exactly the detections behind this point in this window". Same browser
+# machinery, same upload endpoint, different way of choosing the plan — see
+# pam_segment_sampling.plan_window_segments.
+#
+# Deliberately NOT in the PAM hub: it is only ever reached from a map popup,
+# and on its own it would be a page with no way to fill it in.
+# ──────────────────────────────────────────────────────────────────────────────
+
+@pam_bp.route('/<lang_code>/pam/verification/segment-window')
+@login_required
+@role_required('admin')
+def segment_window(lang_code):
+    """One-screen cutter for the detections of a single time window."""
+    from .pam_segment_sampling import ALLOWED_SEGMENT_DURATIONS
+
+    g.lang_code = lang_code
+    return render_template(
+        'pam_segment_window.html',
+        segment_durations=ALLOWED_SEGMENT_DURATIONS,
+        models=get_models_list(),
+        reference_model_id=get_reference_model_id(),
+    )
+
+
+@pam_bp.route('/<lang_code>/api/pam/sample/plan-window', methods=['POST'])
+@login_required
+@role_required('admin')
+def api_sample_plan_window(lang_code):
+    """The cutting plan for every not-yet-cut detection inside one window."""
+    from .pam_segment_sampling import plan_window_segments, MAX_WINDOW_SEGMENTS
+
+    conn = None
+    try:
+        payload = request.get_json(silent=True) or {}
+        species_name = (payload.get('species_name') or '').strip()
+        location_ids = [int(x) for x in (payload.get('location_ids') or [])
+                        if str(x).strip().lstrip('-').isdigit()]
+        if not species_name or not location_ids:
+            return jsonify({'success': False,
+                            'error': 'species_name and location_ids are required'}), 400
+        try:
+            from_ts = _parse_ts_arg(payload.get('from_ts'))
+            to_ts = _parse_ts_arg(payload.get('to_ts'))
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid from_ts/to_ts'}), 400
+        if from_ts is None or to_ts is None or to_ts <= from_ts:
+            return jsonify({'success': False,
+                            'error': 'from_ts must be before to_ts'}), 400
+
+        conf_thr = _optional_float(payload.get('confidence_threshold'))
+        conf_thr = 0.0 if conf_thr is None else min(max(conf_thr, 0.0), 1.0)
+
+        conn = get_pam_db_connection()
+
+        # Same access rule as the sampler: an admin-only page today, but the
+        # helper keeps the two consistent if that ever widens.
+        allowed = _user_location_ids_allowed(conn, location_ids)
+        if not allowed:
+            return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+        # Model, and the column holding its score (migration 0006) -- the same
+        # two steps the stratified sampler takes, so both pages tag segments
+        # for the same model and read the same confidence.
+        requested_model_id = payload.get('model_id')
+        try:
+            requested_model_id = (int(requested_model_id)
+                                  if requested_model_id is not None else None)
+        except (TypeError, ValueError):
+            requested_model_id = None
+        model_id, _is_reference = _resolve_model_choice(requested_model_id)
+        from .utils import get_model_conf_columns
+        conf_column = get_model_conf_columns(conn).get(model_id, 'confidence')
+        segments = plan_window_segments(
+            species_name=species_name,
+            location_ids=allowed,
+            from_ts=from_ts,
+            to_ts=to_ts,
+            confidence_threshold=conf_thr,
+            conn=conn,
+            model_id=model_id,
+            conf_column=conf_column,
+        )
+        return jsonify({'success': True, 'count': len(segments),
+                        'model_id': model_id, 'limit': MAX_WINDOW_SEGMENTS,
+                        'segments': segments})
+    except Exception as e:
+        current_app.logger.error(f"api_sample_plan_window error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
+    finally:
+        if conn:
+            conn.close()
+
 @pam_bp.route('/<lang_code>/api/pam/sample/prepare', methods=['POST'])
 @login_required
 @role_required('admin')
