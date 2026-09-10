@@ -20,7 +20,7 @@ from .utils import get_pam_db_connection, get_pam_engine, generate_spectrogram_i
 import io
 import csv
 from app.models import User, Institution
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from dateutil.relativedelta import relativedelta
 from .pam_evaluation_utils import get_species_logistic_data
 
@@ -55,6 +55,24 @@ def _optional_float(value):
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _parse_ts_arg(raw):
+    """An ISO-8601 timestamp from a query string, or None.
+
+    Tolerates the two ways a URL mangles one: a bare ``+00:00`` offset arrives
+    as a space when the caller forgot to percent-encode the plus, and ``Z`` is
+    not accepted by ``fromisoformat`` before Python 3.11. A value that still
+    cannot be parsed raises ValueError, which the callers turn into a 400 --
+    never a 500 with a psycopg2 traceback in it.
+    """
+    if not raw:
+        return None
+    text_value = str(raw).strip().replace(' ', '+')
+    if text_value.endswith('Z'):
+        text_value = text_value[:-1] + '+00:00'
+    parsed = datetime.fromisoformat(text_value)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def _segment_access_sql(seg_alias='seg'):
@@ -1588,6 +1606,17 @@ def api_next_verification_segment(lang_code):
         species_id = request.args.get('species_id', type=int)
         class_name = request.args.get('class_name')
         institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
+        # Deep-link narrowing, used by the co-occurrence map: one location and
+        # one time window. Both are properties of the DETECTION, not of the
+        # segment -- segments.recorded_date/recorded_time is the recording's
+        # start, shared by every segment cut from that recording, so filtering
+        # on it could not tell one minute from another.
+        location_ids = _parse_id_list(request.args.get('location_ids', ''))
+        try:
+            from_ts = _parse_ts_arg(request.args.get('from_ts'))
+            to_ts = _parse_ts_arg(request.args.get('to_ts'))
+        except ValueError:
+            return jsonify({'error': 'Invalid from_ts/to_ts'}), 400
 
         # Build the filter dynamically. Base: pending + not-yet-seen-by-this-user
         # (an existing verification row — including an "unknown" vote — hides it).
@@ -1621,6 +1650,29 @@ def api_next_verification_segment(lang_code):
                 )
             """)
             params["institution_ids"] = institution_ids
+
+        # Location and/or time window, through the authoritative
+        # segments.detection_id link. A segment with no detection link cannot
+        # be placed in time, so it drops out while either filter is on.
+        det_conds = []
+        if location_ids:
+            det_conds.append("r_det.location_id = ANY(:det_location_ids)")
+            params["det_location_ids"] = location_ids
+        if from_ts:
+            det_conds.append("r_det.datetime_start + (d_det.start_s * interval "
+                             "'1 second') >= CAST(:from_ts AS timestamptz)")
+            params["from_ts"] = from_ts
+        if to_ts:
+            det_conds.append("r_det.datetime_start + (d_det.start_s * interval "
+                             "'1 second') < CAST(:to_ts AS timestamptz)")
+            params["to_ts"] = to_ts
+        if det_conds:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM detections d_det "
+                "JOIN recordings r_det ON r_det.recording_id = d_det.recording_id "
+                "WHERE d_det.detection_id = seg.detection_id AND "
+                + " AND ".join(det_conds) + ")"
+            )
 
         # ACCESS baseline: non-admins only ever get segments from their own
         # institutions, even with no UI filter selected.
@@ -5005,7 +5057,408 @@ def api_sample_upload_segment(lang_code):
             conn.close()
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# SIMULTANEOUS DETECTIONS (co-occurrence): a lower bound on calling individuals
+#
+# Admin-only for now, and every endpoint computes on request: opening the page
+# runs nothing but the cheap filter lists, exactly like the other PAM analytics
+# pages. See app/pam/cooccurrence.py for what the numbers mean.
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _cooc_access(selected_inst_ids=None):
+    """Access condition + params for the location query, host rules included."""
+    user_inst_ids = pam_access.allowed_institution_ids(current_user)
+    is_admin = current_user.is_authenticated and current_user.has_role('admin')
+    return get_institution_filter(user_inst_ids, is_admin, selected_inst_ids or None)
 
 
+def _cooc_ecoregions(lang_code):
+    """``{ecoregion_uk: localised name}`` for institutions visible in PAM.
+
+    Ecoregions ("Розточчя", "Карпати", "Полісся") are not a pam_db concept:
+    they are `institutions.ecoregion_uk` in the HOST database, exactly as the
+    camera-traps scope picker reads them. pam_db keeps its own `institutions`
+    row per institution with the same id, and `location_institutions` joins on
+    that id, so an ecoregion is usable here by expanding it to institution ids.
+    """
+    if current_user.is_authenticated and current_user.has_role('admin'):
+        institutions = Institution.query.all()
+    else:
+        institutions = pam_access.allowed_institutions(current_user)
+    out = {}
+    for inst in institutions:
+        if not inst.ecoregion_uk:
+            continue
+        display = inst.ecoregion_uk
+        if lang_code == 'en' and inst.ecoregion_en:
+            display = inst.ecoregion_en
+        out.setdefault(inst.ecoregion_uk, {'name': display, 'institution_ids': []})
+        out[inst.ecoregion_uk]['institution_ids'].append(inst.id)
+    return dict(sorted(out.items(), key=lambda kv: kv[1]['name']))
 
 
+def _cooc_institution_ids(p):
+    """The institution ids to filter on: the explicit picks plus the ecoregions.
+
+    Union, not intersection: picking an ecoregion and an institution outside it
+    means "both", which is what the two controls read as.
+    """
+    ids = set(p['institution_ids'])
+    if p['ecoregions']:
+        ids.update(
+            i.id for i in Institution.query.filter(
+                Institution.ecoregion_uk.in_(p['ecoregions'])).all()
+        )
+    return sorted(ids)
+
+
+def _cooc_season(raw):
+    """One season boundary as MM*100+DD, or None when the field is blank."""
+    from .cooccurrence import mmdd
+    if raw in (None, ''):
+        return None
+    return mmdd(raw)
+
+
+def _cooc_params(src):
+    """Validate and clamp one request's parameters.
+
+    ``src`` is request.json or request.args. Raises CooccurrenceError with a
+    message meant for the user; the caller turns that into a 400.
+    """
+    from .cooccurrence import (
+        CooccurrenceError, CONF_COLUMNS, CLUSTER_METHODS,
+        DEFAULT_WINDOW_S, DEFAULT_MIN_CONF, DEFAULT_MIN_DISTANCE_M,
+        DEFAULT_CLUSTER_METHOD, DEFAULT_SWEEP_MIN_S, DEFAULT_SWEEP_MAX_S,
+        DEFAULT_SWEEP_STEP_S, WINDOW_MIN_S, WINDOW_MAX_S,
+    )
+
+    def _ids(key):
+        raw = src.get(key)
+        if isinstance(raw, (list, tuple)):
+            return [int(x) for x in raw if str(x).strip().lstrip('-').isdigit()]
+        return _parse_id_list(raw)
+
+    def _strings(key):
+        raw = src.get(key)
+        if isinstance(raw, (list, tuple)):
+            return [str(x) for x in raw if str(x).strip()]
+        return [x for x in (str(raw or '').split(',')) if x.strip()]
+
+    def _date(key):
+        raw = (src.get(key) or '').strip()
+        if not raw:
+            raise CooccurrenceError('Не задано період.')
+        try:
+            return datetime.strptime(raw[:10], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+        except ValueError:
+            raise CooccurrenceError(f'Не розпізнано дату: {raw}')
+
+    conf_column = src.get('conf_column') or 'confidence'
+    if conf_column not in CONF_COLUMNS:
+        raise CooccurrenceError(f'Невідома колонка confidence: {conf_column}')
+    cluster_method = src.get('cluster_method') or DEFAULT_CLUSTER_METHOD
+    if cluster_method not in CLUSTER_METHODS:
+        raise CooccurrenceError(f'Невідомий метод розведення: {cluster_method}')
+
+    min_conf = _optional_float(src.get('min_conf'))
+    if min_conf is None:
+        min_conf = DEFAULT_MIN_CONF
+    min_conf = min(max(min_conf, 0.0), 1.0)
+
+    min_distance = _optional_float(src.get('min_distance_m'))
+    if min_distance is None:
+        min_distance = DEFAULT_MIN_DISTANCE_M
+    min_distance = min(max(min_distance, 0.0), 50000.0)
+
+    window_s = _optional_int(src.get('window_s')) or DEFAULT_WINDOW_S
+    window_s = min(max(window_s, WINDOW_MIN_S), WINDOW_MAX_S)
+    step_s = _optional_int(src.get('step_s')) or window_s
+
+    # `end` is exclusive; the UI shows an inclusive last day, so add one.
+    end = _date('end') + timedelta(days=1)
+
+    return {
+        'species': src.get('species'),
+        'start': _date('start'),
+        'end': end,
+        'window_s': window_s,
+        'step_s': min(max(step_s, 1), window_s),
+        'min_distance_m': min_distance,
+        'cluster_method': cluster_method,
+        'min_conf': min_conf,
+        'conf_column': conf_column,
+        'min_locations': min(max(_optional_int(src.get('min_locations')) or 1, 1), 100),
+        # A season window pools the same calendar stretch across every year, so
+        # only (month, day) survives; the year the picker sends is discarded.
+        'season_from': _cooc_season(src.get('season_from')),
+        'season_to': _cooc_season(src.get('season_to')),
+        'institution_ids': _ids('institution_ids'),
+        'ecoregions': _strings('ecoregions'),
+        'biotope_ids': _ids('biotope_ids'),
+        'location_ids': _ids('location_ids'),
+        'sweep_min_s': _optional_int(src.get('sweep_min_s')) or DEFAULT_SWEEP_MIN_S,
+        'sweep_max_s': _optional_int(src.get('sweep_max_s')) or DEFAULT_SWEEP_MAX_S,
+        'sweep_step_s': _optional_int(src.get('sweep_step_s')) or DEFAULT_SWEEP_STEP_S,
+    }
+
+
+@pam_bp.route('/<lang_code>/pam/cooccurrence')
+@login_required
+@role_required('admin')
+def pam_cooccurrence(lang_code):
+    """Render the simultaneous-detections page. Computes nothing on load."""
+    from .utils import get_available_species
+    from . import cooccurrence as cooc
+
+    g.lang_code = lang_code
+    try:
+        species_list = get_available_species(lang_code)
+    except Exception as e:
+        current_app.logger.error(f"pam_cooccurrence: species list failed: {e}")
+        species_list = []
+
+    period_start, period_end = None, None
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        cond, params = _cooc_access()
+        period_start, period_end = cooc.period_bounds(conn, cond, params)
+    except Exception as e:
+        current_app.logger.warning(f"pam_cooccurrence: period bounds failed: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+    # Default period: the last 12 months of the record, not of the calendar.
+    default_end = period_end or date.today().isoformat()
+    try:
+        de = datetime.strptime(default_end, '%Y-%m-%d').date()
+        default_start = (de - relativedelta(months=12)).isoformat()
+        if period_start and default_start < period_start:
+            default_start = period_start
+    except ValueError:
+        default_start = period_start or default_end
+
+    return render_template(
+        'pam_cooccurrence.html',
+        available_species=species_list,
+        models=get_models_list(),
+        geoserver_url=current_app.config.get('GEOSERVER_URL', ''),
+        ecoregions=_cooc_ecoregions(lang_code),
+        season_decades=cooc.season_decades(),
+        # Which popup action each visitor gets. Verification is open to any
+        # verifier; cutting new segments is admin-only, same as its own page.
+        can_verify=current_user.is_authenticated and current_user.has_role('pam_verifier'),
+        can_sample=current_user.is_authenticated and current_user.has_role('admin'),
+        period_start=period_start,
+        period_end=period_end,
+        default_start=default_start,
+        default_end=default_end,
+        window_min_s=cooc.WINDOW_MIN_S,
+        window_max_s=cooc.WINDOW_MAX_S,
+        cluster_methods=cooc.CLUSTER_METHODS,
+        defaults={
+            'window_s': cooc.DEFAULT_WINDOW_S,
+            'min_distance_m': cooc.DEFAULT_MIN_DISTANCE_M,
+            'min_conf': cooc.DEFAULT_MIN_CONF,
+            'cluster_method': cooc.DEFAULT_CLUSTER_METHOD,
+            'sweep_min_s': cooc.DEFAULT_SWEEP_MIN_S,
+            'sweep_max_s': cooc.DEFAULT_SWEEP_MAX_S,
+            'sweep_step_s': cooc.DEFAULT_SWEEP_STEP_S,
+        },
+    )
+
+
+@pam_bp.route('/<lang_code>/api/pam/cooccurrence/run', methods=['POST'])
+def api_cooccurrence_run(lang_code):
+    """Window table + spacing rule + histogram + per-window map detail."""
+    from . import cooccurrence as cooc
+
+    conn = None
+    try:
+        p = _cooc_params(request.get_json(silent=True) or {})
+        cond, params = _cooc_access(_cooc_institution_ids(p))
+        seg_acc_sql, seg_acc_params = _segment_access_sql('seg_v')
+        verifier_id = (current_user.id
+                       if current_user.is_authenticated
+                       and current_user.has_role('pam_verifier') else None)
+        conn = get_pam_db_connection()
+        result = cooc.run(
+            conn,
+            species=p['species'], start=p['start'], end=p['end'],
+            window_s=p['window_s'], step_s=p['step_s'],
+            min_distance_m=p['min_distance_m'], cluster_method=p['cluster_method'],
+            min_conf=p['min_conf'], conf_column=p['conf_column'],
+            access_condition=cond, access_params=params,
+            biotope_ids=p['biotope_ids'], location_ids=p['location_ids'],
+            min_locations=p['min_locations'],
+            season_from=p['season_from'], season_to=p['season_to'],
+            verifier_user_id=verifier_id, segment_access_sql=seg_acc_sql,
+            segment_access_params=seg_acc_params,
+            lang_code=lang_code,
+        )
+        return jsonify(result)
+    except cooc.CooccurrenceError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        current_app.logger.error(f"api_cooccurrence_run error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@pam_bp.route('/<lang_code>/api/pam/cooccurrence/sweep', methods=['POST'])
+def api_cooccurrence_sweep(lang_code):
+    """Window-width sweep + the co-detection network for the map."""
+    from . import cooccurrence as cooc
+
+    conn = None
+    try:
+        p = _cooc_params(request.get_json(silent=True) or {})
+        cond, params = _cooc_access(_cooc_institution_ids(p))
+        conn = get_pam_db_connection()
+        result = cooc.run_sweep(
+            conn,
+            species=p['species'], start=p['start'], end=p['end'],
+            min_distance_m=p['min_distance_m'],
+            min_conf=p['min_conf'], conf_column=p['conf_column'],
+            access_condition=cond, access_params=params,
+            biotope_ids=p['biotope_ids'], location_ids=p['location_ids'],
+            season_from=p['season_from'], season_to=p['season_to'],
+            sweep_min_s=p['sweep_min_s'], sweep_max_s=p['sweep_max_s'],
+            sweep_step_s=p['sweep_step_s'], lang_code=lang_code,
+        )
+        return jsonify(result)
+    except cooc.CooccurrenceError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        current_app.logger.error(f"api_cooccurrence_sweep error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@pam_bp.route('/<lang_code>/api/pam/cooccurrence/export')
+def api_cooccurrence_export(lang_code):
+    """The same two tables the CLI prototype writes, as a ZIP of CSVs.
+
+    Unlike /run this keeps every window, not just the ones the map shows, so
+    the export and the page can be checked against each other.
+    """
+    import zipfile
+    from . import cooccurrence as cooc
+
+    conn = None
+    try:
+        p = _cooc_params(request.args)
+        cond, params = _cooc_access(_cooc_institution_ids(p))
+        seg_acc_sql, seg_acc_params = _segment_access_sql('seg_v')
+        verifier_id = (current_user.id
+                       if current_user.is_authenticated
+                       and current_user.has_role('pam_verifier') else None)
+        conn = get_pam_db_connection()
+        result = cooc.run(
+            conn,
+            species=p['species'], start=p['start'], end=p['end'],
+            window_s=p['window_s'], step_s=p['step_s'],
+            min_distance_m=p['min_distance_m'], cluster_method=p['cluster_method'],
+            min_conf=p['min_conf'], conf_column=p['conf_column'],
+            access_condition=cond, access_params=params,
+            biotope_ids=p['biotope_ids'], location_ids=p['location_ids'],
+            min_locations=p['min_locations'], detail_windows=None,
+            season_from=p['season_from'], season_to=p['season_to'],
+            verifier_user_id=verifier_id, segment_access_sql=seg_acc_sql,
+            segment_access_params=seg_acc_params,
+            lang_code=lang_code,
+        )
+        if result.get('empty'):
+            return jsonify({'error': 'Немає детекцій за цими фільтрами.'}), 400
+
+        names = {loc['id']: loc for loc in result['locations']}
+        xy = result['_xy']
+        loc2cluster = result['_loc2cluster']
+        selected = result['all_selected']
+        per_window = result['all_per_window']
+        min_locations = result['params']['min_locations']
+
+        detail = io.StringIO()
+        w = csv.writer(detail)
+        w.writerow(['window_start_utc', 'location_id', 'location_name', 'lat', 'lon',
+                    'x_proj', 'y_proj', 'cluster_id', 'counted', 'n_detections',
+                    'positive_votes', 'n_confirmed', 'n_rejected',
+                    'verification_level'])
+        for s in result['all_windows']:
+            if s['n_counted'] < min_locations:
+                continue
+            win = s['window_start']
+            chosen = set(selected[win])
+            cells = result['all_verif'].get(win, {})
+            for lid, n_det in sorted(per_window[win].items()):
+                loc = names[lid]
+                c = cells.get(lid, {'votes': 0, 'confirmed': 0, 'rejected': 0})
+                w.writerow([win.isoformat(), lid, loc['name'],
+                            f"{loc['lat']:.6f}", f"{loc['lon']:.6f}",
+                            f"{xy[lid][0]:.1f}", f"{xy[lid][1]:.1f}",
+                            loc2cluster[lid], int(lid in chosen), n_det,
+                            c['votes'], c['confirmed'], c['rejected'],
+                            cooc.verification_level(c['votes'], c['confirmed'],
+                                                    c['rejected'])])
+
+        summary = io.StringIO()
+        w = csv.writer(summary)
+        w.writerow(['window_start_utc', 'n_counted', 'n_locations_raw',
+                    'n_detections', 'n_verified', 'max_verification_level'])
+        for s in result['all_windows']:
+            w.writerow([s['window_start'].isoformat(), s['n_counted'],
+                        s['n_locations_raw'], s['n_detections'],
+                        s['n_verified'], s['max_level']])
+
+        readme = (
+            "Simultaneous PAM detections\n"
+            "===========================\n"
+            f"species          : {result['species']['name']} "
+            f"(id {result['species']['id']})\n"
+            f"period (UTC)     : {result['params']['start']} .. {result['params']['end']}\n"
+            f"window / step    : {result['params']['window_s']} s / "
+            f"{result['params']['step_s']} s\n"
+            f"score            : {result['params']['conf_column']} >= "
+            f"{result['params']['min_conf']}\n"
+            f"min distance     : {result['params']['min_distance_m']:g} m "
+            f"({result['params']['cluster_method']})\n"
+            f"locations        : {result['n_locations']}\n"
+            f"detections used  : {result['n_detections']}\n"
+            f"windows          : {result['n_windows']} "
+            f"(kept >= {min_locations}: {result['n_windows_kept']})\n"
+            f"verified windows : {result['n_windows_verified']} carry at least one "
+            f"human-confirmed detection at a counted location\n"
+            f"max simultaneous : {result['max_counted']} well-separated location(s), "
+            f"{result['max_raw']} before the spacing rule\n"
+            f"map CRS          : {result['params']['crs']}\n\n"
+            "n_counted is a LOWER BOUND on individuals calling in that window, "
+            "not an abundance estimate.\n"
+        )
+
+        slug = result['species']['name'].lower().replace(' ', '_')
+        base = (f"{slug}_{result['params']['window_s']}s_"
+                f"{result['params']['start'][:10].replace('-', '')}-"
+                f"{result['params']['end'][:10].replace('-', '')}")
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+            z.writestr(f"{base}__windows_locations.csv", detail.getvalue())
+            z.writestr(f"{base}__window_summary.csv", summary.getvalue())
+            z.writestr(f"{base}__README.txt", readme)
+        buf.seek(0)
+        return send_file(buf, mimetype='application/zip', as_attachment=True,
+                         download_name=f"{base}__cooccurrence.zip")
+    except cooc.CooccurrenceError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        current_app.logger.error(f"api_cooccurrence_export error: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+    finally:
+        if conn:
+            conn.close()

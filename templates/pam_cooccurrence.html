@@ -1,0 +1,922 @@
+{% extends "pam_base.html" %}
+
+{% block title %}{{ _('Одночасні детекції') }}{% endblock %}
+
+{% block pam_head_extra %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block pam_content %}
+<div class="container">
+    <div class="dashboard-wrapper">
+        <h1 class="page-header">{{ _('Одночасні детекції') }}</h1>
+
+        <details class="cooc-note">
+            <summary>{{ _('Що показує цей аналіз') }}</summary>
+            <p>{{ _('Акустичний моніторинг не рахує особин: реєстратор повідомляє, що вид присутній, а не скільки їх. Але якщо той самий вид виявлено на N достатньо віддалених точках усередині одного короткого часового вікна, то в цьому вікні співало щонайменше N особин — за умови, що точки розведені далі, ніж чути одну голосну особину.') }}</p>
+            <p>{{ _('Результат — це нижня межа, а не оцінка чисельності. Про особин, які мовчали, він не говорить нічого. Дві головні пастки: близькі реєстратори (одна голосна особина, почута двома точками, виглядає як дві) і помилки класифікатора (хибна детекція на двох далеких точках у ту саму хвилину вигадує «одночасну пару»). Перше контролює мінімальна відстань, друге — поріг confidence.') }}</p>
+            <p>{{ _('Важливіший не найчастіший стовпчик гістограми, а її хвіст: наскільки далеко праворуч вона дотягується. Порівнювати між видами, сезонами чи установами можна лише за однакових ширини вікна, мінімальної відстані та порога confidence.') }}</p>
+        </details>
+
+        {% if available_species %}
+        <form id="cooc-form" class="filters-panel" onsubmit="return false;">
+            <div class="filter-group">
+                <label for="species-select">{{ _('Вид:') }}</label>
+                <select class="form-control" id="species-select" name="species">
+                    <option></option>
+                    {% for species in available_species %}
+                        <option value="{{ species.value }}">{{ species.text }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>{{ _('Період:') }}</label>
+                <div class="cooc-date-row">
+                    <input type="date" id="start-date" class="form-control"
+                           value="{{ default_start or '' }}"
+                           {% if period_start %}min="{{ period_start }}"{% endif %}
+                           {% if period_end %}max="{{ period_end }}"{% endif %}>
+                    <input type="date" id="end-date" class="form-control"
+                           value="{{ default_end or '' }}"
+                           {% if period_start %}min="{{ period_start }}"{% endif %}
+                           {% if period_end %}max="{{ period_end }}"{% endif %}>
+                </div>
+                {% if period_start %}
+                <small class="cooc-muted">{{ _('Дані:') }} {{ period_start }} … {{ period_end }}</small>
+                {% endif %}
+            </div>
+
+            {% if ecoregions %}
+            <div class="filter-group">
+                <label for="ecoregion-select">{{ _('Екорегіон:') }}</label>
+                <select id="ecoregion-select" class="form-control" multiple>
+                    {# Ecoregions live on the host's institutions table, so the
+                       options are rendered server-side; data-institutions lets
+                       the biotope/location cascade expand them client-side. #}
+                    {% for key, eco in ecoregions.items() %}
+                    <option value="{{ key }}"
+                            data-institutions="{{ eco.institution_ids | join(',') }}">{{ eco.name }}</option>
+                    {% endfor %}
+                </select>
+                <small class="cooc-muted">{{ _('Розгортається в установи цього регіону; разом з полем нижче працює як об’єднання.') }}</small>
+            </div>
+            {% endif %}
+
+            {# Field seasons are named in decades (ten-day thirds of a month),
+               so that is the unit here. The "from" list offers the first day of
+               each decade and the "to" list the last, which is why the same 36
+               rows are rendered twice with different values. #}
+            {% set month_names = [_('Січень'), _('Лютий'), _('Березень'), _('Квітень'),
+                                  _('Травень'), _('Червень'), _('Липень'), _('Серпень'),
+                                  _('Вересень'), _('Жовтень'), _('Листопад'), _('Грудень')] %}
+            <div class="filter-group">
+                <label>{{ _('Сезонне вікно (декади):') }}</label>
+                <div class="cooc-date-row">
+                    <select id="season-from" class="form-control">
+                        <option value="">{{ _('— без обмеження —') }}</option>
+                        {% for d in season_decades %}
+                        <option value="{{ d.from_mmdd }}">{{ month_names[d.month - 1] }}, {{ d.decade }} {{ _('декада') }} ({{ '%02d'|format(d.from_day) }}.{{ '%02d'|format(d.month) }})</option>
+                        {% endfor %}
+                    </select>
+                    <select id="season-to" class="form-control">
+                        <option value="">{{ _('— без обмеження —') }}</option>
+                        {% for d in season_decades %}
+                        <option value="{{ d.to_mmdd }}">{{ month_names[d.month - 1] }}, {{ d.decade }} {{ _('декада') }} ({{ '%02d'|format(d.to_day) }}.{{ '%02d'|format(d.month) }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <small class="cooc-muted">{{ _('Звужує вибраний вище період: беруться ті самі календарні дні з кожного року цього періоду. Фільтр дат при цьому діє повністю.') }}
+                    <a href="#" id="season-clear">{{ _('Скинути') }}</a></small>
+            </div>
+
+            <div class="filter-group">
+                <label for="institution-select">{{ _('Установа/проект:') }}</label>
+                <select id="institution-select" class="form-control" multiple></select>
+            </div>
+            <div class="filter-group">
+                <label for="biotopes-select">{{ _('Біотопи:') }}</label>
+                <select id="biotopes-select" class="form-control" multiple></select>
+            </div>
+            <div class="filter-group">
+                <label for="locations-select">{{ _('Локації:') }}</label>
+                <select id="locations-select" class="form-control" multiple></select>
+            </div>
+
+            {% if models and models|length > 1 %}
+            <div class="filter-group">
+                <label for="model-select">{{ _('Модель (колонка confidence):') }}</label>
+                <select id="model-select" class="form-control">
+                    {% for m in models %}
+                    <option value="{{ m.conf_column }}" {% if m.is_reference %}selected{% endif %}>{{ m.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <div class="filter-group">
+                <label for="min-conf">{{ _('Поріг confidence:') }} <span id="min-conf-value">{{ defaults.min_conf }}</span></label>
+                <input type="range" class="form-control-range" id="min-conf"
+                       min="0.1" max="0.99" step="0.01" value="{{ defaults.min_conf }}">
+                <small class="cooc-muted">{{ _('Сирий confidence вибраної моделі, без калібрування.') }}</small>
+            </div>
+
+            <div class="filter-group">
+                <label for="window-input">{{ _('Ширина вікна, с:') }}</label>
+                <input type="number" id="window-input" class="form-control"
+                       value="{{ defaults.window_s }}"
+                       min="{{ window_min_s }}" max="{{ window_max_s }}" step="1">
+                <small class="cooc-muted">{{ _('Від') }} {{ window_min_s }} {{ _('до') }} {{ window_max_s }} {{ _('с, тобто до однієї години.') }}</small>
+            </div>
+
+            <div class="filter-group">
+                <label for="step-select">{{ _('Крок вікна:') }}</label>
+                <select id="step-select" class="form-control">
+                    <option value="1" selected>{{ _('= ширині (без перекриття)') }}</option>
+                    <option value="2">{{ _('½ ширини') }}</option>
+                    <option value="3">{{ _('⅓ ширини') }}</option>
+                    <option value="4">{{ _('¼ ширини') }}</option>
+                </select>
+                <small class="cooc-muted">{{ _('Менший крок дає перекривні вікна і один прохід по базі на кожне зсунення.') }}</small>
+            </div>
+
+            <div class="filter-group">
+                <label for="min-distance">{{ _('Мін. відстань між точками, м:') }} <span id="min-distance-value">{{ defaults.min_distance_m | int }}</span></label>
+                <input type="range" class="form-control-range" id="min-distance"
+                       min="0" max="3000" step="50" value="{{ defaults.min_distance_m | int }}">
+                <small class="cooc-muted">{{ _('0 — рахувати кожну локацію окремо.') }}</small>
+            </div>
+
+            <div class="filter-group">
+                <label for="cluster-method">{{ _('Метод розведення:') }}</label>
+                <select id="cluster-method" class="form-control">
+                    <option value="greedy" selected>{{ _('greedy — усередині кожного вікна') }}</option>
+                    <option value="complete">{{ _('complete — глобальні кластери з обмеженим діаметром') }}</option>
+                    <option value="single">{{ _('single — лише для порівняння (зчіплюється)') }}</option>
+                </select>
+            </div>
+
+            <div class="filter-group full-width action-group">
+                <button type="button" id="run-btn" class="btn">{{ _('Розрахувати') }}</button>
+                <button type="button" id="sweep-btn" class="btn btn-secondary" disabled
+                        title="{{ _('Спочатку зробіть основний розрахунок') }}">
+                    {{ _('Розгортка за шириною вікна') }}
+                </button>
+                <button type="button" id="export-btn" class="btn btn-secondary cooc-export-right"
+                        disabled title="{{ _('Спочатку зробіть основний розрахунок') }}">
+                    {{ _('Експорт CSV') }}
+                </button>
+            </div>
+        </form>
+
+        <div id="cooc-status" class="cooc-muted" style="display:none;"></div>
+        <div id="cooc-error" class="cooc-error" style="display:none;"></div>
+
+        <div id="cooc-results" style="display:none;">
+            <div id="cooc-threshold" class="cooc-threshold"></div>
+
+            <div class="summary-grid cooc-kpi-grid">
+                <div class="summary-card">
+                    <h5>{{ _('Максимум одночасних') }}</h5>
+                    <div class="stat-value" id="kpi-max">–</div>
+                    <div class="cooc-muted" id="kpi-max-sub"></div>
+                </div>
+                <div class="summary-card">
+                    <h5>{{ _('Вікон з ≥2 точками') }}</h5>
+                    <div class="stat-value" id="kpi-ge2">–</div>
+                    <div class="cooc-muted" id="kpi-ge2-sub"></div>
+                </div>
+                <div class="summary-card">
+                    <h5>{{ _('Вікон з верифікацією') }}</h5>
+                    <div class="stat-value" id="kpi-verified">–</div>
+                    <div class="cooc-muted" id="kpi-verified-sub"></div>
+                </div>
+                <div class="summary-card">
+                    <h5>{{ _('Локацій у фільтрі') }}</h5>
+                    <div class="stat-value" id="kpi-locs">–</div>
+                    <div class="cooc-muted" id="kpi-locs-sub"></div>
+                </div>
+                <div class="summary-card">
+                    <h5>{{ _('Використано детекцій') }}</h5>
+                    <div class="stat-value" id="kpi-dets">–</div>
+                    <div class="cooc-muted" id="kpi-dets-sub"></div>
+                </div>
+            </div>
+
+            <div class="dashboard-layout">
+                <div class="dashboard-sidebar">
+                    <h3 class="dashboard-section-title">{{ _('Розподіл') }}</h3>
+                    <div id="hist-plot" class="cooc-hist"></div>
+                    <h3 class="dashboard-section-title cooc-section-gap">{{ _('Топ вікон') }}</h3>
+                    <div id="windows-note" class="cooc-muted"></div>
+                    <div class="cooc-scroll">
+                        <table class="cooc-windows-table">
+                            <thead>
+                                <tr>
+                                    <th data-sort="start">{{ _('Вікно (UTC)') }}</th>
+                                    <th data-sort="n_counted">{{ _('Зараховано') }}</th>
+                                    <th data-sort="n_verified">{{ _('Верифік.') }}</th>
+                                    <th data-sort="n_locations_raw">{{ _('Точок') }}</th>
+                                    <th data-sort="n_detections">{{ _('Детекцій') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="windows-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="dashboard-main">
+                    <h3 class="dashboard-section-title">{{ _('Карта') }}</h3>
+                    <div class="cooc-map-modes">
+                        <label><input type="radio" name="map-mode" value="window" checked> {{ _('Вікно') }}</label>
+                        <label title="{{ _('Кожна пара точок, що колись співпадали, лінією; колір — найменше вікно співпадіння.') }}"><input type="radio" name="map-mode" value="network" disabled id="mode-network"> {{ _('Мережа співдетекцій') }}</label>
+                        <span id="map-window-label" class="cooc-muted"></span>
+                    </div>
+                    <div class="cooc-legend" id="map-mode-hint">
+                        <span>{{ _('«Мережа співдетекцій» стає доступною після натискання «Розгортка за шириною вікна»: пари точок існують лише у відповіді розгортки. Кожен новий розрахунок вимикає її знову.') }}</span>
+                    </div>
+                    <div id="cooc-map"></div>
+                    <div class="cooc-legend" id="map-legend"></div>
+                </div>
+            </div>
+
+            <div id="sweep-section" class="cooc-sweep">
+                <h3 class="dashboard-section-title">{{ _('Розгортка за шириною вікна') }}</h3>
+                <div id="sweep-summary" class="cooc-muted cooc-sweep-range"></div>
+                <div class="cooc-sweep-panels">
+                    <div id="sweep-max-plot"></div>
+                    <div id="sweep-episodes-plot"></div>
+                </div>
+                <div class="cooc-sweep-range">
+                    <label class="cooc-muted">{{ _('Діапазон розгортки, с:') }}</label>
+                    <input type="number" id="sweep-min" class="form-control" value="{{ defaults.sweep_min_s }}" min="1">
+                    <span>…</span>
+                    <input type="number" id="sweep-max" class="form-control" value="{{ defaults.sweep_max_s }}" min="1">
+                    <span>{{ _('крок') }}</span>
+                    <input type="number" id="sweep-step" class="form-control" value="{{ defaults.sweep_step_s }}" min="1">
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+        <p>{{ _('Список видів недоступний.') }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+$(document).ready(function () {
+    const LANG = '{{ g.lang_code }}';
+    const GEOSERVER = '{{ geoserver_url }}';
+    const CSRF = '{{ csrf_token() }}';
+    const PLOT_CFG = { responsive: true, displaylogo: false,
+                       modeBarButtonsToRemove: ['lasso2d', 'select2d'] };
+    // Both compute endpoints are POST, so they go through CSRFProtect.
+    const POST_HEADERS = { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF };
+
+    let runData = null;      // last /run payload
+    let sweepData = null;    // last /sweep payload
+    let currentWindow = null;
+    let map = null, baseLayer = null, drawn = null;
+
+    // ── selects ───────────────────────────────────────────────────────────
+    $('#species-select').select2({ placeholder: '{{ _("Виберіть вид") }}', width: '100%' });
+    $('#ecoregion-select').select2({ placeholder: '{{ _("Усі") }}', width: '100%' });
+    $('#institution-select').select2({ placeholder: '{{ _("Усі") }}', width: '100%' });
+    $('#biotopes-select').select2({ placeholder: '{{ _("Усі") }}', width: '100%' });
+    $('#locations-select').select2({ placeholder: '{{ _("Усі") }}', width: '100%' });
+
+    $('#season-clear').on('click', function (e) {
+        e.preventDefault();
+        $('#season-from, #season-to').val('');
+    });
+
+    $('#min-conf').on('input', function () { $('#min-conf-value').text(this.value); });
+    $('#min-distance').on('input', function () { $('#min-distance-value').text(this.value); });
+
+    // Filter lists reuse the dashboard endpoint, so the pickers cascade the
+    // same way as on the other analytics pages. This is the only request the
+    // page makes on load; nothing is computed until "Розрахувати".
+    function loadFilters() {
+        const params = new URLSearchParams();
+        const s = $('#start-date').val(), e = $('#end-date').val();
+        if (s && e) { params.set('start_date', s); params.set('end_date', e); }
+        const inst = effectiveInstitutionIds();
+        if (inst.length) params.set('institution_id', inst.join(','));
+        fetch(`/${LANG}/api/pam/get-filters-data?` + params.toString())
+            .then(r => r.json())
+            .then(d => {
+                if (d.error) return;
+                fill($('#institution-select'), d.institutions, 'id');
+                fill($('#biotopes-select'), d.biotopes, 'id');
+                fill($('#locations-select'), d.locations, 'id');
+            })
+            .catch(() => {});
+    }
+
+    // An ecoregion is a set of institutions on the host side. The server does
+    // the same expansion for the query; this copy exists only so the
+    // biotope/location cascade narrows the same way while typing.
+    function effectiveInstitutionIds() {
+        const ids = new Set($('#institution-select').val() || []);
+        $('#ecoregion-select option:selected').each(function () {
+            String($(this).data('institutions') || '').split(',')
+                .filter(Boolean).forEach(id => ids.add(id));
+        });
+        return Array.from(ids);
+    }
+
+    function fill($sel, items, key) {
+        const keep = $sel.val() || [];
+        $sel.empty();
+        (items || []).forEach(it => {
+            $sel.append(new Option(it.text, it[key], false, keep.includes(String(it[key]))));
+        });
+        $sel.trigger('change.select2');
+    }
+
+    loadFilters();
+    $('#start-date, #end-date').on('change', loadFilters);
+    $('#institution-select, #ecoregion-select').on('change', function () { loadFilters(); });
+
+    // ── request payload ───────────────────────────────────────────────────
+    function payload() {
+        const window_s = parseInt($('#window-input').val(), 10);
+        const divisor = parseInt($('#step-select').val(), 10) || 1;
+        return {
+            species: $('#species-select').val(),
+            start: $('#start-date').val(),
+            end: $('#end-date').val(),
+            window_s: window_s,
+            step_s: Math.max(1, Math.round(window_s / divisor)),
+            min_distance_m: parseFloat($('#min-distance').val()),
+            cluster_method: $('#cluster-method').val(),
+            min_conf: parseFloat($('#min-conf').val()),
+            conf_column: $('#model-select').val() || 'confidence',
+            institution_ids: $('#institution-select').val() || [],
+            ecoregions: $('#ecoregion-select').val() || [],
+            season_from: $('#season-from').val() || '',
+            season_to: $('#season-to').val() || '',
+            biotope_ids: $('#biotopes-select').val() || [],
+            location_ids: $('#locations-select').val() || [],
+            sweep_min_s: parseInt($('#sweep-min').val(), 10),
+            sweep_max_s: parseInt($('#sweep-max').val(), 10),
+            sweep_step_s: parseInt($('#sweep-step').val(), 10)
+        };
+    }
+
+    // Whole sentences with placeholders, not concatenated fragments: a
+    // translator needs the sentence, and Ukrainian word order is not English's.
+    // Named `interpolate`, not `fill`: `fill()` below repopulates a <select>,
+    // and the collision was a page-wide SyntaxError that killed every handler.
+    const interpolate = (tpl, vals) =>
+        tpl.replace(/%\((\w+)\)s/g, (_m, k) => vals[k]);
+
+    function status(text) {
+        $('#cooc-error').hide();
+        if (text) $('#cooc-status').text(text).show(); else $('#cooc-status').hide();
+    }
+    function fail(text) {
+        $('#cooc-status').hide();
+        $('#cooc-error').text(text).show();
+    }
+
+    // ── main run ──────────────────────────────────────────────────────────
+    $('#run-btn').on('click', function () {
+        const p = payload();
+        if (!p.species) { fail('{{ _("Виберіть вид.") }}'); return; }
+        if (!p.start || !p.end) { fail('{{ _("Задайте період.") }}'); return; }
+
+        status('{{ _("Розрахунок…") }}');
+        $('#run-btn').prop('disabled', true);
+        fetch(`/${LANG}/api/pam/cooccurrence/run`, {
+            method: 'POST',
+            headers: POST_HEADERS,
+            body: JSON.stringify(p)
+        })
+        .then(r => r.json().then(d => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => {
+            if (!ok) { fail(d.error || '{{ _("Помилка розрахунку.") }}'); return; }
+            runData = d;
+            sweepData = null;
+            $('#mode-network').prop('disabled', true);
+            $('#map-mode-hint').show();
+            $('input[name=map-mode][value=window]').prop('checked', true);
+            $('#sweep-section').hide();
+            status('');
+            render(d);
+            $('#sweep-btn, #export-btn').prop('disabled', false).attr('title', '');
+        })
+        .catch(() => fail('{{ _("Не вдалося звʼязатися з сервером.") }}'))
+        .finally(() => $('#run-btn').prop('disabled', false));
+    });
+
+    function render(d) {
+        $('#cooc-results').show();
+
+        const p = d.params;
+        let note = `${d.species.name} · ${p.conf_column} ≥ ${p.min_conf} · `
+                 + `{{ _("вікно") }} ${p.window_s} {{ _("с") }}`
+                 + (p.step_s < p.window_s ? ` ({{ _("крок") }} ${p.step_s} {{ _("с") }}, ${p.db_passes} {{ _("проходи по базі") }})` : ' ({{ _("без перекриття") }})')
+                 + ` · {{ _("мін. відстань") }} ${p.min_distance_m} {{ _("м") }} (${p.cluster_method})`
+                 + ` · ${p.crs}`;
+        if (p.cluster_method !== 'greedy') {
+            note += ` · {{ _("глобальних кластерів") }}: ${d.n_clusters}`;
+        }
+        if (p.season_from && p.season_to) {
+            const mmdd = v => String(Math.floor(v / 100)).padStart(2, '0') + '-'
+                            + String(v % 100).padStart(2, '0');
+            note += ` · {{ _("сезонне вікно") }} ${mmdd(p.season_from)} … ${mmdd(p.season_to)}`
+                  + ` ({{ _("усі роки") }})`;
+        }
+        $('#cooc-threshold').text(note);
+
+        if (d.empty) {
+            $('#kpi-max, #kpi-ge2, #kpi-dets, #kpi-verified').text('0');
+            $('#kpi-verified').text(d.n_windows_verified);
+        $('#kpi-verified-sub').text('{{ _("вікон, де зараховану точку підтвердила людина") }}');
+        $('#kpi-locs').text(d.n_locations);
+            $('#kpi-max-sub, #kpi-ge2-sub, #kpi-dets-sub, #kpi-locs-sub, '
+              + '#kpi-verified-sub').text('');
+            Plotly.purge('hist-plot');
+            $('#windows-tbody').empty();
+            $('#windows-note').text('');
+            fail('{{ _("Немає детекцій за цими фільтрами.") }}');
+            drawNetworkBackground();
+            return;
+        }
+
+        $('#kpi-max').text(d.max_counted);
+        $('#kpi-max-sub').text('{{ _("щонайменше стільки особин співало водночас; до розведення") }} ' + d.max_raw);
+        $('#kpi-ge2').text(d.n_windows_ge2);
+        $('#kpi-ge2-sub').text('{{ _("з") }} ' + d.n_windows + ' {{ _("вікон з детекціями") }}');
+        $('#kpi-verified').text(d.n_windows_verified);
+        $('#kpi-verified-sub').text('{{ _("вікон, де зараховану точку підтвердила людина") }}');
+        $('#kpi-locs').text(d.n_locations);
+        $('#kpi-locs-sub').text('{{ _("точок мережі в межах фільтрів") }}');
+        $('#kpi-dets').text(d.n_detections);
+        $('#kpi-dets-sub').text('{{ _("детекцій вище порога") }}');
+
+        // Say what the list contains: a single-location window carries no
+        // simultaneity, so the table leaves those out, and it has to be
+        // obvious that this is not the whole distribution.
+        const NOTE_LISTED = '{{ _("Показано лише вікна щонайменше з %(min)s розведеними точками: %(listed)s із %(kept)s. Гістограма і плитки вище рахують усі вікна.") }}';
+        const NOTE_SINGLES = '{{ _("Жодне вікно не має %(min)s і більше розведених точок, тому показано одиночні. Спробуйте ширше вікно, нижчий поріг confidence або меншу мін. відстань.") }}';
+
+        $('#windows-note').text(d.windows_singles_only
+            ? interpolate(NOTE_SINGLES, { min: d.table_min_counted })
+            : interpolate(NOTE_LISTED, { min: d.table_min_counted,
+                                  listed: d.n_windows_listed,
+                                  kept: d.n_windows_kept }));
+
+        drawHistogram(d);
+        drawWindowsTable(d);
+        selectWindow(d.peak_window);
+    }
+
+    function drawHistogram(d) {
+        const xs = d.histogram.map(h => h.n);
+        const ys = d.histogram.map(h => h.windows);
+        const wide = ys.length && (Math.max.apply(null, ys) / Math.max(1, Math.min.apply(null, ys)) > 50);
+        Plotly.newPlot('hist-plot', [{
+            type: 'bar', x: xs, y: ys, marker: { color: '#2c7fb8' },
+            hovertemplate: '%{x} {{ _("точок") }}: %{y} {{ _("вікон") }}<extra></extra>'
+        }], {
+            margin: { l: 55, r: 15, t: 10, b: 45 },
+            xaxis: { title: '{{ _("Розведених точок у вікні") }}', dtick: 1 },
+            yaxis: { title: '{{ _("Вікон") }}', type: wide ? 'log' : 'linear' }
+        }, PLOT_CFG);
+    }
+
+    // The server already ranks the windows; a header click re-sorts the same
+    // rows client-side, so no request is repeated.
+    let sortKey = null, sortDesc = true;
+
+    function drawWindowsTable(d) {
+        const rows = d.windows.slice();
+        if (sortKey) {
+            rows.sort((a, b) => {
+                const x = a[sortKey], y = b[sortKey];
+                const cmp = (x < y) ? -1 : (x > y) ? 1 : 0;
+                return sortDesc ? -cmp : cmp;
+            });
+        }
+        const tb = $('#windows-tbody').empty();
+        rows.forEach(w => {
+            $('<tr>')
+                .attr('data-window', w.start)
+                .append($('<td>').text(w.start.replace('T', ' ').substring(0, 19)))
+                .append($('<td>').text(w.n_counted))
+                .append($('<td>').text(w.n_verified || ''))
+                .append($('<td>').text(w.n_locations_raw))
+                .append($('<td>').text(w.n_detections))
+                .appendTo(tb);
+        });
+        if (currentWindow) {
+            $('#windows-tbody tr[data-window="' + currentWindow + '"]').addClass('active');
+        }
+        $('.cooc-windows-table th').removeClass('sorted-asc sorted-desc');
+        if (sortKey) {
+            $('.cooc-windows-table th[data-sort="' + sortKey + '"]')
+                .addClass(sortDesc ? 'sorted-desc' : 'sorted-asc');
+        }
+    }
+
+    $('#windows-tbody').on('click', 'tr', function () {
+        $('input[name=map-mode][value=window]').prop('checked', true);
+        selectWindow($(this).attr('data-window'));
+    });
+
+    $('.cooc-windows-table th[data-sort]').on('click', function () {
+        const key = $(this).data('sort');
+        if (sortKey === key) sortDesc = !sortDesc;
+        else { sortKey = key; sortDesc = true; }
+        if (runData) drawWindowsTable(runData);
+    });
+
+    // ── map ───────────────────────────────────────────────────────────────
+    function ensureMap() {
+        if (map) return map;
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+        const sat = L.layerGroup([
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
+        ]);
+        map = L.map('cooc-map').setView([49.9, 23.7], 10);
+        osm.addTo(map);
+        L.control.layers({ '{{ _("OSM") }}': osm, '{{ _("Супутник") }}': sat }).addTo(map);
+        baseLayer = L.layerGroup().addTo(map);
+        drawn = L.layerGroup().addTo(map);
+        return map;
+    }
+
+    function drawNetworkBackground() {
+        ensureMap();
+        baseLayer.clearLayers();
+        if (!runData) return;
+        runData.locations.forEach(loc => {
+            L.circleMarker([loc.lat, loc.lon], {
+                radius: 3, color: '#999', weight: 1, fillColor: '#ccc',
+                fillOpacity: 0.7
+            }).bindTooltip(loc.name || ('#' + loc.id)).addTo(baseLayer);
+        });
+    }
+
+    function fitTo(layer) {
+        try {
+            const b = layer.getBounds();
+            if (b.isValid()) map.fitBounds(b.pad(0.25));
+        } catch (e) { /* empty layer */ }
+    }
+
+    function selectWindow(iso) {
+        if (!runData || !iso) return;
+        const points = runData.window_detail[iso];
+        if (!points) return;
+        currentWindow = iso;
+        $('#windows-tbody tr').removeClass('active')
+            .filter('[data-window="' + iso + '"]').addClass('active');
+        $('#map-window-label').text(iso.replace('T', ' ').substring(0, 19) + ' UTC');
+        drawWindowMap(points);
+    }
+
+    function drawWindowMap(points) {
+        ensureMap();
+        drawNetworkBackground();
+        drawn.clearLayers();
+
+        const half = runData.params.min_distance_m / 2;
+        const maxDet = Math.max.apply(null, points.map(p => p.n_detections));
+        const group = L.featureGroup();
+
+        // A point a person confirmed reads as green at a glance instead of
+        // hiding in a popup, and the shade carries HOW MANY people confirmed
+        // it: light green for one vote, darkest for the best-verified point in
+        // this result. The ramp is scaled to max_positive_votes for the whole
+        // run, not per window, so a shade means the same thing while flipping
+        // between windows.
+        // A red point is not "suppressed": it is a detection people rejected.
+        // Five stops, and neither extreme of the ColorBrewer Greens: the
+        // palest would vanish on a light basemap and the darkest reads as
+        // black. Today the whole database tops out at two positive votes per
+        // segment (two verifiers reach consensus and the segment stops being
+        // served), so the ramp usually shows two shades; it spreads over more
+        // on its own as verification deepens, with no change here.
+        const GREENS = ['#a1d99b', '#74c476', '#41ab5d', '#238b45', '#006d2c'];
+        const maxVotes = Math.max(1, runData.max_positive_votes || 1);
+
+        function greenFor(votes) {
+            if (maxVotes === 1) return GREENS[2];
+            const t = (Math.min(votes, maxVotes) - 1) / (maxVotes - 1);
+            return GREENS[Math.round(t * (GREENS.length - 1))];
+        }
+
+        const UNVERIFIED = { fill: '#2c7fb8', edge: '#08519c' };
+        const REJECTED = { fill: '#b30000', edge: '#7a0000' };
+
+        function styleFor(p) {
+            if (p.positive_votes > 0 || p.n_confirmed > 0) {
+                const votes = Math.max(p.positive_votes, p.n_confirmed ? 2 : 0);
+                // Consensus keeps a darker outline, so that fact is not lost
+                // when the vote count alone would give a pale fill.
+                return { fill: greenFor(votes),
+                         edge: p.n_confirmed ? '#00441b' : '#3f8f3f' };
+            }
+            if (p.verification_level === -1) return REJECTED;
+            return UNVERIFIED;
+        }
+
+        points.forEach(p => {
+            const lv = styleFor(p);
+            if (p.counted && half > 0) {
+                // Half the minimum spacing: the rule holds exactly when no two
+                // circles overlap, which makes the method visually checkable.
+                // Red dashed regardless of the point's verification colour --
+                // this ring is the rule being applied, not a datum, and it has
+                // to read against both the green points and the basemap.
+                L.circle([p.lat, p.lon], {
+                    radius: half, color: '#d62728', weight: 2,
+                    dashArray: '6,5', fill: false, opacity: 0.95
+                }).addTo(group);
+            }
+            const r = 6 + 8 * Math.sqrt(p.n_detections / Math.max(1, maxDet));
+            const marker = L.circleMarker([p.lat, p.lon], p.counted ? {
+                radius: r, color: lv.edge, weight: 2,
+                fillColor: lv.fill, fillOpacity: 0.85
+            } : {
+                radius: r, color: '#555', weight: 2, dashArray: '3,3',
+                fill: false, opacity: 0.9
+            });
+            let votes = '';
+            if (p.positive_votes) {
+                votes += '<br>' + interpolate(
+                    '{{ _("Позитивних голосів: %(votes)s (максимум у цьому наборі: %(max)s)") }}',
+                    { votes: p.positive_votes, max: maxVotes });
+            }
+            if (p.n_confirmed) {
+                votes += `<br>{{ _("Підтверджено консенсусом детекцій") }}: ${p.n_confirmed}`;
+            }
+            if (!p.positive_votes && !p.n_confirmed && p.n_rejected) {
+                votes += `<br>{{ _("Відхилено консенсусом детекцій") }}: ${p.n_rejected}`;
+            }
+            marker.bindPopup(
+                `<b>${p.name || ('#' + p.location_id)}</b><br>`
+                + `{{ _("Детекцій у вікні") }}: ${p.n_detections}`
+                + votes + '<br>'
+                + (p.counted ? '{{ _("Зараховано") }}'
+                             : '{{ _("Пригнічено правилом розведення") }}')
+                + actionsFor(p)
+            );
+            marker.addTo(group);
+        });
+
+        group.addTo(drawn);
+        fitTo(group);
+
+        const counted = points.filter(p => p.counted);
+        const anyVerified = counted.some(p => p.positive_votes > 0 || p.n_confirmed > 0);
+        let legend = '';
+        if (anyVerified) {
+            // A ramp, not a list of swatches: the number of votes is the thing
+            // being read off the colour.
+            const stops = maxVotes === 1
+                ? greenFor(1)
+                : GREENS.map((c, i) => `${c} ${Math.round(i * 100 / (GREENS.length - 1))}%`).join(',');
+            const bar = `<i class="cooc-gradient-green" style="background:${maxVotes === 1 ? stops : 'linear-gradient(90deg,' + stops + ')'}"></i>`;
+            legend += '<span>' + interpolate(
+                '{{ _("Голосів людей: %(min)s %(bar)s %(max)s") }}',
+                { min: 1, bar: bar, max: maxVotes }) + '</span>';
+        }
+        if (counted.some(p => p.verification_level === -1)) {
+            legend += '<span><i class="cooc-swatch-rejected"></i>{{ _("людина відхилила цю детекцію") }}</span>';
+        }
+        if (counted.some(p => p.positive_votes === 0 && !p.n_confirmed
+                              && p.verification_level !== -1)) {
+            legend += '<span><i class="cooc-swatch-counted"></i>{{ _("лише автоматична детекція") }}</span>';
+        }
+        $('#map-legend').html(
+            legend
+            + '<span><i class="cooc-swatch-suppressed"></i>{{ _("пригнічено (ближче за мін. відстань)") }}</span>'
+            + '<span><i class="cooc-swatch-network"></i>{{ _("мережа без детекцій у цьому вікні") }}</span>'
+            + (half > 0 ? '<span><i class="cooc-swatch-radius"></i>{{ _("червоне коло = половина мін. відстані: правило виконане, коли кола не перетинаються") }}</span>' : '')
+        );
+    }
+
+    // ── popup actions: from a point to the verification queue ─────────────
+    // A point is a location inside one time window, so both links narrow by
+    // (species, location, window) -- exactly the set of detections behind the
+    // point. Which link is offered depends on whether anything is left to
+    // verify there, because those are two different problems: "listen to what
+    // exists" and "there are no segments yet, cut some".
+    const CAN_VERIFY = {{ 'true' if can_verify else 'false' }};
+    const CAN_SAMPLE = {{ 'true' if can_sample else 'false' }};
+    const VERIFY_URL = '{{ url_for("pam.verification_interface", lang_code=g.lang_code) if can_verify else "" }}';
+    const SAMPLE_URL = '{{ url_for("pam.sample_upload", lang_code=g.lang_code) if can_sample else "" }}';
+
+    function windowBounds() {
+        const from = new Date(currentWindow);
+        const to = new Date(from.getTime() + runData.params.window_s * 1000);
+        return { from: from.toISOString(), to: to.toISOString() };
+    }
+
+    function actionsFor(p) {
+        if (!runData || !currentWindow) return '';
+        const b = windowBounds();
+        const speciesId = runData.species.id;
+        const label = `${runData.species.name} · ${p.name || ('#' + p.location_id)}`;
+
+        if (p.n_verifiable > 0 && CAN_VERIFY) {
+            const q = new URLSearchParams({
+                species_id: speciesId,
+                location_ids: p.location_id,
+                from_ts: b.from,
+                to_ts: b.to,
+                scope_label: label
+            });
+            return '<hr class="cooc-popup-sep">'
+                 + `<a class="btn btn-sm" target="_blank" rel="noopener" href="${VERIFY_URL}?${q}">`
+                 + interpolate('{{ _("Верифікувати (%(n)s)") }}', { n: p.n_verifiable })
+                 + '</a>';
+        }
+        if (p.n_verifiable > 0) {
+            // Segments exist but this visitor is not a verifier.
+            return '<hr class="cooc-popup-sep">'
+                 + '<span class="cooc-muted">'
+                 + interpolate('{{ _("Сегментів до верифікації: %(n)s") }}', { n: p.n_verifiable })
+                 + '</span>';
+        }
+        if (CAN_SAMPLE) {
+            const d = new Date(currentWindow);
+            const q = new URLSearchParams({
+                location_ids: p.location_id,
+                species: runData.species.name,
+                year_start: d.getUTCFullYear(), year_end: d.getUTCFullYear(),
+                month_start: d.getUTCMonth() + 1, month_end: d.getUTCMonth() + 1,
+                conf: runData.params.min_conf
+            });
+            return '<hr class="cooc-popup-sep">'
+                 + '<span class="cooc-muted">{{ _("Верифікувати нічого: сегментів немає.") }}</span><br>'
+                 + `<a class="btn btn-sm btn-secondary" target="_blank" rel="noopener" href="${SAMPLE_URL}?${q}">`
+                 + '{{ _("Підготувати сегменти") }}</a>';
+        }
+        return '<hr class="cooc-popup-sep">'
+             + '<span class="cooc-muted">{{ _("Верифікувати нічого: сегментів немає.") }}</span>';
+    }
+
+    // ── sweep ─────────────────────────────────────────────────────────────
+    // The pair network comes out of the sweep request, so the network map mode
+    // needs sweep data. Rather than leave that radio disabled until somebody
+    // guesses which button feeds it, selecting the mode runs the sweep itself.
+    function runSweep() {
+        if (!runData) return Promise.resolve(false);
+        status('{{ _("Розгортка…") }}');
+        $('#sweep-btn').prop('disabled', true);
+        return fetch(`/${LANG}/api/pam/cooccurrence/sweep`, {
+            method: 'POST',
+            headers: POST_HEADERS,
+            body: JSON.stringify(payload())
+        })
+        .then(r => r.json().then(d => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => {
+            if (!ok) { fail(d.error || '{{ _("Помилка розгортки.") }}'); return false; }
+            if (d.empty) { fail('{{ _("Немає детекцій для розгортки.") }}'); return false; }
+            sweepData = d;
+            status('');
+            renderSweep(d);
+            $('#mode-network').prop('disabled', false);
+            $('#map-mode-hint').hide();
+            return true;
+        })
+        .catch(() => { fail('{{ _("Не вдалося звʼязатися з сервером.") }}'); return false; })
+        .finally(() => $('#sweep-btn').prop('disabled', false));
+    }
+
+    $('#sweep-btn').on('click', runSweep);
+
+    function renderSweep(d) {
+        $('#sweep-section').show();
+        const widths = d.curve.map(r => r.width_s);
+        const chosen = runData.params.window_s;
+        const vline = {
+            type: 'line', x0: chosen, x1: chosen, yref: 'paper', y0: 0, y1: 1,
+            line: { color: '#888', width: 1, dash: 'dot' }
+        };
+
+        Plotly.newPlot('sweep-max-plot', [
+            { x: widths, y: d.curve.map(r => r.max_counted), name: '{{ _("розведених точок") }}',
+              mode: 'lines+markers', line: { color: '#08519c' } },
+            { x: widths, y: d.curve.map(r => r.max_raw), name: '{{ _("до розведення") }}',
+              mode: 'lines', line: { color: '#999', dash: 'dash' } }
+        ], {
+            margin: { l: 55, r: 15, t: 30, b: 45 },
+            title: { text: '{{ _("Максимум одночасних точок") }}', font: { size: 14 } },
+            xaxis: { title: '{{ _("Ширина вікна, с") }}' },
+            yaxis: { title: '{{ _("Точок") }}', dtick: 1 },
+            shapes: [vline], legend: { orientation: 'h', y: -0.25 }
+        }, PLOT_CFG);
+
+        Plotly.newPlot('sweep-episodes-plot', [
+            { x: widths, y: d.curve.map(r => r.episodes_ge2), name: '≥ 2',
+              mode: 'lines+markers', line: { color: '#2c7fb8' } },
+            { x: widths, y: d.curve.map(r => r.episodes_ge3), name: '≥ 3',
+              mode: 'lines+markers', line: { color: '#d95f0e' } }
+        ], {
+            margin: { l: 55, r: 15, t: 30, b: 45 },
+            title: { text: '{{ _("Незалежних епізодів") }}', font: { size: 14 } },
+            xaxis: { title: '{{ _("Ширина вікна, с") }}' },
+            yaxis: { title: '{{ _("Епізодів") }}' },
+            shapes: [vline], legend: { orientation: 'h', y: -0.25 }
+        }, PLOT_CFG);
+
+        // The episode count is not monotonic: a wider window merges
+        // neighbouring episodes into one.
+        let txt = `${d.n_events} {{ _("детекцій просканованих точно по всіх положеннях вікна") }}. `;
+        if (d.first_reach.length) {
+            txt += '{{ _("Нижня межа вперше досягає:") }} '
+                + d.first_reach.map(f => `${f.level} {{ _("з") }} ${f.width_s} {{ _("с") }}`).join(', ') + '. ';
+        }
+        txt += `{{ _("Пар, що співдетектують") }}: ${d.pairs.length}.`;
+        $('#sweep-summary').text(txt);
+    }
+
+    function drawNetworkMap() {
+        if (!sweepData) return;
+        ensureMap();
+        drawNetworkBackground();
+        drawn.clearLayers();
+
+        const maxW = Math.max.apply(null, sweepData.pairs.map(p => p.min_window_s).concat([1]));
+        const degree = {};
+        sweepData.pairs.forEach(p => {
+            degree[p.a] = (degree[p.a] || 0) + 1;
+            degree[p.b] = (degree[p.b] || 0) + 1;
+        });
+        const group = L.featureGroup();
+
+        // Colour and width by the smallest window at which the pair ever
+        // co-occurs, on a log-like scale: most pairs co-occur within seconds
+        // and a few need minutes.
+        sweepData.pairs.forEach(p => {
+            const t = Math.log10(1 + p.min_window_s) / Math.log10(1 + maxW);
+            const shade = ['#08306b', '#2171b5', '#4292c6', '#9ecae1', '#c6dbef'][
+                Math.min(4, Math.floor(t * 5))];
+            L.polyline([[p.lat_a, p.lon_a], [p.lat_b, p.lon_b]], {
+                color: shade, weight: 1 + 4 * (1 - t), opacity: 0.8
+            }).bindPopup(
+                `<b>${p.name_a}</b> ↔ <b>${p.name_b}</b><br>`
+                + `{{ _("Відстань") }}: ${p.distance_m} {{ _("м") }}<br>`
+                + `{{ _("Мінімальне вікно") }}: ${p.min_window_s} {{ _("с") }}`
+            ).addTo(group);
+        });
+
+        const maxDeg = Math.max.apply(null, Object.values(degree).concat([1]));
+        sweepData.locations.forEach(loc => {
+            const dg = degree[loc.id] || 0;
+            if (!dg) return;
+            L.circleMarker([loc.lat, loc.lon], {
+                radius: 4 + 8 * (dg / maxDeg), color: '#08519c', weight: 1,
+                fillColor: '#4292c6', fillOpacity: 0.9
+            }).bindPopup(`<b>${loc.name || ('#' + loc.id)}</b><br>{{ _("Партнерів") }}: ${dg}`)
+              .addTo(group);
+        });
+
+        group.addTo(drawn);
+        fitTo(group);
+        $('#map-window-label').text('');
+        $('#map-legend').html(
+            '<span>{{ _("Колір і товщина лінії — найменше вікно, за якого пара колись співпадає:") }} '
+            + '<span class="cooc-gradient"></span> '
+            + `0 … ${maxW} {{ _("с") }}</span>`
+            + '<span>{{ _("розмір вузла — кількість партнерів") }}</span>'
+            + '<span>{{ _("пари ближче за мін. відстань виключені") }}</span>'
+        );
+    }
+
+    $('input[name=map-mode]').on('change', function () {
+        // The network mode stays disabled until a sweep has run, because the
+        // pairs it draws only exist in the sweep response.
+        if (this.value === 'network') drawNetworkMap();
+        else if (currentWindow) selectWindow(currentWindow);
+    });
+
+    // ── export ────────────────────────────────────────────────────────────
+    $('#export-btn').on('click', function () {
+        const p = payload();
+        const qs = new URLSearchParams();
+        Object.keys(p).forEach(k => {
+            const v = p[k];
+            if (Array.isArray(v)) { if (v.length) qs.set(k, v.join(',')); }
+            else if (v !== null && v !== undefined && v !== '') qs.set(k, v);
+        });
+        window.location = `/${LANG}/api/pam/cooccurrence/export?` + qs.toString();
+    });
+});
+</script>
+{% endblock %}

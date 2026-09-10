@@ -44,6 +44,16 @@
                 <span class="hub-card__desc">{{ _('Міжрічна нормалізована кількість детекцій (на 24 год записів).') }}</span>
             </a>
 
+            {# Admin-only: the method is new and its output is easy to over-read
+               as an abundance estimate, so it stays out of the public hub. #}
+            {% if is_admin %}
+            <a class="hub-card" href="{{ url_for('pam.pam_cooccurrence', lang_code=g.lang_code) }}">
+                <span class="hub-card__icon">🎯</span>
+                <span class="hub-card__title">{{ _('Одночасні детекції') }}</span>
+                <span class="hub-card__desc">{{ _('Нижня межа кількості особин, що співали водночас на розведених точках.') }}</span>
+            </a>
+            {% endif %}
+
         </div>
     </section>
 

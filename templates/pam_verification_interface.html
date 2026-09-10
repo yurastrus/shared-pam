@@ -14,6 +14,9 @@
             <div class="verification-layout">
                 <!-- Left panel with segment info, filters, and stats -->
                 <div class="left-panel">
+                    {# Shown only for a deep link from the co-occurrence map,
+                       whose location/window narrowing has no control here. #}
+                    <div id="verification-scope-banner" class="pam-scope-banner" style="display:none;"></div>
                     <!-- Filters -->
                     <div class="filters-panel">
                         <div class="filters-row-flex">
@@ -233,8 +236,21 @@ $(document).ready(function() {
 
     // Build the shared filter query string (species + institutions) for the
     // next-segment and stats endpoints.
+    // A deep link from the co-occurrence map narrows the queue to one location
+    // and one time window. These are not UI controls: they come from the URL,
+    // stay fixed for the visit, and every request of the flow has to carry
+    // them, otherwise the stats and the cascade would describe a different set
+    // of segments than the one being served.
+    const DEEP = new URLSearchParams(window.location.search);
+    const DEEP_LOCATIONS = DEEP.get('location_ids') || '';
+    const DEEP_FROM = DEEP.get('from_ts') || '';
+    const DEEP_TO = DEEP.get('to_ts') || '';
+
     function filterParams() {
         const params = [];
+        if (DEEP_LOCATIONS) params.push('location_ids=' + encodeURIComponent(DEEP_LOCATIONS));
+        if (DEEP_FROM) params.push('from_ts=' + encodeURIComponent(DEEP_FROM));
+        if (DEEP_TO) params.push('to_ts=' + encodeURIComponent(DEEP_TO));
         const className = classFilter.val();
         if (className) params.push('class_name=' + encodeURIComponent(className));
         const speciesId = speciesFilter.val();
@@ -285,9 +301,38 @@ $(document).ready(function() {
     // species filter so the queue serves that species straight away. The option
     // is guaranteed present — the priorities link only appears for species with
     // segments this user can still verify.
-    const _preSpeciesId = new URLSearchParams(window.location.search).get('species_id');
+    const _preSpeciesId = DEEP.get('species_id');
     if (_preSpeciesId && speciesFilter.find('option[value="' + _preSpeciesId + '"]').length) {
         speciesFilter.val(_preSpeciesId).trigger('change.select2');
+    }
+    const _preClass = DEEP.get('class_name');
+    if (_preClass && classFilter.find('option[value="' + _preClass + '"]').length) {
+        classFilter.val(_preClass).trigger('change.select2');
+    }
+    const _preInst = (DEEP.get('institution_ids') || '').split(',').filter(Boolean);
+    if (_preInst.length) {
+        institutionFilter.val(institutionFilter.prop('multiple') ? _preInst : _preInst[0])
+                         .trigger('change.select2');
+    }
+
+    // The location/window narrowing has no control of its own, so the only way
+    // a verifier can tell why the queue is three segments long is a banner.
+    if (DEEP_LOCATIONS || DEEP_FROM || DEEP_TO) {
+        const parts = [];
+        if (DEEP.get('scope_label')) parts.push(DEEP.get('scope_label'));
+        if (DEEP_FROM && DEEP_TO) {
+            parts.push(DEEP_FROM.replace('T', ' ').substring(0, 19) + ' … '
+                       + DEEP_TO.replace('T', ' ').substring(0, 19) + ' UTC');
+        }
+        const url = new URL(window.location.href);
+        ['location_ids', 'from_ts', 'to_ts', 'scope_label'].forEach(k =>
+            url.searchParams.delete(k));
+        $('#verification-scope-banner')
+            .html('<b>{{ _("Черга звужена до одного вікна") }}</b>'
+                  + (parts.length ? ': ' + parts.join(' · ') : '')
+                  + ' <a href="' + url.pathname + url.search + '">'
+                  + '{{ _("верифікувати всі сегменти") }}</a>')
+            .show();
     }
 
     // Load the first segment and matching stats.

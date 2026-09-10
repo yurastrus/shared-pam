@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-04 09:56+0300\n"
+"POT-Creation-Date: 2026-09-10 14:21+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: uk\n"
@@ -31,7 +31,7 @@ msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:24
 #: app/pam/templates/pam_import.html:23
-#: app/pam/templates/pam_verification_interface.html:39
+#: app/pam/templates/pam_verification_interface.html:42
 msgid "Установа:"
 msgstr ""
 
@@ -324,6 +324,7 @@ msgid "Заповідні урочища"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:399
+#: app/pam/templates/pam_cooccurrence.html:551
 #: app/pam/templates/pam_import.html:372
 #: app/pam/templates/pam_overview.html:422
 #: app/pam/templates/pam_service_log.html:156
@@ -332,6 +333,7 @@ msgid "OSM"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:399
+#: app/pam/templates/pam_cooccurrence.html:551
 #: app/pam/templates/pam_import.html:372
 #: app/pam/templates/pam_overview.html:422
 #: app/pam/templates/pam_service_log.html:156
@@ -368,7 +370,7 @@ msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:691
 #: app/pam/templates/manage_pam_locations.html:821
-#: app/pam/templates/pam_sample_upload.html:331
+#: app/pam/templates/pam_sample_upload.html:335
 #: app/pam/templates/pam_species_detailed.html:182
 msgid "Помилка:"
 msgstr ""
@@ -377,10 +379,10 @@ msgstr ""
 #: app/pam/templates/pam_data_export.html:92
 #: app/pam/templates/pam_evaluation_results.html:184
 #: app/pam/templates/pam_import.html:216
-#: app/pam/templates/pam_sample_upload.html:226
+#: app/pam/templates/pam_sample_upload.html:230
 #: app/pam/templates/pam_service_log.html:242
-#: app/pam/templates/pam_verification_interface.html:122
-#: app/pam/templates/pam_verification_interface.html:173
+#: app/pam/templates/pam_verification_interface.html:125
+#: app/pam/templates/pam_verification_interface.html:176
 #: app/pam/templates/pam_verification_segments.html:107
 msgid "Завантаження..."
 msgstr ""
@@ -508,7 +510,635 @@ msgstr ""
 msgid "До розділів"
 msgstr ""
 
-#: app/pam/templates/pam_data_export.html:3 app/pam/templates/pam_home.html:109
+#: app/pam/templates/pam_cooccurrence.html:3
+#: app/pam/templates/pam_cooccurrence.html:13
+#: app/pam/templates/pam_home.html:52
+msgid "Одночасні детекції"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:16
+msgid "Що показує цей аналіз"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:17
+msgid ""
+"Акустичний моніторинг не рахує особин: реєстратор повідомляє, що вид "
+"присутній, а не скільки їх. Але якщо той самий вид виявлено на N "
+"достатньо віддалених точках усередині одного короткого часового вікна, то"
+" в цьому вікні співало щонайменше N особин — за умови, що точки розведені"
+" далі, ніж чути одну голосну особину."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:18
+msgid ""
+"Результат — це нижня межа, а не оцінка чисельності. Про особин, які "
+"мовчали, він не говорить нічого. Дві головні пастки: близькі реєстратори "
+"(одна голосна особина, почута двома точками, виглядає як дві) і помилки "
+"класифікатора (хибна детекція на двох далеких точках у ту саму хвилину "
+"вигадує «одночасну пару»). Перше контролює мінімальна відстань, друге — "
+"поріг confidence."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:19
+msgid ""
+"Важливіший не найчастіший стовпчик гістограми, а її хвіст: наскільки "
+"далеко праворуч вона дотягується. Порівнювати між видами, сезонами чи "
+"установами можна лише за однакових ширини вікна, мінімальної відстані та "
+"порога confidence."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:25
+#: app/pam/templates/pam_verification_segments.html:21
+#: app/pam/templates/pam_verifiers.html:21
+msgid "Вид:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:35
+msgid "Період:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:47
+msgid "Дані:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:53
+msgid "Екорегіон:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:63
+msgid ""
+"Розгортається в установи цього регіону; разом з полем нижче працює як "
+"об’єднання."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:71
+#: app/pam/templates/pam_sample_upload.html:57
+msgid "Січень"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:71
+#: app/pam/templates/pam_sample_upload.html:57
+msgid "Лютий"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:71
+#: app/pam/templates/pam_sample_upload.html:57
+msgid "Березень"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:71
+#: app/pam/templates/pam_sample_upload.html:57
+msgid "Квітень"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:72
+#: app/pam/templates/pam_sample_upload.html:58
+msgid "Травень"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:72
+#: app/pam/templates/pam_sample_upload.html:58
+msgid "Червень"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:72
+#: app/pam/templates/pam_sample_upload.html:58
+msgid "Липень"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:72
+#: app/pam/templates/pam_sample_upload.html:58
+msgid "Серпень"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:73
+#: app/pam/templates/pam_sample_upload.html:59
+msgid "Вересень"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:73
+#: app/pam/templates/pam_sample_upload.html:59
+msgid "Жовтень"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:73
+#: app/pam/templates/pam_sample_upload.html:59
+msgid "Листопад"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:73
+#: app/pam/templates/pam_sample_upload.html:59
+msgid "Грудень"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:75
+msgid "Сезонне вікно (декади):"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:78
+#: app/pam/templates/pam_cooccurrence.html:84
+msgid "— без обмеження —"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:80
+#: app/pam/templates/pam_cooccurrence.html:86
+msgid "декада"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:90
+msgid ""
+"Звужує вибраний вище період: беруться ті самі календарні дні з кожного "
+"року цього періоду. Фільтр дат при цьому діє повністю."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:91
+#: app/pam/templates/pam_verification_segments.html:52
+#: app/pam/templates/pam_verifiers.html:40
+msgid "Скинути"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:95
+#: app/pam/templates/pam_overview.html:43
+#: app/pam/templates/pam_species_dashboard.html:45
+#: app/pam/templates/pam_species_detailed.html:37
+msgid "Установа/проект:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:99
+#: app/pam/templates/pam_overview.html:47
+#: app/pam/templates/pam_species_detailed.html:41
+#: app/pam/templates/pam_yearly_table.html:55
+msgid "Біотопи:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:103
+#: app/pam/templates/pam_overview.html:51
+#: app/pam/templates/pam_species_detailed.html:45
+#: app/pam/templates/pam_yearly_table.html:59
+msgid "Локації:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:109
+msgid "Модель (колонка confidence):"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:119
+msgid "Поріг confidence:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:122
+msgid "Сирий confidence вибраної моделі, без калібрування."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:126
+msgid "Ширина вікна, с:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:130
+msgid "Від"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:130
+msgid "до"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:130
+msgid "с, тобто до однієї години."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:134
+msgid "Крок вікна:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:136
+msgid "= ширині (без перекриття)"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:137
+msgid "½ ширини"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:138
+msgid "⅓ ширини"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:139
+msgid "¼ ширини"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:141
+msgid "Менший крок дає перекривні вікна і один прохід по базі на кожне зсунення."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:145
+msgid "Мін. відстань між точками, м:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:148
+msgid "0 — рахувати кожну локацію окремо."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:152
+msgid "Метод розведення:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:154
+msgid "greedy — усередині кожного вікна"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:155
+msgid "complete — глобальні кластери з обмеженим діаметром"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:156
+msgid "single — лише для порівняння (зчіплюється)"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:161
+msgid "Розрахувати"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:163
+#: app/pam/templates/pam_cooccurrence.html:167
+msgid "Спочатку зробіть основний розрахунок"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:164
+#: app/pam/templates/pam_cooccurrence.html:245
+msgid "Розгортка за шириною вікна"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:168
+msgid "Експорт CSV"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:181
+msgid "Максимум одночасних"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:186
+msgid "Вікон з ≥2 точками"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:191
+msgid "Вікон з верифікацією"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:196
+msgid "Локацій у фільтрі"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:201
+msgid "Використано детекцій"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:209
+msgid "Розподіл"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:211
+msgid "Топ вікон"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:217
+msgid "Вікно (UTC)"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:218
+#: app/pam/templates/pam_cooccurrence.html:670
+msgid "Зараховано"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:219
+msgid "Верифік."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:220
+#: app/pam/templates/pam_cooccurrence.html:818
+msgid "Точок"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:221
+#: app/pam/templates/pam_overview.html:379
+#: app/pam/templates/pam_verification_priorities.html:30
+msgid "Детекцій"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:230
+msgid "Карта"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:232
+msgid "Вікно"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:233
+msgid ""
+"Кожна пара точок, що колись співпадали, лінією; колір — найменше вікно "
+"співпадіння."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:233
+msgid "Мережа співдетекцій"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:237
+msgid ""
+"«Мережа співдетекцій» стає доступною після натискання «Розгортка за "
+"шириною вікна»: пари точок існують лише у відповіді розгортки. Кожен "
+"новий розрахунок вимикає її знову."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:252
+msgid "Діапазон розгортки, с:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:256
+#: app/pam/templates/pam_cooccurrence.html:424
+msgid "крок"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:263
+msgid "Список видів недоступний."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:290
+msgid "Виберіть вид"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:291
+#: app/pam/templates/pam_cooccurrence.html:292
+#: app/pam/templates/pam_cooccurrence.html:293
+#: app/pam/templates/pam_cooccurrence.html:294
+msgid "Усі"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:391
+msgid "Виберіть вид."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:392
+msgid "Задайте період."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:394
+msgid "Розрахунок…"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:403
+msgid "Помилка розрахунку."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:414
+#: app/pam/templates/pam_cooccurrence.html:794
+msgid "Не вдалося звʼязатися з сервером."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:423
+msgid "вікно"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:423
+#: app/pam/templates/pam_cooccurrence.html:424
+#: app/pam/templates/pam_cooccurrence.html:840
+#: app/pam/templates/pam_cooccurrence.html:872
+#: app/pam/templates/pam_cooccurrence.html:893
+msgid "с"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:424
+msgid "проходи по базі"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:424
+msgid "без перекриття"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:425
+msgid "мін. відстань"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:425
+#: app/pam/templates/pam_cooccurrence.html:871
+msgid "м"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:428
+msgid "глобальних кластерів"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:433
+msgid "сезонне вікно"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:434
+msgid "усі роки"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:441
+#: app/pam/templates/pam_cooccurrence.html:458
+msgid "вікон, де зараховану точку підтвердила людина"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:448
+msgid "Немає детекцій за цими фільтрами."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:454
+msgid "щонайменше стільки особин співало водночас; до розведення"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:456
+#: app/pam/templates/pam_cooccurrence.html:840
+#: app/pam/templates/pam_evaluation_results.html:405
+#: app/pam/templates/pam_import.html:657
+msgid "з"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:456
+msgid "вікон з детекціями"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:460
+msgid "точок мережі в межах фільтрів"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:462
+msgid "детекцій вище порога"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:467
+#, python-format
+msgid ""
+"Показано лише вікна щонайменше з %(min)s розведеними точками: %(listed)s "
+"із %(kept)s. Гістограма і плитки вище рахують усі вікна."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:468
+#, python-format
+msgid ""
+"Жодне вікно не має %(min)s і більше розведених точок, тому показано "
+"одиночні. Спробуйте ширше вікно, нижчий поріг confidence або меншу мін. "
+"відстань."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:487
+msgid "точок"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:487
+msgid "вікон"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:490
+msgid "Розведених точок у вікні"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:491
+msgid "Вікон"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:657
+#, python-format
+msgid "Позитивних голосів: %(votes)s (максимум у цьому наборі: %(max)s)"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:661
+msgid "Підтверджено консенсусом детекцій"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:664
+msgid "Відхилено консенсусом детекцій"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:668
+msgid "Детекцій у вікні"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:671
+msgid "Пригнічено правилом розведення"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:691
+#, python-format
+msgid "Голосів людей: %(min)s %(bar)s %(max)s"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:695
+msgid "людина відхилила цю детекцію"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:699
+msgid "лише автоматична детекція"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:703
+msgid "пригнічено (ближче за мін. відстань)"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:704
+msgid "мережа без детекцій у цьому вікні"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:705
+msgid ""
+"червоне коло = половина мін. відстані: правило виконане, коли кола не "
+"перетинаються"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:742
+#, python-format
+msgid "Верифікувати (%(n)s)"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:749
+#, python-format
+msgid "Сегментів до верифікації: %(n)s"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:762
+#: app/pam/templates/pam_cooccurrence.html:767
+msgid "Верифікувати нічого: сегментів немає."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:764
+msgid "Підготувати сегменти"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:776
+msgid "Розгортка…"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:785
+msgid "Помилка розгортки."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:786
+msgid "Немає детекцій для розгортки."
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:810
+msgid "розведених точок"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:812
+msgid "до розведення"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:816
+msgid "Максимум одночасних точок"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:817
+#: app/pam/templates/pam_cooccurrence.html:830
+msgid "Ширина вікна, с"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:829
+msgid "Незалежних епізодів"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:831
+msgid "Епізодів"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:837
+msgid "детекцій просканованих точно по всіх положеннях вікна"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:839
+msgid "Нижня межа вперше досягає:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:842
+msgid "Пар, що співдетектують"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:871
+msgid "Відстань"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:872
+msgid "Мінімальне вікно"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:883
+msgid "Партнерів"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:891
+msgid "Колір і товщина лінії — найменше вікно, за якого пара колись співпадає:"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:894
+msgid "розмір вузла — кількість партнерів"
+msgstr ""
+
+#: app/pam/templates/pam_cooccurrence.html:895
+msgid "пари ближче за мін. відстань виключені"
+msgstr ""
+
+#: app/pam/templates/pam_data_export.html:3 app/pam/templates/pam_home.html:119
 msgid "Експорт даних"
 msgstr ""
 
@@ -744,7 +1374,7 @@ msgstr ""
 #: app/pam/templates/pam_evaluation_results.html:53
 #: app/pam/templates/pam_evaluation_results.html:220
 #: app/pam/templates/pam_overview.html:452
-#: app/pam/templates/pam_sample_upload.html:43
+#: app/pam/templates/pam_sample_upload.html:47
 #: app/pam/templates/pam_verification_priorities.html:28
 #: app/pam/templates/pam_verification_segments.html:269
 #: app/pam/templates/pam_yearly_table.html:186
@@ -840,7 +1470,7 @@ msgid "Модель:"
 msgstr ""
 
 #: app/pam/templates/pam_evaluation_results.html:149
-#: app/pam/templates/pam_sample_upload.html:65
+#: app/pam/templates/pam_sample_upload.html:69
 msgid "еталон"
 msgstr ""
 
@@ -917,11 +1547,6 @@ msgstr ""
 
 #: app/pam/templates/pam_evaluation_results.html:405
 msgid "Сторінка"
-msgstr ""
-
-#: app/pam/templates/pam_evaluation_results.html:405
-#: app/pam/templates/pam_import.html:657
-msgid "з"
 msgstr ""
 
 #: app/pam/templates/pam_evaluation_results.html:406
@@ -1044,96 +1669,100 @@ msgstr ""
 msgid "Міжрічна нормалізована кількість детекцій (на 24 год записів)."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:52
+#: app/pam/templates/pam_home.html:53
+msgid "Нижня межа кількості особин, що співали водночас на розведених точках."
+msgstr ""
+
+#: app/pam/templates/pam_home.html:62
 msgid "Верифікація"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:58
+#: app/pam/templates/pam_home.html:68
 msgid "Верифікація сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:59
+#: app/pam/templates/pam_home.html:69
 msgid "Прослуховування та верифікація аудіосегментів для оцінки точності BirdNET."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:64
+#: app/pam/templates/pam_home.html:74
 msgid "Перегляд сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:65
+#: app/pam/templates/pam_home.html:75
 msgid "Список завантажених сегментів з фільтрацією по видах і статусу."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:71
+#: app/pam/templates/pam_home.html:81
 msgid "Оцінка точності"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:72
+#: app/pam/templates/pam_home.html:82
 msgid ""
 "Метрики precision, recall, F1 для різних видів на основі верифікованих "
 "даних."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:81
+#: app/pam/templates/pam_home.html:91
 msgid "Управління"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:87
+#: app/pam/templates/pam_home.html:97
 #: app/pam/templates/pam_verification_priorities.html:3
 msgid "Пріоритети верифікації"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:88
+#: app/pam/templates/pam_home.html:98
 msgid ""
 "Таблиця видів із кількістю сегментів, детекцій і верифікацій — щоб "
 "бачити, які види варто верифікувати першими."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:95
+#: app/pam/templates/pam_home.html:105
 #: app/pam/templates/pam_sample_upload.html:3
 #: app/pam/templates/pam_sample_upload.html:15
 msgid "Автоматична підготовка сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:96
+#: app/pam/templates/pam_home.html:106
 msgid ""
 "Стратифікована вибірка детекцій + нарізка сегментів із локальних записів "
 "на боці браузера."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:101
+#: app/pam/templates/pam_home.html:111
 msgid "Адміністрування"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:102
+#: app/pam/templates/pam_home.html:112
 msgid "Сервісні дії: автопризначення біотопів точкам за лендковером та інше."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:110
+#: app/pam/templates/pam_home.html:120
 msgid "Експорт даних PAM моніторингу у CSV таблиці."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:117
+#: app/pam/templates/pam_home.html:127
 msgid "Імпорт даних"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:118
+#: app/pam/templates/pam_home.html:128
 msgid "Завантаження CSV-файлів від BirdNET та інших класифікаторів."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:123
+#: app/pam/templates/pam_home.html:133
 msgid "Завантаження сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:124
+#: app/pam/templates/pam_home.html:134
 msgid "Завантаження ZIP-архівів з аудіосегментами для верифікації."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:129
+#: app/pam/templates/pam_home.html:139
 msgid "Управління локаціями"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:130
+#: app/pam/templates/pam_home.html:140
 msgid "Редагування назв та біотопів точок акустичного моніторингу."
 msgstr ""
 
@@ -1430,24 +2059,6 @@ msgstr ""
 msgid "Діапазон дат:"
 msgstr ""
 
-#: app/pam/templates/pam_overview.html:43
-#: app/pam/templates/pam_species_dashboard.html:45
-#: app/pam/templates/pam_species_detailed.html:37
-msgid "Установа/проект:"
-msgstr ""
-
-#: app/pam/templates/pam_overview.html:47
-#: app/pam/templates/pam_species_detailed.html:41
-#: app/pam/templates/pam_yearly_table.html:55
-msgid "Біотопи:"
-msgstr ""
-
-#: app/pam/templates/pam_overview.html:51
-#: app/pam/templates/pam_species_detailed.html:45
-#: app/pam/templates/pam_yearly_table.html:59
-msgid "Локації:"
-msgstr ""
-
 #: app/pam/templates/pam_overview.html:62
 #: app/pam/templates/pam_species_detailed.html:56
 msgid "калібрований"
@@ -1562,11 +2173,6 @@ msgstr ""
 msgid "-- Всі локації --"
 msgstr ""
 
-#: app/pam/templates/pam_overview.html:379
-#: app/pam/templates/pam_verification_priorities.html:30
-msgid "Детекцій"
-msgstr ""
-
 #: app/pam/templates/pam_overview.html:380
 msgid "Видів"
 msgstr ""
@@ -1593,7 +2199,7 @@ msgid "Детекцій:"
 msgstr ""
 
 #: app/pam/templates/pam_overview.html:431
-#: app/pam/templates/pam_sample_upload.html:264
+#: app/pam/templates/pam_sample_upload.html:268
 msgid "Видів:"
 msgstr ""
 
@@ -1629,138 +2235,90 @@ msgid ""
 " верифікації. Уже завантажені раніше детекції автоматично пропускаються."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:23
+#: app/pam/templates/pam_sample_upload.html:27
 msgid "Установа та локації"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:26
+#: app/pam/templates/pam_sample_upload.html:30
 msgid "Установа"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:28
+#: app/pam/templates/pam_sample_upload.html:32
 msgid "Усі доступні"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:35
+#: app/pam/templates/pam_sample_upload.html:39
 msgid "Локації"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:35
+#: app/pam/templates/pam_sample_upload.html:39
 msgid "можна кілька"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:45
+#: app/pam/templates/pam_sample_upload.html:49
 msgid "Пошук виду..."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:47
-#: app/pam/templates/pam_sample_upload.html:229
+#: app/pam/templates/pam_sample_upload.html:51
+#: app/pam/templates/pam_sample_upload.html:233
 msgid "— Спершу виберіть локації —"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:53
-msgid "Січень"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:53
-msgid "Лютий"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:53
-msgid "Березень"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:53
-msgid "Квітень"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:54
-msgid "Травень"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:54
-msgid "Червень"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:54
-msgid "Липень"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:54
-msgid "Серпень"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:55
-msgid "Вересень"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:55
-msgid "Жовтень"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:55
-msgid "Листопад"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:55
-msgid "Грудень"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:57
+#: app/pam/templates/pam_sample_upload.html:61
 msgid "Параметри вибірки та нарізки"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:61
+#: app/pam/templates/pam_sample_upload.html:65
 msgid "Модель класифікатора"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:69
+#: app/pam/templates/pam_sample_upload.html:73
 msgid ""
 "Вибірка стратифікується за конфіденсом обраної моделі; сегменти "
 "позначаються нею."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:77
+#: app/pam/templates/pam_sample_upload.html:81
 msgid "Довжина сегмента (с)"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:85
+#: app/pam/templates/pam_sample_upload.html:89
 msgid "Зсув старту (с)"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:89
+#: app/pam/templates/pam_sample_upload.html:93
 msgid "Мін. конфіденс"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:93
+#: app/pam/templates/pam_sample_upload.html:97
 msgid "Макс. конфіденс"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:97
+#: app/pam/templates/pam_sample_upload.html:101
 msgid "К-сть страт"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:103
+#: app/pam/templates/pam_sample_upload.html:107
 msgid "Розмір вибірки"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:107
+#: app/pam/templates/pam_sample_upload.html:111
 msgid "Місяць від"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:115
+#: app/pam/templates/pam_sample_upload.html:119
 msgid "Місяць до"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:123
+#: app/pam/templates/pam_sample_upload.html:127
 msgid "Рік від"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:131
+#: app/pam/templates/pam_sample_upload.html:135
 msgid "Рік до"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:140
+#: app/pam/templates/pam_sample_upload.html:144
 msgid ""
 "Місяці не залежать від року. Період «лютий, квітень» дає всі записи за "
 "лютий, березень і квітень кожного з вибраних років. Якщо місяць «від» "
@@ -1768,90 +2326,100 @@ msgid ""
 "новий рік як один сезон."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:143
+#: app/pam/templates/pam_sample_upload.html:147
 msgid "Сформувати вибірку"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:150
+#: app/pam/templates/pam_sample_upload.html:154
 msgid "Локальна папка із записами"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:157
+#: app/pam/templates/pam_sample_upload.html:161
 msgid "Нарізати та завантажити"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:158
+#: app/pam/templates/pam_sample_upload.html:162
 msgid "Старт"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:163
+#: app/pam/templates/pam_sample_upload.html:167
 msgid "Знайдено файлів:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:164
-#: app/pam/templates/pam_sample_upload.html:546
+#: app/pam/templates/pam_sample_upload.html:168
+#: app/pam/templates/pam_sample_upload.html:550
 msgid "Завантажено:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:165
+#: app/pam/templates/pam_sample_upload.html:169
 msgid "Дублікати:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:166
+#: app/pam/templates/pam_sample_upload.html:170
 msgid "Пропущено (нема файлу):"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:167
+#: app/pam/templates/pam_sample_upload.html:171
 msgid "Помилки:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:242
+#: app/pam/templates/pam_sample_upload.html:246
 msgid "Помилка завантаження видів"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:255
+#: app/pam/templates/pam_sample_upload.html:259
 msgid "— Виберіть вид —"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:285
+#: app/pam/templates/pam_sample_upload.html:289
 msgid "Макс. конфіденс менший за мін. конфіденс."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:290
+#: app/pam/templates/pam_sample_upload.html:294
 msgid "Рік «від» пізніший за рік «до»."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:302
+#: app/pam/templates/pam_sample_upload.html:306
 msgid "Формування вибірки..."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:327
-#: app/pam/templates/pam_sample_upload.html:328
+#: app/pam/templates/pam_sample_upload.html:331
+#: app/pam/templates/pam_sample_upload.html:332
 msgid "Відібрано детекцій:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:349
+#: app/pam/templates/pam_sample_upload.html:353
 msgid "Аудіофайлів у папці:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:532
+#: app/pam/templates/pam_sample_upload.html:536
 msgid "Старт нарізки та завантаження..."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:545
+#: app/pam/templates/pam_sample_upload.html:549
 msgid "Готово."
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:547
+#: app/pam/templates/pam_sample_upload.html:551
 msgid "дублікати:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:548
+#: app/pam/templates/pam_sample_upload.html:552
 msgid "без файлу:"
 msgstr ""
 
-#: app/pam/templates/pam_sample_upload.html:549
+#: app/pam/templates/pam_sample_upload.html:553
 msgid "помилки:"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:608
+msgid "Вид не має детекцій на цій локації в цьому діапазоні:"
+msgstr ""
+
+#: app/pam/templates/pam_sample_upload.html:613
+msgid ""
+"Параметри підставлено з карти одночасних детекцій. Перевірте діапазони й "
+"натисніть «Підготувати вибірку»."
 msgstr ""
 
 #: app/pam/templates/pam_service_log.html:3
@@ -2098,7 +2666,7 @@ msgid "Аналіз даних акустичного моніторингу ф�
 msgstr ""
 
 #: app/pam/templates/pam_species_detailed.html:79
-#: app/pam/templates/pam_verification_interface.html:49
+#: app/pam/templates/pam_verification_interface.html:52
 #: app/pam/templates/pam_verification_segments.html:49
 #: app/pam/templates/pam_verifiers.html:39
 msgid "Застосувати"
@@ -2306,147 +2874,155 @@ msgstr ""
 msgid "Верифікація аудіосегментів"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:21
+#: app/pam/templates/pam_verification_interface.html:24
 msgid "Таксономічний клас:"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:23
-#: app/pam/templates/pam_verification_interface.html:216
-#: app/pam/templates/pam_verification_interface.html:273
+#: app/pam/templates/pam_verification_interface.html:26
+#: app/pam/templates/pam_verification_interface.html:219
+#: app/pam/templates/pam_verification_interface.html:289
 msgid "-- Усі класи --"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:30
+#: app/pam/templates/pam_verification_interface.html:33
 msgid "Вид для верифікації аудіосегментів BirdNET:"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:32
-#: app/pam/templates/pam_verification_interface.html:223
-#: app/pam/templates/pam_verification_interface.html:274
+#: app/pam/templates/pam_verification_interface.html:35
+#: app/pam/templates/pam_verification_interface.html:226
+#: app/pam/templates/pam_verification_interface.html:290
 msgid "-- Всі види --"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:41
-#: app/pam/templates/pam_verification_interface.html:229
-#: app/pam/templates/pam_verification_interface.html:275
+#: app/pam/templates/pam_verification_interface.html:44
+#: app/pam/templates/pam_verification_interface.html:232
+#: app/pam/templates/pam_verification_interface.html:291
 msgid "-- Усі установи --"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:57
+#: app/pam/templates/pam_verification_interface.html:60
 msgid "Моя статистика"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:60
+#: app/pam/templates/pam_verification_interface.html:63
 msgid "Всього"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:64
+#: app/pam/templates/pam_verification_interface.html:67
 msgid "Залишилось"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:69
+#: app/pam/templates/pam_verification_interface.html:72
 msgid "Позитивних"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:73
+#: app/pam/templates/pam_verification_interface.html:76
 msgid "Негативних"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:78
+#: app/pam/templates/pam_verification_interface.html:81
 msgid "Пропущених"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:90
+#: app/pam/templates/pam_verification_interface.html:93
 msgid "Локація:"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:94
+#: app/pam/templates/pam_verification_interface.html:97
 msgid "Дата запису:"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:98
+#: app/pam/templates/pam_verification_interface.html:101
 msgid "Час запису:"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:110
+#: app/pam/templates/pam_verification_interface.html:113
 msgid "Сонограма аудіосегменту"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:112
+#: app/pam/templates/pam_verification_interface.html:115
 msgid "Позиція відтворення"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:132
+#: app/pam/templates/pam_verification_interface.html:135
 msgid "Ваш браузер не підтримує аудіо плеєр."
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:135
+#: app/pam/templates/pam_verification_interface.html:138
 msgid "Аудіо грає по колу; після вашого вибору наступне вмикається автоматично"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:137
+#: app/pam/templates/pam_verification_interface.html:140
 msgid "Цикл (автоповтор)"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:145
+#: app/pam/templates/pam_verification_interface.html:148
 msgid "ТАК - правильно"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:148
+#: app/pam/templates/pam_verification_interface.html:151
 msgid "НІ - неправильно"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:151
+#: app/pam/templates/pam_verification_interface.html:154
 msgid "Пропустити"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:154
+#: app/pam/templates/pam_verification_interface.html:157
 msgid "Не знаю"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:166
+#: app/pam/templates/pam_verification_interface.html:169
 msgid "Сегменти для верифікації відсутні"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:167
+#: app/pam/templates/pam_verification_interface.html:170
 msgid ""
 "Немає сегментів для верифікації за вибраними критеріями, або ви вже "
 "верифікували всі доступні сегменти."
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:545
+#: app/pam/templates/pam_verification_interface.html:331
+msgid "Черга звужена до одного вікна"
+msgstr ""
+
+#: app/pam/templates/pam_verification_interface.html:334
+msgid "верифікувати всі сегменти"
+msgstr ""
+
+#: app/pam/templates/pam_verification_interface.html:590
 msgid "Помилка завантаження сегменту"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:599
+#: app/pam/templates/pam_verification_interface.html:644
 msgid "Немає активного сегменту для верифікації"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:618
+#: app/pam/templates/pam_verification_interface.html:663
 msgid "Верифікацію збережено! (Підтверджено)"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:619
+#: app/pam/templates/pam_verification_interface.html:664
 msgid "Верифікацію збережено! (Відхилено)"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:620
+#: app/pam/templates/pam_verification_interface.html:665
 msgid "Позначено «не знаю» — більше не показуватиметься вам"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:621
+#: app/pam/templates/pam_verification_interface.html:666
 msgid "Сегмент пропущено"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:625
+#: app/pam/templates/pam_verification_interface.html:670
 msgid "Сегмент відхилено (3+ «не знаю») і більше не показуватиметься"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:632
+#: app/pam/templates/pam_verification_interface.html:677
 msgid "Помилка збереження"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:633
+#: app/pam/templates/pam_verification_interface.html:678
 msgid "Помилка: "
 msgstr ""
 
@@ -2528,11 +3104,6 @@ msgid ""
 "статус верифікації"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:21
-#: app/pam/templates/pam_verifiers.html:21
-msgid "Вид:"
-msgstr ""
-
 #: app/pam/templates/pam_verification_segments.html:23
 #: app/pam/templates/pam_verification_segments.html:148
 #: app/pam/templates/pam_verifiers.html:23
@@ -2574,11 +3145,6 @@ msgstr ""
 
 #: app/pam/templates/pam_verification_segments.html:39
 msgid "На сторінці:"
-msgstr ""
-
-#: app/pam/templates/pam_verification_segments.html:52
-#: app/pam/templates/pam_verifiers.html:40
-msgid "Скинути"
 msgstr ""
 
 #: app/pam/templates/pam_verification_segments.html:60
@@ -2952,5 +3518,100 @@ msgstr ""
 #~ msgstr ""
 
 #~ msgid "Підтверджено"
+#~ msgstr ""
+
+#~ msgid "Ширина вікна:"
+#~ msgstr ""
+
+#~ msgid "хв"
+#~ msgstr ""
+
+#~ msgid "зараховано"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Результат — це нижня межа, а не"
+#~ " оцінка чисельності. Про особин, які "
+#~ "мовчали, він не говорить нічого. Дві "
+#~ "головні пастки: близькі реєстратори (одна "
+#~ "голосна особина, почута двома точками, "
+#~ "виглядає як дві) і помилки класифікатора"
+#~ " (хибна детекція на двох далеких "
+#~ "точках у ту саму хвилину вигадує "
+#~ "«одночасну пару»). Перше контролює мінімальна"
+#~ " відстань, друге — поріг score."
+#~ msgstr ""
+
+#~ msgid "Сезонне вікно:"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Рік ігнорується: беруться ті самі "
+#~ "календарні дні з усіх років періоду. "
+#~ "Порожньо — без сезонного обмеження."
+#~ msgstr ""
+
+#~ msgid "Модель (колонка score):"
+#~ msgstr ""
+
+#~ msgid "Поріг score:"
+#~ msgstr ""
+
+#~ msgid "Сирий score вибраної моделі, без калібрування."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Важливіший не найчастіший стовпчик гістограми,"
+#~ " а її хвіст: наскільки далеко "
+#~ "праворуч вона дотягується. Порівнювати між "
+#~ "видами, сезонами чи установами можна "
+#~ "лише за однакових ширини вікна, "
+#~ "мінімальної відстані та порога score."
+#~ msgstr ""
+
+#~ msgid "Жодне вікно не має"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "+ розведених точок, тому показано "
+#~ "одиночні. Спробуйте ширше вікно, менший "
+#~ "поріг confidence або меншу мін. "
+#~ "відстань."
+#~ msgstr ""
+
+#~ msgid "Показано лише вікна з"
+#~ msgstr ""
+
+#~ msgid "+ розведеними точками:"
+#~ msgstr ""
+
+#~ msgid "Гістограма і плитки вище рахують усі вікна."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Кожна пара точок, що колись співпадали,"
+#~ " лінією; колір — найменше вікно "
+#~ "співпадіння. Потребує розгортки за шириною "
+#~ "вікна, яка запуститься сама."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "коло = половина мін. відстані: правило"
+#~ " виконане, коли кола не перетинаються"
+#~ msgstr ""
+
+#~ msgid "підтверджено консенсусом або двома голосами"
+#~ msgstr ""
+
+#~ msgid "один позитивний голос людини"
+#~ msgstr ""
+
+#~ msgid "Позитивних голосів"
+#~ msgstr ""
+
+#~ msgid "максимальних у цьому наборі"
+#~ msgstr ""
+
+#~ msgid "голосів людей:"
 #~ msgstr ""
 

@@ -18,6 +18,10 @@
         {{ _('Сервер формує стратифіковану за конфіденсом вибірку детекцій, а браузер вирізає відповідні сегменти з ваших локальних записів і завантажує їх для верифікації. Уже завантажені раніше детекції автоматично пропускаються.') }}
     </p>
 
+    {# Filled in by applyPrefill() when the page was opened from the
+       co-occurrence map with parameters in the query string. #}
+    <div id="su-prefill-banner" class="pam-scope-banner" style="display:none;"></div>
+
     <!-- STEP 1: institution + locations -->
     <div class="su-card">
         <div class="su-title"><span class="su-step-num">1</span>{{ _('Установа та локації') }}</div>
@@ -562,7 +566,57 @@
     $('su-folder').addEventListener('change', onFolderPicked);
     $('su-run').addEventListener('click', runPipeline);
 
+    // ── prefill from a deep link ────────────────────────────────────────────
+    // The co-occurrence map sends people here when a point has nothing left to
+    // verify: ?location_ids=&species=&year_start=&year_end=&month_start=&month_end=
+    // The chain is institution -> locations -> species (the species list is
+    // server-side per location), so each step has to wait for the previous one;
+    // hence the await rather than setting five fields in a row.
+    async function applyPrefill() {
+        const q = new URLSearchParams(window.location.search);
+        const wanted = (q.get('location_ids') || '').split(',')
+                        .map(v => parseInt(v, 10)).filter(v => !isNaN(v));
+        ['year_start', 'year_end', 'month_start', 'month_end', 'conf'].forEach(k => {
+            const v = q.get(k);
+            const el = $('su-' + k.replace('_', '-'));
+            if (v && el) el.value = v;
+        });
+        if (!wanted.length) return;
+
+        // The institution select drives which locations are listed, so pick the
+        // institution of the requested location first.
+        const loc = LOCATIONS.find(l => wanted.includes(l.location_id));
+        if (loc && (loc.inst_ids || []).length) {
+            $('su-institution').value = String(loc.inst_ids[0]);
+        }
+        renderLocations();
+        Array.from($('su-locations').options).forEach(o => {
+            o.selected = wanted.includes(parseInt(o.value, 10));
+        });
+        await onLocationsChanged();
+
+        const species = q.get('species');
+        if (species) {
+            $('su-species-search').value = species;
+            renderSpecies();
+            const opt = Array.from($('su-species').options)
+                             .find(o => o.value === species);
+            if (opt) {
+                $('su-species').value = species;
+                $('su-prepare').disabled = false;
+            } else {
+                log("{{ _('Вид не має детекцій на цій локації в цьому діапазоні:') }} " + species);
+            }
+        }
+        const banner = $('su-prefill-banner');
+        if (banner) {
+            banner.textContent = "{{ _('Параметри підставлено з карти одночасних детекцій. Перевірте діапазони й натисніть «Підготувати вибірку».') }}";
+            banner.style.display = '';
+        }
+    }
+
     renderLocations();
+    applyPrefill();
 })();
 </script>
 {% endblock %}

@@ -3235,3 +3235,91 @@ select.select2-hidden-accessible { width: 1px !important; }
 .verifiers-table th.sorted-desc::after { content: " \25BC"; }
 .verifiers-table tbody tr:hover { background: #f6f8fa; }
 .verifiers-table .col-total { font-weight: 600; color: #0779e4; }
+
+/* ── Co-occurrence page (pam_cooccurrence.html): simultaneous detections ──── */
+.cooc-note { background: var(--bg-secondary); border: 1px solid #e9ecef;
+             border-radius: 6px; padding: 12px 16px; margin-bottom: 18px; }
+.cooc-note summary { cursor: pointer; font-weight: 600; }
+/* Глобальний style.css дає `main p { max-width: 700px }`, через що пояснення
+   лишалось вузькою колонкою біля лівого краю плашки. */
+.cooc-note p { margin: 10px 0 0; font-size: 0.92em; line-height: 1.5;
+               max-width: 100%; }
+.cooc-threshold { font-size: 0.9em; color: #555; margin-bottom: 15px;
+                  padding: 8px 12px; background: #f8f9fa;
+                  border-left: 3px solid var(--color-primary); }
+.cooc-kpi-grid { grid-template-columns: repeat(5, 1fr); }
+.cooc-map-modes { display: flex; gap: 16px; align-items: center;
+                  flex-wrap: wrap; margin-bottom: 10px; font-size: 0.92em; }
+.cooc-map-modes label { margin: 0; font-weight: 500; }
+.dashboard-wrapper #cooc-map { height: 520px; border-radius: 8px;
+                               border: 1px solid var(--border-color); }
+.cooc-legend { font-size: 0.85em; color: #555; margin-top: 8px;
+               display: flex; gap: 18px; flex-wrap: wrap; }
+.cooc-legend i { display: inline-block; width: 12px; height: 12px;
+                 border-radius: 50%; vertical-align: middle; margin-right: 5px; }
+.cooc-swatch-counted { background: #2c7fb8; }
+/* Червоний тут означає «людина відхилила детекцію», тому пригнічена
+   точка сіра, а не червона. */
+.cooc-swatch-suppressed { background: #fff; border: 2px dashed #555; }
+.cooc-swatch-network { background: #ccc; }
+/* Кільце радіуса — це правило, а не дані, тому червоний пунктир
+   незалежно від кольору верифікації самої точки. */
+.cooc-swatch-radius { background: transparent; border: 2px dashed #d62728; }
+.cooc-swatch-rejected { background: #b30000; }
+.cooc-popup-sep { margin: 6px 0; border: 0; border-top: 1px solid #ddd; }
+.leaflet-popup-content .btn { padding: 3px 8px; font-size: 0.85em; }
+/* Градієнт зелених у легенді: відтінок читається як кількість
+   позитивних голосів людей, тому це смужка, а не набір квадратиків. */
+.cooc-legend i.cooc-gradient-green { width: 90px; height: 10px;
+                       border-radius: 5px; margin: 0 4px;
+                       border: 1px solid #bbb; }
+.cooc-windows-table { width: 100%; font-size: 0.88em; border-collapse: collapse; }
+.cooc-windows-table th, .cooc-windows-table td {
+                     padding: 5px 7px; border-bottom: 1px solid #eee;
+                     text-align: right; }
+.cooc-windows-table th:first-child,
+.cooc-windows-table td:first-child { text-align: left; }
+.cooc-windows-table th { cursor: pointer; user-select: none; white-space: nowrap; }
+.cooc-windows-table th.sorted-asc::after { content: " B2"; }
+.cooc-windows-table th.sorted-desc::after { content: " BC"; }
+.cooc-windows-table tbody tr { cursor: pointer; }
+.cooc-windows-table tbody tr:hover { background: #f1f5f9; }
+.cooc-windows-table tbody tr.active { background: #e2efda; font-weight: 600; }
+.cooc-scroll { max-height: 320px; overflow-y: auto; }
+.cooc-error { color: #b30000; font-weight: 500; margin: 10px 0; }
+.cooc-muted { color: #777; font-size: 0.9em; }
+.cooc-hist { height: 300px; }
+.cooc-sweep { display: none; margin-top: 30px; }
+.cooc-sweep-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.cooc-sweep-panels > div { height: 340px; }
+.cooc-sweep-range { margin-top: 12px; }
+.cooc-sweep-range input { width: 90px; display: inline-block; }
+.cooc-section-gap { margin-top: 20px; }
+.cooc-gradient { height: 10px; border-radius: 5px; width: 160px;
+                 display: inline-block; vertical-align: middle;
+                 background: linear-gradient(90deg,#08306b,#4292c6,#c6dbef); }
+.cooc-date-row { display: flex; gap: 5px; }
+.cooc-export-right { margin-left: auto; }
+@media (max-width: 900px) { .cooc-sweep-panels { grid-template-columns: 1fr; } }
+
+/* Dark theme: the light-grey panels need their own values, the accent colours
+   of the map legend are the same in both themes. */
+body.dark-theme .cooc-note,
+body.dark-theme .cooc-threshold { background: var(--card-bg); }
+body.dark-theme .cooc-threshold,
+body.dark-theme .cooc-legend,
+body.dark-theme .cooc-muted { color: var(--text-secondary, #aaa); }
+body.dark-theme .cooc-windows-table th,
+body.dark-theme .cooc-windows-table td { border-bottom-color: var(--border-color); }
+body.dark-theme .cooc-windows-table tbody tr:hover { background: rgba(255,255,255,0.06); }
+body.dark-theme .cooc-windows-table tbody tr.active { background: rgba(40,167,69,0.25); }
+
+/* ── Deep-link scope banner (verification queue narrowed by another page) ── */
+.pam-scope-banner {
+    background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px;
+    padding: 8px 12px; margin-bottom: 12px; font-size: 0.9em;
+}
+.pam-scope-banner a { margin-left: 6px; }
+body.dark-theme .pam-scope-banner {
+    background: rgba(255, 224, 130, 0.12); border-color: rgba(255, 224, 130, 0.4);
+}
