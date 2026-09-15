@@ -88,6 +88,13 @@
                     <!-- Segment info -->
                     <div class="segment-info">
                         <h4 id="segment-species">Назва виду</h4>
+                        <!-- Cross-check the call against reference recordings without
+                             leaving the queue: opens xeno-canto in a new tab, filtered
+                             to the species of the current segment. -->
+                        <a id="segment-xc-link" class="xc-link" href="#" target="_blank"
+                           rel="noopener noreferrer" style="display:none;">
+                            {{ _('Послухати на xeno-canto') }} ↗
+                        </a>
                         <div class="info-grid">
                             <div class="info-item">
                                 <span class="info-label">{{ _('Локація:') }}</span>
@@ -595,6 +602,22 @@ $(document).ready(function() {
     }
     
     /**
+     * Point the xeno-canto link at the current species' reference recordings.
+     * Hidden when the segment carries no scientific name, so the verifier never
+     * gets a link to an empty search.
+     * @param {string} scientificName - Latin binomial from the segment payload.
+     */
+    function updateXenoCantoLink(scientificName) {
+        const link = $('#segment-xc-link');
+        if (!scientificName) {
+            link.hide();
+            return;
+        }
+        link.attr('href', 'https://xeno-canto.org/explore?query=' +
+                  encodeURIComponent(scientificName)).show();
+    }
+
+    /**
      * Render the received segment data in the UI.
      * @param {object} segment - Segment object from the API.
      */
@@ -603,6 +626,7 @@ $(document).ready(function() {
         $('#region-start-line, #region-end-line').hide();
 
         $('#segment-species').text(segment.species_display_name);
+        updateXenoCantoLink(segment.scientific_name);
         $('#segment-location').text(segment.location_name);
         $('#segment-date').text(segment.recorded_date);
         $('#segment-time').text(segment.recorded_time);

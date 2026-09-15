@@ -1737,6 +1737,10 @@ def api_next_verification_segment(lang_code):
             'recorded_date': result[4].strftime('%d.%m.%Y'),
             'recorded_time': result[5].strftime('%H:%M:%S'),
             'species_display_name': display_name,
+            # Sent separately from the display name so the page can build an
+            # external reference link (xeno-canto) without re-parsing the
+            # "Common name (Scientific name)" string.
+            'scientific_name': scientific_name,
             'audio_url': audio_url
         })
         

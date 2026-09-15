@@ -1425,6 +1425,19 @@ main .container:not(.maplistcontainer) {
     display: block;
     box-sizing: border-box;
 }
+/* Reference-recording link under the species name (xeno-canto). Centred to sit
+   with the heading and kept quiet so it never competes with the verdict buttons. */
+.verification-container .xc-link {
+    display: block;
+    text-align: center;
+    font-size: 0.8em;
+    color: var(--color-primary);
+    text-decoration: none;
+    margin: -4px 0 10px;
+}
+.verification-container .xc-link:hover {
+    text-decoration: underline;
+}
 .verification-container .info-grid {
     display: flex;
     flex-direction: column;
