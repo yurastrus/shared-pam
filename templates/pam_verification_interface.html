@@ -133,6 +133,11 @@
                                 </div>
                             </div>
                         </div>
+
+                        {# Owner of the recording, right under the spectrogram:
+                           audio belongs to the institution that runs the
+                           recorder, not to the platform or the verifier. #}
+                        <div id="segment-copyright" class="segment-copyright"></div>
                     </div>
 
                     <!-- Audio player -->
@@ -630,6 +635,9 @@ $(document).ready(function() {
         $('#segment-location').text(segment.location_name);
         $('#segment-date').text(segment.recorded_date);
         $('#segment-time').text(segment.recorded_time);
+        $('#segment-copyright').text(segment.rights_holder
+            ? `{{ _('© Записи належать') }} ${segment.rights_holder}. {{ _('Копіювання і поширення заборонене.') }}`
+            : "{{ _('© Записи належать установі, яка веде спостереження. Копіювання і поширення заборонене.') }}");
         
         audioPlayer.src = segment.audio_url;
         audioPlayer.load();

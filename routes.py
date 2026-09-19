@@ -1684,11 +1684,24 @@ def api_next_verification_segment(lang_code):
         # LEFT JOIN to the locations table (via the recording link) so the
         # location can be shown from the registry, bilingually. seg.location_name
         # (parsed from the filename) stays as the fallback when there is no link.
+        # Rights holder for the copyright line under the spectrogram: the
+        # recording belongs to the institution that runs the recorder, and a
+        # location may be shared by several. Resolved in SQL (a correlated
+        # aggregate) rather than a second round trip, since it is one row.
+        params['rights_lang'] = g.lang_code
         query = text(f"""
             SELECT seg.id, seg.filename, seg.confidence_level, seg.location_name,
                    seg.recorded_date, seg.recorded_time, seg.file_path,
                    s.scientific_name, s.common_name_uk, s.common_name_en,
-                   l.location_name AS loc_name_uk, l.location_name_en AS loc_name_en
+                   l.location_name AS loc_name_uk, l.location_name_en AS loc_name_en,
+                   (SELECT string_agg(
+                               CASE WHEN :rights_lang = 'en'
+                                    THEN COALESCE(i_own.name_en, i_own.name_uk)
+                                    ELSE i_own.name_uk END,
+                               ', ' ORDER BY i_own.name_uk)
+                      FROM location_institutions li_own
+                      JOIN institutions i_own ON i_own.id = li_own.institution_id
+                     WHERE li_own.location_id = r.location_id) AS rights_holder
             FROM segments seg
             JOIN species s ON seg.species_id = s.species_id
             LEFT JOIN recordings r ON seg.recording_id = r.recording_id
@@ -1737,6 +1750,10 @@ def api_next_verification_segment(lang_code):
             'recorded_date': result[4].strftime('%d.%m.%Y'),
             'recorded_time': result[5].strftime('%H:%M:%S'),
             'species_display_name': display_name,
+            # Owner of the audio. None when the location carries no institution
+            # (or the segment has no recording link) — the page then shows a
+            # generic notice instead of an empty line.
+            'rights_holder': result[12],
             # Sent separately from the display name so the page can build an
             # external reference link (xeno-canto) without re-parsing the
             # "Common name (Scientific name)" string.

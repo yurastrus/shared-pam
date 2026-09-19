@@ -2163,6 +2163,18 @@ main .container:not(.maplistcontainer) {
 /* Wrapper для спектрограми теж має займати повну ширину,
    щоб inline-block не обмежував зображення натуральним розміром. */
 .verification-container .spectrogram-wrapper { width: 100%; cursor: pointer; }
+
+/* Рядок про власника запису — одразу під сонограмою. Аудіо належить установі,
+   яка тримає реєстратор, тож сторінка, де його слухають, це й каже. Тихий за
+   розміром, але завжди на місці, а не в підказці. */
+.verification-container .segment-copyright {
+    margin-top: 6px;
+    color: var(--text-secondary, #6c757d);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    text-align: center;
+    opacity: 0.85;
+}
 /* Поки нова сонограма генерується на сервері й вантажиться, ховаємо стару
    картинку (visibility, щоб не схлопувалась висота) і показуємо заглушку зі
    спінером — інакше повзунок їхав би по застарілому зображенні. */
