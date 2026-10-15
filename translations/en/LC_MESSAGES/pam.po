@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-15 10:56+0300\n"
+"POT-Creation-Date: 2026-10-15 11:42+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -16,7 +16,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.17.0\n"
 
-#: app/pam/gap_routes.py:211
+#: app/pam/gap_routes.py:219
 msgid "Помилка завантаження сторінки."
 msgstr "Error loading the page."
 
@@ -33,7 +33,7 @@ msgid "Нова локація"
 msgstr "New location"
 
 #: app/pam/templates/manage_pam_locations.html:24
-#: app/pam/templates/pam_gap_analysis.html:69
+#: app/pam/templates/pam_gap_analysis.html:18
 #: app/pam/templates/pam_import.html:23
 #: app/pam/templates/pam_verification_interface.html:42
 msgid "Установа:"
@@ -66,7 +66,7 @@ msgid "Повна"
 msgstr "Complete"
 
 #: app/pam/templates/manage_pam_locations.html:44
-#: app/pam/templates/pam_gap_analysis.html:276
+#: app/pam/templates/pam_gap_analysis.html:249
 msgid "Без біотопу"
 msgstr "No habitat"
 
@@ -720,7 +720,7 @@ msgid "Модель (колонка confidence):"
 msgstr "Model (confidence column):"
 
 #: app/pam/templates/pam_cooccurrence.html:119
-#: app/pam/templates/pam_gap_analysis.html:113
+#: app/pam/templates/pam_gap_analysis.html:62
 msgid "Поріг confidence:"
 msgstr "Confidence threshold:"
 
@@ -964,6 +964,8 @@ msgstr "min distance"
 
 #: app/pam/templates/pam_cooccurrence.html:428
 #: app/pam/templates/pam_cooccurrence.html:890
+#: app/pam/templates/pam_gap_analysis.html:134
+#: app/pam/templates/pam_gap_analysis.html:262
 msgid "м"
 msgstr "m"
 
@@ -1530,7 +1532,7 @@ msgid "Детальні результати по всіх видах"
 msgstr "Detailed results for all species"
 
 #: app/pam/templates/pam_evaluation_results.html:145
-#: app/pam/templates/pam_gap_analysis.html:96
+#: app/pam/templates/pam_gap_analysis.html:45
 #: app/pam/templates/pam_overview.html:58
 #: app/pam/templates/pam_segment_window.html:76
 #: app/pam/templates/pam_species_detailed.html:52
@@ -1687,11 +1689,11 @@ msgid "Модель"
 msgstr "Model"
 
 #: app/pam/templates/pam_gap_analysis.html:3
-#: app/pam/templates/pam_gap_analysis.html:62
+#: app/pam/templates/pam_gap_analysis.html:11
 msgid "Аналіз прогалин у даних"
 msgstr "Data gap analysis"
 
-#: app/pam/templates/pam_gap_analysis.html:64
+#: app/pam/templates/pam_gap_analysis.html:13
 msgid ""
 "Де відсутність детекції виду щось означає, а де ми просто мало слухали? "
 "Сторінка окремо показує зусилля (години записів), повноту виявлення "
@@ -1705,55 +1707,55 @@ msgstr ""
 "the day separately. Green means there are enough data, red marks a gap, "
 "and grey marks a part of the study area with no recorders at all."
 
-#: app/pam/templates/pam_gap_analysis.html:71
+#: app/pam/templates/pam_gap_analysis.html:20
 msgid "Всі доступні дані"
 msgstr "All available data"
 
-#: app/pam/templates/pam_gap_analysis.html:78
+#: app/pam/templates/pam_gap_analysis.html:27
 msgid "Період з:"
 msgstr "Period from:"
 
-#: app/pam/templates/pam_gap_analysis.html:82
+#: app/pam/templates/pam_gap_analysis.html:31
 msgid "до:"
 msgstr "to:"
 
-#: app/pam/templates/pam_gap_analysis.html:86
+#: app/pam/templates/pam_gap_analysis.html:35
 msgid "Група:"
 msgstr "Group:"
 
-#: app/pam/templates/pam_gap_analysis.html:88
+#: app/pam/templates/pam_gap_analysis.html:37
 msgid "Птахи"
 msgstr "Birds"
 
-#: app/pam/templates/pam_gap_analysis.html:89
+#: app/pam/templates/pam_gap_analysis.html:38
 msgid "Земноводні"
 msgstr "Amphibians"
 
-#: app/pam/templates/pam_gap_analysis.html:90
+#: app/pam/templates/pam_gap_analysis.html:39
 msgid "Кажани"
 msgstr "Bats"
 
-#: app/pam/templates/pam_gap_analysis.html:91
+#: app/pam/templates/pam_gap_analysis.html:40
 msgid "Усі групи"
 msgstr "All groups"
 
-#: app/pam/templates/pam_gap_analysis.html:101
+#: app/pam/templates/pam_gap_analysis.html:50
 msgid "Будь-яка модель"
 msgstr "Any model"
 
-#: app/pam/templates/pam_gap_analysis.html:106
+#: app/pam/templates/pam_gap_analysis.html:55
 msgid "Одиниця вибірки:"
 msgstr "Sampling unit:"
 
-#: app/pam/templates/pam_gap_analysis.html:108
+#: app/pam/templates/pam_gap_analysis.html:57
 msgid "Реєстратор-тиждень"
 msgstr "Recorder-week"
 
-#: app/pam/templates/pam_gap_analysis.html:109
+#: app/pam/templates/pam_gap_analysis.html:58
 msgid "Реєстратор-доба"
 msgstr "Recorder-day"
 
-#: app/pam/templates/pam_gap_analysis.html:122
+#: app/pam/templates/pam_gap_analysis.html:71
 #: app/pam/templates/pam_species_detailed.html:79
 #: app/pam/templates/pam_verification_interface.html:52
 #: app/pam/templates/pam_verification_segments.html:49
@@ -1761,16 +1763,16 @@ msgstr "Recorder-day"
 msgid "Застосувати"
 msgstr "Apply"
 
-#: app/pam/templates/pam_gap_analysis.html:130
+#: app/pam/templates/pam_gap_analysis.html:79
 msgid "Шар"
 msgstr "Layer"
 
-#: app/pam/templates/pam_gap_analysis.html:132
-#: app/pam/templates/pam_gap_analysis.html:268
+#: app/pam/templates/pam_gap_analysis.html:81
+#: app/pam/templates/pam_gap_analysis.html:241
 msgid "Зведений індекс"
 msgstr "Composite index"
 
-#: app/pam/templates/pam_gap_analysis.html:133
+#: app/pam/templates/pam_gap_analysis.html:82
 msgid ""
 "Середнє геометричне зусиль, чутливості до пулу видів і покриття сезонів. "
 "Слабкий хоч один вимір робить клітинку червоною."
@@ -1778,11 +1780,11 @@ msgstr ""
 "Geometric mean of effort, species-pool sensitivity and season coverage. A"
 " single weak dimension turns the cell red."
 
-#: app/pam/templates/pam_gap_analysis.html:134
+#: app/pam/templates/pam_gap_analysis.html:83
 msgid "Зусилля (години записів)"
 msgstr "Effort (recording hours)"
 
-#: app/pam/templates/pam_gap_analysis.html:135
+#: app/pam/templates/pam_gap_analysis.html:84
 msgid ""
 "Логарифмічна шкала. Зелений означає приблизно один реєстратор за сезон "
 "гніздування на кожен кілометр масштабу."
@@ -1790,11 +1792,11 @@ msgstr ""
 "Log scale. Green means roughly one recorder through a breeding season per"
 " kilometre of grid scale."
 
-#: app/pam/templates/pam_gap_analysis.html:136
+#: app/pam/templates/pam_gap_analysis.html:85
 msgid "Чутливість до пулу видів"
 msgstr "Species-pool sensitivity"
 
-#: app/pam/templates/pam_gap_analysis.html:137
+#: app/pam/templates/pam_gap_analysis.html:86
 #, python-format
 msgid ""
 "Яку частку видів, виявлених у радіусі %(km)s км, ми б уже виявили тут за "
@@ -1803,11 +1805,11 @@ msgstr ""
 "The share of species detected within %(km)s km that the effort here would"
 " already have detected, had they all lived here."
 
-#: app/pam/templates/pam_gap_analysis.html:138
+#: app/pam/templates/pam_gap_analysis.html:87
 msgid "Покриття вибірки (Chao & Jost)"
 msgstr "Sample coverage (Chao & Jost)"
 
-#: app/pam/templates/pam_gap_analysis.html:139
+#: app/pam/templates/pam_gap_analysis.html:88
 msgid ""
 "Імовірність, що наступна одиниця вибірки не дасть нового виду. Зважене на"
 " поширені види, тож рідкісних майже не помічає."
@@ -1815,29 +1817,29 @@ msgstr ""
 "Probability that the next sampling unit adds no new species. Weighted "
 "towards common species, so it hardly notices rare ones."
 
-#: app/pam/templates/pam_gap_analysis.html:140
+#: app/pam/templates/pam_gap_analysis.html:89
 msgid "Повнота: виявлено / Chao2"
 msgstr "Completeness: detected / Chao2"
 
-#: app/pam/templates/pam_gap_analysis.html:141
+#: app/pam/templates/pam_gap_analysis.html:90
 msgid "Частка оціненого видового багатства клітинки, яку вже виявлено."
 msgstr "Share of the cell's estimated species richness already detected."
 
-#: app/pam/templates/pam_gap_analysis.html:142
-#: app/pam/templates/pam_gap_analysis.html:269
+#: app/pam/templates/pam_gap_analysis.html:91
+#: app/pam/templates/pam_gap_analysis.html:242
 msgid "Покриття сезонів"
 msgstr "Season coverage"
 
-#: app/pam/templates/pam_gap_analysis.html:143
+#: app/pam/templates/pam_gap_analysis.html:92
 msgid "Скільки з 12 календарних місяців мають щонайменше 7 днів із записами."
 msgstr "How many of the 12 calendar months have at least 7 days with recordings."
 
-#: app/pam/templates/pam_gap_analysis.html:144
-#: app/pam/templates/pam_gap_analysis.html:251
+#: app/pam/templates/pam_gap_analysis.html:93
+#: app/pam/templates/pam_gap_analysis.html:224
 msgid "Покриття доби"
 msgstr "Diel coverage"
 
-#: app/pam/templates/pam_gap_analysis.html:145
+#: app/pam/templates/pam_gap_analysis.html:94
 msgid ""
 "Скільки з 24 годин доби мають щонайменше годину записів сумарно. Запис "
 "лише на світанку нічого не каже про сов чи нічну міграцію."
@@ -1846,21 +1848,21 @@ msgstr ""
 "in total. Recording only at dawn says nothing about owls or nocturnal "
 "migration."
 
-#: app/pam/templates/pam_gap_analysis.html:146
+#: app/pam/templates/pam_gap_analysis.html:95
 msgid "Чи міг вид бути пропущений"
 msgstr "Could the species have been missed"
 
-#: app/pam/templates/pam_gap_analysis.html:147
+#: app/pam/templates/pam_gap_analysis.html:96
 msgid "Імовірність, що вибраний вид було б виявлено в клітинці, якби він там жив."
 msgstr ""
 "Probability that the selected species would have been detected in the "
 "cell had it lived there."
 
-#: app/pam/templates/pam_gap_analysis.html:151
+#: app/pam/templates/pam_gap_analysis.html:100
 msgid "Ядерна щільність зусиль"
 msgstr "Kernel effort density"
 
-#: app/pam/templates/pam_gap_analysis.html:152
+#: app/pam/templates/pam_gap_analysis.html:101
 msgid ""
 "Кожен реєстратор розмазує свої години записів гаусовим ядром. У дужках "
 "площа ділянки, якій відповідає ширина ядра (95% нормального розподілу)."
@@ -1869,42 +1871,92 @@ msgstr ""
 "brackets: the area the kernel width corresponds to (95% of the normal "
 "distribution)."
 
-#: app/pam/templates/pam_gap_analysis.html:156
-#: app/pam/templates/pam_gap_analysis.html:166
+#: app/pam/templates/pam_gap_analysis.html:105
+#: app/pam/templates/pam_gap_analysis.html:115
+#: app/pam/templates/pam_gap_analysis.html:262
 msgid "км"
 msgstr "km"
 
-#: app/pam/templates/pam_gap_analysis.html:156
+#: app/pam/templates/pam_gap_analysis.html:105
 msgid "км²"
 msgstr "km²"
 
-#: app/pam/templates/pam_gap_analysis.html:162
+#: app/pam/templates/pam_gap_analysis.html:111
 msgid "Масштаб сітки"
 msgstr "Grid scale"
 
-#: app/pam/templates/pam_gap_analysis.html:172
+#: app/pam/templates/pam_gap_analysis.html:121
 msgid "Клітинки без реєстраторів"
 msgstr "Cells without recorders"
 
-#: app/pam/templates/pam_gap_analysis.html:173
+#: app/pam/templates/pam_gap_analysis.html:122
 msgid "Локації реєстраторів"
 msgstr "Recorder locations"
 
-#: app/pam/templates/pam_gap_analysis.html:185
+#: app/pam/templates/pam_gap_analysis.html:125
+msgid "Планування"
+msgstr "Planning"
+
+#: app/pam/templates/pam_gap_analysis.html:128
+msgid "Додати точку"
+msgstr "Add point"
+
+#: app/pam/templates/pam_gap_analysis.html:129
+msgid "Лінійка"
+msgstr "Ruler"
+
+#: app/pam/templates/pam_gap_analysis.html:130
+msgid "Стерти виміри"
+msgstr "Clear measurements"
+
+#: app/pam/templates/pam_gap_analysis.html:134
+msgid "Буфер (пунктирне кільце):"
+msgstr "Buffer (dashed ring):"
+
+#: app/pam/templates/pam_gap_analysis.html:136
+msgid ""
+"Навколо реєстраторів, коли увімкнено їхні локації, і навколо запланованих"
+" точок."
+msgstr ""
+"Around recorders when their locations are shown, and around planned "
+"points."
+
+#: app/pam/templates/pam_gap_analysis.html:138
+msgid "Заплановані точки"
+msgstr "Planned points"
+
+#: app/pam/templates/pam_gap_analysis.html:141
+msgid "Експорт KML"
+msgstr "Export KML"
+
+#: app/pam/templates/pam_gap_analysis.html:143
+#: app/pam/templates/pam_import.html:189
+msgid "Очистити"
+msgstr "Clear"
+
+#: app/pam/templates/pam_gap_analysis.html:145
+msgid ""
+"Точки зберігаються лише в цьому браузері і нікуди не надсилаються. KML "
+"читають Google Earth, OsmAnd, Locus; для навігаторів Garmin беріть GPX."
+msgstr ""
+"Points are kept in this browser only and are not sent anywhere. KML opens"
+" in Google Earth, OsmAnd and Locus; for Garmin navigators use GPX."
+
+#: app/pam/templates/pam_gap_analysis.html:157
 msgid "Клітинка"
 msgstr "Cell"
 
-#: app/pam/templates/pam_gap_analysis.html:186
+#: app/pam/templates/pam_gap_analysis.html:158
 msgid ""
 "Клацніть клітинку на карті, щоб побачити криву накопичення видів і "
 "подробиці."
 msgstr "Click a cell on the map to see its species accumulation curve and details."
 
-#: app/pam/templates/pam_gap_analysis.html:195
+#: app/pam/templates/pam_gap_analysis.html:167
 msgid "Виявлюваність видів"
 msgstr "Species detectability"
 
-#: app/pam/templates/pam_gap_analysis.html:196
+#: app/pam/templates/pam_gap_analysis.html:168
 msgid ""
 "Імовірність виявити вид за одну одиницю вибірки там, де він точно є, і "
 "скільки днів із записами треба, щоб пропустити присутній вид лише з "
@@ -1917,11 +1969,11 @@ msgstr ""
 "at a low threshold, false detections of species rare in the region "
 "surface here too."
 
-#: app/pam/templates/pam_gap_analysis.html:200
+#: app/pam/templates/pam_gap_analysis.html:172
 msgid "Біотопи: прогалини в середовищі"
 msgstr "Biotopes: gaps in environmental space"
 
-#: app/pam/templates/pam_gap_analysis.html:201
+#: app/pam/templates/pam_gap_analysis.html:173
 msgid ""
 "Зусилля й повнота, зведені за біотопами локацій. Біотоп із малими "
 "зусиллями недосліджений, де б на карті він не був. Локація з кількома "
@@ -1931,11 +1983,11 @@ msgstr ""
 "with little effort is under-sampled wherever it is on the map. A location"
 " with several biotopes counts in each of them."
 
-#: app/pam/templates/pam_gap_analysis.html:207
+#: app/pam/templates/pam_gap_analysis.html:179
 msgid "Як це пораховано"
 msgstr "How this is calculated"
 
-#: app/pam/templates/pam_gap_analysis.html:209
+#: app/pam/templates/pam_gap_analysis.html:181
 msgid ""
 "Детекція означає, що класифікатор дав виду оцінку не нижчу за поріг "
 "confidence хоча б в одному записі цього дня. Детекції, відхилені "
@@ -1949,7 +2001,7 @@ msgstr ""
 "confirmed ones count at any threshold. The threshold is the main filter "
 "here: verification covers a tiny share of detections."
 
-#: app/pam/templates/pam_gap_analysis.html:210
+#: app/pam/templates/pam_gap_analysis.html:182
 msgid ""
 "Поріг працює в обидва боки. Низький додає хибні детекції, і кожна з них "
 "виглядає як рідкісний вид, виявлений один раз: Chao2 зростає, покриття "
@@ -1965,7 +2017,7 @@ msgstr ""
 " disappear. Compare cells, institutions or periods only at the same "
 "threshold."
 
-#: app/pam/templates/pam_gap_analysis.html:211
+#: app/pam/templates/pam_gap_analysis.html:183
 msgid ""
 "Зусилля дорівнює сумі тривалостей записів. Днем із записами вважається "
 "календарний день за київським часом, у який на локації є хоча б один "
@@ -1974,7 +2026,7 @@ msgstr ""
 "Effort is the sum of recording durations. A day with recordings is a "
 "calendar day (Kyiv time) with at least one recording at the location."
 
-#: app/pam/templates/pam_gap_analysis.html:212
+#: app/pam/templates/pam_gap_analysis.html:184
 msgid ""
 "Сітка EEA на проєкції ETRS89-LAEA (EPSG:3035), та сама, що в модулі SDM. "
 "Реєстратори однієї клітинки об'єднуються в одну вибірку."
@@ -1982,7 +2034,7 @@ msgstr ""
 "EEA grid on the ETRS89-LAEA projection (EPSG:3035), the same as in the "
 "SDM module. Recorders in one cell are pooled into one sample."
 
-#: app/pam/templates/pam_gap_analysis.html:213
+#: app/pam/templates/pam_gap_analysis.html:185
 #, python-format
 msgid ""
 "Chao2 і покриття вибірки рахуються за частотами трапляння (Chao et al. "
@@ -1993,7 +2045,7 @@ msgstr ""
 "et al. 2014, as in iNEXT). Fewer than %(n)s sampling units in a cell "
 "means no estimate is made (dashed outline)."
 
-#: app/pam/templates/pam_gap_analysis.html:214
+#: app/pam/templates/pam_gap_analysis.html:186
 msgid ""
 "Імовірність виявлення виду дорівнює кількості одиниць вибірки з "
 "детекцією, поділеній на повні одиниці зусиль (дні із записами / 7 для "
@@ -2007,7 +2059,7 @@ msgstr ""
 "upper estimate because it relies on places where the species is known to "
 "be; good enough to rank cells, but no substitute for an occupancy model."
 
-#: app/pam/templates/pam_gap_analysis.html:215
+#: app/pam/templates/pam_gap_analysis.html:187
 #, python-format
 msgid ""
 "Пул видів клітинки складають види з радіуса %(km)s км, виявлені "
@@ -2016,7 +2068,7 @@ msgstr ""
 "A cell's species pool consists of species from within %(km)s km detected "
 "in at least 3 sampling units."
 
-#: app/pam/templates/pam_gap_analysis.html:216
+#: app/pam/templates/pam_gap_analysis.html:188
 msgid ""
 "За замовчуванням одиниця вибірки дорівнює реєстратор-тижню. Детекції "
 "одного виду на одній точці в сусідні дні дуже залежні (птах співає з тієї"
@@ -2030,7 +2082,7 @@ msgstr ""
 "is five times likelier than average), while Chao2 and the miss "
 "probability assume independent units."
 
-#: app/pam/templates/pam_gap_analysis.html:217
+#: app/pam/templates/pam_gap_analysis.html:189
 msgid ""
 "Досліджувана територія: буфер 5 км навколо реєстраторів із замиканням 10 "
 "км. Діри між групами реєстраторів до 20 км стають сірими клітинками."
@@ -2038,7 +2090,7 @@ msgstr ""
 "Study area: a 5 km buffer around recorders with a 10 km closing. Holes of"
 " up to 20 km between groups of recorders become grey cells."
 
-#: app/pam/templates/pam_gap_analysis.html:218
+#: app/pam/templates/pam_gap_analysis.html:190
 msgid ""
 "Пул видів не враховує біотопу: водоплавні потраплять у «найімовірніше "
 "пропущені» і там, де води немає. Читати цей список треба з картою оселищ "
@@ -2048,7 +2100,7 @@ msgstr ""
 "likely missed” even where there is no water. Read that list with a "
 "habitat map in mind."
 
-#: app/pam/templates/pam_gap_analysis.html:219
+#: app/pam/templates/pam_gap_analysis.html:191
 msgid ""
 "Крапкова межа на шарах покриття й повноти означає, що є види, виявлені "
 "один раз, але жодного, виявленого двічі. Оцінка тоді спирається на "
@@ -2058,7 +2110,7 @@ msgstr ""
 "species were detected once but none twice. The estimate then rests on "
 "single cases and cannot be trusted."
 
-#: app/pam/templates/pam_gap_analysis.html:220
+#: app/pam/templates/pam_gap_analysis.html:192
 msgid ""
 "Чутливі види, приховані для вашої ролі на інших сторінках модуля, тут теж"
 " не враховуються."
@@ -2066,164 +2118,164 @@ msgstr ""
 "Sensitive species hidden for your role on other pages of the module are "
 "left out here too."
 
-#: app/pam/templates/pam_gap_analysis.html:239
+#: app/pam/templates/pam_gap_analysis.html:212
 msgid "Рахую…"
 msgstr "Calculating…"
 
-#: app/pam/templates/pam_gap_analysis.html:240
+#: app/pam/templates/pam_gap_analysis.html:213
 msgid "Не вдалося завантажити дані."
 msgstr "Failed to load the data."
 
-#: app/pam/templates/pam_gap_analysis.html:241
+#: app/pam/templates/pam_gap_analysis.html:214
 msgid "У вибраній області немає записів."
 msgstr "There are no recordings in the selected area."
 
-#: app/pam/templates/pam_gap_analysis.html:242
+#: app/pam/templates/pam_gap_analysis.html:215
 msgid "Порожніх клітинок забагато, показано не всі."
 msgstr "Too many empty cells, not all are shown."
 
-#: app/pam/templates/pam_gap_analysis.html:243
+#: app/pam/templates/pam_gap_analysis.html:216
 #: app/pam/templates/pam_overview.html:381
 msgid "Локацій"
 msgstr "Locations"
 
-#: app/pam/templates/pam_gap_analysis.html:244
+#: app/pam/templates/pam_gap_analysis.html:217
 #: app/pam/templates/pam_location_coverage.html:35
 msgid "Днів із записами"
 msgstr "Days with recordings"
 
-#: app/pam/templates/pam_gap_analysis.html:245
+#: app/pam/templates/pam_gap_analysis.html:218
 msgid "Годин записів"
 msgstr "Recording hours"
 
-#: app/pam/templates/pam_gap_analysis.html:246
+#: app/pam/templates/pam_gap_analysis.html:219
 msgid "Видів виявлено"
 msgstr "Species detected"
 
-#: app/pam/templates/pam_gap_analysis.html:247
+#: app/pam/templates/pam_gap_analysis.html:220
 msgid "Chao2 (оцінка)"
 msgstr "Chao2 (estimate)"
 
-#: app/pam/templates/pam_gap_analysis.html:248
+#: app/pam/templates/pam_gap_analysis.html:221
 msgid "Покриття вибірки"
 msgstr "Sample coverage"
 
-#: app/pam/templates/pam_gap_analysis.html:249
+#: app/pam/templates/pam_gap_analysis.html:222
 msgid "Місяців покрито"
 msgstr "Months covered"
 
-#: app/pam/templates/pam_gap_analysis.html:250
+#: app/pam/templates/pam_gap_analysis.html:223
 msgid "Годин доби покрито"
 msgstr "Hours of day covered"
 
-#: app/pam/templates/pam_gap_analysis.html:252
+#: app/pam/templates/pam_gap_analysis.html:225
 msgid "з них нічних"
 msgstr "of them at night"
 
-#: app/pam/templates/pam_gap_analysis.html:253
+#: app/pam/templates/pam_gap_analysis.html:226
 msgid "Роки"
 msgstr "Years"
 
-#: app/pam/templates/pam_gap_analysis.html:254
+#: app/pam/templates/pam_gap_analysis.html:227
 msgid "Клітинок з даними"
 msgstr "Cells with data"
 
-#: app/pam/templates/pam_gap_analysis.html:255
+#: app/pam/templates/pam_gap_analysis.html:228
 msgid "Немає реєстраторів"
 msgstr "No recorders"
 
-#: app/pam/templates/pam_gap_analysis.html:256
+#: app/pam/templates/pam_gap_analysis.html:229
 msgid "Замало даних для оцінки"
 msgstr "Too little data to estimate"
 
-#: app/pam/templates/pam_gap_analysis.html:257
+#: app/pam/templates/pam_gap_analysis.html:230
 msgid "Вид виявлено"
 msgstr "Species detected here"
 
-#: app/pam/templates/pam_gap_analysis.html:258
+#: app/pam/templates/pam_gap_analysis.html:231
 msgid "-- Виберіть вид --"
 msgstr "-- Select a species --"
 
-#: app/pam/templates/pam_gap_analysis.html:259
+#: app/pam/templates/pam_gap_analysis.html:232
 msgid "Спостережено"
 msgstr "Observed"
 
-#: app/pam/templates/pam_gap_analysis.html:260
+#: app/pam/templates/pam_gap_analysis.html:233
 msgid "Екстраполяція"
 msgstr "Extrapolation"
 
-#: app/pam/templates/pam_gap_analysis.html:261
+#: app/pam/templates/pam_gap_analysis.html:234
 msgid "Одиниць вибірки"
 msgstr "Sampling units"
 
-#: app/pam/templates/pam_gap_analysis.html:262
-#: app/pam/templates/pam_gap_analysis.html:277
+#: app/pam/templates/pam_gap_analysis.html:235
+#: app/pam/templates/pam_gap_analysis.html:250
 #: app/pam/templates/pam_overview.html:380
 msgid "Видів"
 msgstr "Species"
 
-#: app/pam/templates/pam_gap_analysis.html:263
+#: app/pam/templates/pam_gap_analysis.html:236
 msgid "Найімовірніше пропущені"
 msgstr "Most likely missed"
 
-#: app/pam/templates/pam_gap_analysis.html:264
+#: app/pam/templates/pam_gap_analysis.html:237
 msgid "Виявлені види"
 msgstr "Detected species"
 
-#: app/pam/templates/pam_gap_analysis.html:265
+#: app/pam/templates/pam_gap_analysis.html:238
 #: app/pam/templates/pam_sample_upload.html:39
 msgid "Локації"
 msgstr "Locations"
 
-#: app/pam/templates/pam_gap_analysis.html:266
+#: app/pam/templates/pam_gap_analysis.html:239
 msgid "Ще днів із записами до покриття 95%"
 msgstr "More days with recordings to 95% coverage"
 
-#: app/pam/templates/pam_gap_analysis.html:267
+#: app/pam/templates/pam_gap_analysis.html:240
 msgid "Чутливість до пулу"
 msgstr "Pool sensitivity"
 
-#: app/pam/templates/pam_gap_analysis.html:270
+#: app/pam/templates/pam_gap_analysis.html:243
 msgid "Повнота"
 msgstr "Completeness"
 
-#: app/pam/templates/pam_gap_analysis.html:271
+#: app/pam/templates/pam_gap_analysis.html:244
 msgid "Зусилля, години записів"
 msgstr "Effort, recording hours"
 
-#: app/pam/templates/pam_gap_analysis.html:272
+#: app/pam/templates/pam_gap_analysis.html:245
 msgid "годин / км²"
 msgstr "hours / km²"
 
-#: app/pam/templates/pam_gap_analysis.html:273
+#: app/pam/templates/pam_gap_analysis.html:246
 msgid "p за одиницю"
 msgstr "p per unit"
 
-#: app/pam/templates/pam_gap_analysis.html:274
+#: app/pam/templates/pam_gap_analysis.html:247
 msgid "Днів із записами для 95%"
 msgstr "Days with recordings for 95%"
 
-#: app/pam/templates/pam_gap_analysis.html:275
+#: app/pam/templates/pam_gap_analysis.html:248
 msgid "Біотоп"
 msgstr "Biotope"
 
-#: app/pam/templates/pam_gap_analysis.html:278
+#: app/pam/templates/pam_gap_analysis.html:251
 msgid "Імовірність виявлення"
 msgstr "Detection probability"
 
-#: app/pam/templates/pam_gap_analysis.html:279
+#: app/pam/templates/pam_gap_analysis.html:252
 msgid "Нестійка оцінка: синглтони без дублетонів"
 msgstr "Unstable estimate: singletons without doubletons"
 
-#: app/pam/templates/pam_gap_analysis.html:280
+#: app/pam/templates/pam_gap_analysis.html:253
 msgid "Немає пулу видів для порівняння"
 msgstr "No species pool to compare against"
 
-#: app/pam/templates/pam_gap_analysis.html:281
+#: app/pam/templates/pam_gap_analysis.html:254
 msgid "ділянка ≈"
 msgstr "area ≈"
 
-#: app/pam/templates/pam_gap_analysis.html:282
+#: app/pam/templates/pam_gap_analysis.html:255
 #, python-format
 msgid ""
 "За цього порога %(s)s видів і %(d)s видо-днів; за %(min)s їх %(s0)s і "
@@ -2232,15 +2284,59 @@ msgstr ""
 "At this threshold: %(s)s species and %(d)s species-days; at %(min)s: "
 "%(s0)s and %(d0)s."
 
-#: app/pam/templates/pam_gap_analysis.html:283
+#: app/pam/templates/pam_gap_analysis.html:256
 msgid "Хвилин записів за годиною доби"
 msgstr "Recording minutes by hour of day"
 
-#: app/pam/templates/pam_gap_analysis.html:341
+#: app/pam/templates/pam_gap_analysis.html:263
+msgid "Точка "
+msgstr "Point "
+
+#: app/pam/templates/pam_gap_analysis.html:264
+msgid "Назва точки"
+msgstr "Point name"
+
+#: app/pam/templates/pam_gap_analysis.html:265
+msgid "Ще немає. Увімкніть «Додати точку» і клацніть на карті."
+msgstr "None yet. Turn on “Add point” and click the map."
+
+#: app/pam/templates/pam_gap_analysis.html:266
+msgid "Наблизити до точки"
+msgstr "Zoom to point"
+
+#: app/pam/templates/pam_gap_analysis.html:267
+msgid "Видалити точку"
+msgstr "Delete point"
+
+#: app/pam/templates/pam_gap_analysis.html:268
+msgid "Видалити всі заплановані точки?"
+msgstr "Delete all planned points?"
+
+#: app/pam/templates/pam_gap_analysis.html:269
+msgid "Заплановані точки БіоМон"
+msgstr "BioMon planned points"
+
+#: app/pam/templates/pam_gap_analysis.html:270
+msgid "буфер"
+msgstr "buffer"
+
+#: app/pam/templates/pam_gap_analysis.html:271
+msgid "Клацніть на карті, щоб додати точку. Точки можна перетягувати."
+msgstr "Click the map to add a point. Points can be dragged."
+
+#: app/pam/templates/pam_gap_analysis.html:272
+msgid "Клацайте на карті, щоб виміряти відстань. Подвійний клік або Esc завершує."
+msgstr "Click the map to measure a distance. Double-click or Esc finishes."
+
+#: app/pam/templates/pam_gap_analysis.html:273
+msgid "Відстань:"
+msgstr "Distance:"
+
+#: app/pam/templates/pam_gap_analysis.html:345
 msgid "Карта (OSM)"
 msgstr "Map (OSM)"
 
-#: app/pam/templates/pam_gap_analysis.html:341
+#: app/pam/templates/pam_gap_analysis.html:345
 msgid "Супутник (Esri)"
 msgstr "Satellite (Esri)"
 
@@ -2495,10 +2591,6 @@ msgstr "files"
 #: app/pam/templates/pam_import.html:188 app/pam/templates/pam_import.html:574
 msgid "порожніх відфільтровано"
 msgstr "empty filtered out"
-
-#: app/pam/templates/pam_import.html:189
-msgid "Очистити"
-msgstr "Clear"
 
 #: app/pam/templates/pam_import.html:197
 msgid "Перевірка файлів..."

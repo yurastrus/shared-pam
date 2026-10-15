@@ -41,6 +41,12 @@ GAP_CACHE_MAX_ENTRIES = 32
 GAP_KERNEL_BANDWIDTHS_M = (500, 1000, 2500, 5000)
 GAP_KERNEL_DEFAULT_M = 1000
 
+# Buffer ring around recorders and planned points on the map (metres): roughly
+# how far a recorder hears a singing bird, set by the user per species and habitat.
+GAP_BUFFER_MIN_M = 50
+GAP_BUFFER_MAX_M = 2000
+GAP_BUFFER_DEFAULT_M = 500
+
 _gap_cache = {}
 _gap_cache_lock = threading.Lock()
 
@@ -201,6 +207,8 @@ def _render_gap_page(lang_code):
             effort_targets=gm.EFFORT_TARGET_HOURS,
             kernel_bandwidths=[(bw, round(gm.home_range_km2(bw), 1)) for bw in GAP_KERNEL_BANDWIDTHS_M],
             kernel_default=GAP_KERNEL_DEFAULT_M,
+            buffer_min=GAP_BUFFER_MIN_M, buffer_max=GAP_BUFFER_MAX_M,
+            buffer_default=GAP_BUFFER_DEFAULT_M,
             min_units=gm.MIN_UNITS_FOR_ESTIMATE,
             pool_radius_km=ga.POOL_RADIUS_M // 1000,
             threshold_min=ga.MIN_THRESHOLD, threshold_max=ga.MAX_THRESHOLD,

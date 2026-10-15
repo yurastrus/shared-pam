@@ -121,6 +121,29 @@
                 <label><input type="checkbox" id="show-empty" checked> {{ _('Клітинки без реєстраторів') }}</label>
                 <label><input type="checkbox" id="show-locations"> {{ _('Локації реєстраторів') }}</label>
             </fieldset>
+
+            <h2>{{ _('Планування') }}</h2>
+            <fieldset class="gap-tools">
+                <div class="gap-tool-buttons">
+                    <button type="button" id="tool-add-point" class="btn btn-sm btn-outline-secondary" aria-pressed="false">📍 {{ _('Додати точку') }}</button>
+                    <button type="button" id="tool-ruler" class="btn btn-sm btn-outline-secondary" aria-pressed="false">📏 {{ _('Лінійка') }}</button>
+                    <button type="button" id="tool-ruler-clear" class="btn btn-sm btn-link">{{ _('Стерти виміри') }}</button>
+                </div>
+                <p class="gap-tool-hint" id="tool-hint" role="status"></p>
+                <div class="gap-buffer">
+                    <label for="buffer-range">{{ _('Буфер (пунктирне кільце):') }} <output id="buffer-value" for="buffer-range">{{ buffer_default }}</output> {{ _('м') }}</label>
+                    <input type="range" id="buffer-range" min="{{ buffer_min }}" max="{{ buffer_max }}" step="10" value="{{ buffer_default }}">
+                    <small>{{ _('Навколо реєстраторів, коли увімкнено їхні локації, і навколо запланованих точок.') }}</small>
+                </div>
+                <p class="gap-tool-sub">{{ _('Заплановані точки') }} (<span id="planned-count">0</span>)</p>
+                <ul class="gap-planned" id="planned-list"></ul>
+                <div class="gap-planned-export" id="planned-export" hidden>
+                    <button type="button" id="planned-kml" class="btn btn-sm btn-primary">{{ _('Експорт KML') }}</button>
+                    <button type="button" id="planned-gpx" class="btn btn-sm btn-outline-primary">GPX</button>
+                    <button type="button" id="planned-clear" class="btn btn-sm btn-link">{{ _('Очистити') }}</button>
+                </div>
+                <p class="gap-tool-note">{{ _('Точки зберігаються лише в цьому браузері і нікуди не надсилаються. KML читають Google Earth, OsmAnd, Locus; для навігаторів Garmin беріть GPX.') }}</p>
+            </fieldset>
         </aside>
 
         <div>
@@ -175,6 +198,7 @@
 {% block scripts %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('pam.serve_pam_static', filename='js/gap_map_tools.js', lang_code=g.lang_code) }}?v=1"></script>
 <script>
 (function () {
     const API = {
@@ -232,6 +256,37 @@
         minutesPerHour: {{ _('Хвилин записів за годиною доби')|tojson }},
         none: '—',
     };
+
+
+    const TOOLS_T = {
+        m: {{ _('м')|tojson }}, km: {{ _('км')|tojson }},
+        pointPrefix: {{ _('Точка ')|tojson }},
+        pointName: {{ _('Назва точки')|tojson }},
+        noPoints: {{ _('Ще немає. Увімкніть «Додати точку» і клацніть на карті.')|tojson }},
+        zoomTo: {{ _('Наблизити до точки')|tojson }},
+        deletePoint: {{ _('Видалити точку')|tojson }},
+        confirmClear: {{ _('Видалити всі заплановані точки?')|tojson }},
+        documentName: {{ _('Заплановані точки БіоМон')|tojson }},
+        bufferLabel: {{ _('буфер')|tojson }},
+        addHint: {{ _('Клацніть на карті, щоб додати точку. Точки можна перетягувати.')|tojson }},
+        rulerStart: {{ _('Клацайте на карті, щоб виміряти відстань. Подвійний клік або Esc завершує.')|tojson }},
+        rulerHint: {{ _('Відстань:')|tojson }},
+    };
+
+    // Grid cell under a point, for the description of exported points.
+    function cellAt(ll) {
+        if (!grid) return null;
+        const x = ll.lng, y = ll.lat;
+        return grid.cells.find((c) => {
+            let inside = false;
+            const r = c.ring;
+            for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+                const [xi, yi] = r[i], [xj, yj] = r[j];
+                if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+            }
+            return inside;
+        }) || null;
+    }
 
     // ── Helpers ────────────────────────────────────────────────────────────
     const $ = (id) => document.getElementById(id);
@@ -300,6 +355,19 @@
     const locLayer = L.layerGroup();
     let grid = null, kernel = null, fittedFor = null;
 
+    const bufferRadius = () => Number($('buffer-range').value);
+    const tools = GapMapTools.attach(map, {
+        storageKey: 'biomon-pam-gap-planned', filePrefix: 'biomon-pam', T: TOOLS_T,
+        bufferRadius: bufferRadius(),
+        describe: (ll) => {
+            const c = cellAt(ll);
+            if (!c) return '';
+            if (c.status !== 'data') return `${c.code}: ${T.empty}`;
+            return `${c.code}: ${T.composite} ${pct(c.composite)}, ${T.hours} ${num(c.hours)}, `
+                + `${T.species} ${c.S_obs}, ${T.diel} ${c.diel_hours}/24`;
+        },
+    });
+
     const legend = L.control({position: 'bottomright'});
     legend.onAdd = () => { const d = L.DomUtil.create('div', 'gap-legend'); d.id = 'gap-legend'; return d; };
     legend.addTo(map);
@@ -348,7 +416,7 @@
             }
             const poly = L.polygon(c.ring.map(([lon, lat]) => [lat, lon]), style);
             poly.bindTooltip(tooltipFor(c, layer), {sticky: true});
-            if (c.status !== 'empty') poly.on('click', () => openCell(c));
+            if (c.status !== 'empty') poly.on('click', () => { if (!tools.busy()) openCell(c); });
             poly.addTo(gridLayer);
         });
         drawLegend(layer);
@@ -416,10 +484,15 @@
         drawLegend('kernel');
     }
 
+    let locBuffers = [];
     function drawLocations() {
         locLayer.clearLayers();
+        locBuffers = [];
         if (!grid) return;
         grid.locations.forEach((l) => {
+            locBuffers.push(L.circle([l.lat, l.lon], {pane: 'locations', renderer: locRenderer,
+                radius: bufferRadius(), color: '#1565c0', weight: 1.2, dashArray: '6 5',
+                fill: false, interactive: false}).addTo(locLayer));
             L.circleMarker([l.lat, l.lon], {pane: 'locations', renderer: locRenderer,
                 radius: 3.5, color: '#222', weight: 1, fillColor: '#fff', fillOpacity: 1})
                 .bindTooltip(`<b>${esc(l.name)}</b><br>${esc(T.hours)}: ${num(l.hours)} · ${esc(T.recorderDays)}: ${num(l.recorder_days)}`
@@ -578,6 +651,12 @@
     $('scale-select').addEventListener('change', loadGrid);
     $('bandwidth-select').addEventListener('change', () => { kernel = null; drawGrid(); });
     $('show-empty').addEventListener('change', drawGrid);
+    $('buffer-range').addEventListener('input', () => {
+        const r = bufferRadius();
+        $('buffer-value').textContent = r;
+        locBuffers.forEach((c) => c.setRadius(r));
+        tools.setBufferRadius(r);
+    });
     $('show-locations').addEventListener('change', (e) => {
         if (e.target.checked) locLayer.addTo(map); else map.removeLayer(locLayer);
     });
