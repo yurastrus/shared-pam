@@ -3370,3 +3370,65 @@ body.dark-theme .pam-scope-banner {
 body.dark-theme .sw-plan-table th, body.dark-theme .sw-plan-table td {
     border-bottom-color: var(--border-color);
 }
+
+/* ── Gap analysis page (pam_gap_analysis.html) ─────────────────────────── */
+.gap-lead { color: #495057; max-width: 70rem; margin: 0 auto 1rem; text-align: center; }
+.gap-badge { font-size: .7rem; vertical-align: middle; background: #ffc107; color: #212529;
+             border-radius: 4px; padding: 2px 6px; margin-left: 6px; font-weight: 600; }
+.gap-layout { display: grid; grid-template-columns: 300px 1fr; gap: 1rem; align-items: start; }
+.gap-controls { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px;
+                padding: 1rem; position: sticky; top: 1rem; min-width: 0; }
+.gap-controls h2 { font-size: 1rem; font-weight: 600; margin: 0 0 .5rem; }
+.gap-controls fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
+.gap-controls label { font-weight: normal; display: flex; flex-wrap: wrap; gap: 6px;
+                      align-items: baseline; cursor: pointer; margin-bottom: 3px; }
+.gap-controls .hint { font-size: .78rem; color: #6c757d; margin: 2px 0 6px; display: none;
+                      flex-basis: 100%; padding-left: 20px; }
+.gap-controls input[type=radio]:checked ~ .hint { display: block; }
+.gap-controls select { width: 100%; }
+.gap-sub { margin: 4px 0 8px 22px; }
+.gap-threshold { min-width: 220px; }
+.gap-threshold .row-line { display: flex; align-items: center; gap: 8px; }
+.gap-threshold input[type=range] { flex: 1; }
+.gap-threshold output { font-weight: 600; min-width: 2.6rem; text-align: right; }
+.gap-threshold small { display: block; color: #6c757d; font-size: .75rem; }
+.gap-analysis-page #gap-map { height: 640px; border-radius: 8px; border: 1px solid #dee2e6; }
+.gap-status { min-height: 1.4rem; font-size: .9rem; color: #6c757d; margin: .4rem 0; }
+.gap-legend { background: rgba(255,255,255,.95); padding: 8px 10px; border-radius: 6px;
+              font-size: .78rem; line-height: 1.3; box-shadow: 0 1px 4px rgba(0,0,0,.25); max-width: 230px; }
+.gap-legend .bar { height: 10px; border-radius: 3px; margin: 4px 0 2px;
+                   background: linear-gradient(to right, #d7191c, #fdae61, #ffffbf, #a6d96a, #1a9641); }
+.gap-legend .ticks { display: flex; justify-content: space-between; }
+.gap-legend .sw { display: inline-block; width: 14px; height: 10px; vertical-align: middle; margin-right: 4px;
+                  border: 1px solid #666; }
+.gap-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .5rem; margin: .75rem 0; }
+.gap-stat { background: #fff; border: 1px solid #dee2e6; border-radius: 6px; padding: .5rem .75rem; }
+.gap-stat .v { font-size: 1.25rem; font-weight: 600; }
+.gap-stat .l { font-size: .78rem; color: #6c757d; }
+.gap-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.gap-panel { background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 1rem; min-width: 0; }
+.gap-panel h3 { font-size: 1rem; font-weight: 600; margin-top: 0; }
+.gap-table { width: 100%; font-size: .85rem; border-collapse: collapse; }
+.gap-table th, .gap-table td { padding: 3px 6px; border-bottom: 1px solid #eee; text-align: right; }
+.gap-table th:first-child, .gap-table td:first-child { text-align: left; }
+.gap-table-wrap { max-height: 360px; overflow: auto; }
+.gap-methods { margin-top: 1rem; }
+.gap-methods summary { cursor: pointer; font-weight: 600; }
+.gap-methods p, .gap-methods li { font-size: .9rem; max-width: 70rem; }
+.gap-analysis-page .muted { color: #6c757d; }
+@media (max-width: 900px) {
+    .gap-layout, .gap-panels { grid-template-columns: 1fr; }
+    .gap-controls { position: static; }
+    .gap-analysis-page #gap-map { height: 460px; }
+}
+.gap-panel--wide { grid-column: 1 / -1; }
+body.dark-theme .gap-controls,
+body.dark-theme .gap-stat,
+body.dark-theme .gap-panel { background: var(--card-bg); border-color: var(--border-color); }
+body.dark-theme .gap-lead,
+body.dark-theme .gap-stat .l,
+body.dark-theme .gap-controls .hint,
+body.dark-theme .gap-threshold small,
+body.dark-theme .gap-analysis-page .muted { color: var(--text-secondary, #aaa); }
+body.dark-theme .gap-table th, body.dark-theme .gap-table td { border-bottom-color: var(--border-color); }
+body.dark-theme .gap-legend { color: #212529; }

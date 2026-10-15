@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-18 23:00+0300\n"
+"POT-Creation-Date: 2026-10-15 10:56+0300\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: uk\n"
@@ -16,6 +16,10 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.17.0\n"
+
+#: app/pam/gap_routes.py:211
+msgid "Помилка завантаження сторінки."
+msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:3
 #: app/pam/templates/manage_pam_locations.html:13
@@ -30,6 +34,7 @@ msgid "Нова локація"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:24
+#: app/pam/templates/pam_gap_analysis.html:69
 #: app/pam/templates/pam_import.html:23
 #: app/pam/templates/pam_verification_interface.html:42
 msgid "Установа:"
@@ -62,6 +67,7 @@ msgid "Повна"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:44
+#: app/pam/templates/pam_gap_analysis.html:276
 msgid "Без біотопу"
 msgstr ""
 
@@ -512,7 +518,7 @@ msgstr ""
 
 #: app/pam/templates/pam_cooccurrence.html:3
 #: app/pam/templates/pam_cooccurrence.html:13
-#: app/pam/templates/pam_home.html:52
+#: app/pam/templates/pam_home.html:62
 msgid "Одночасні детекції"
 msgstr ""
 
@@ -683,6 +689,7 @@ msgid "Модель (колонка confidence):"
 msgstr ""
 
 #: app/pam/templates/pam_cooccurrence.html:119
+#: app/pam/templates/pam_gap_analysis.html:113
 msgid "Поріг confidence:"
 msgstr ""
 
@@ -1143,7 +1150,7 @@ msgstr ""
 msgid "пари ближче за мін. відстань виключені"
 msgstr ""
 
-#: app/pam/templates/pam_data_export.html:3 app/pam/templates/pam_home.html:119
+#: app/pam/templates/pam_data_export.html:3 app/pam/templates/pam_home.html:129
 msgid "Експорт даних"
 msgstr ""
 
@@ -1469,6 +1476,7 @@ msgid "Детальні результати по всіх видах"
 msgstr ""
 
 #: app/pam/templates/pam_evaluation_results.html:145
+#: app/pam/templates/pam_gap_analysis.html:96
 #: app/pam/templates/pam_overview.html:58
 #: app/pam/templates/pam_segment_window.html:76
 #: app/pam/templates/pam_species_detailed.html:52
@@ -1624,6 +1632,493 @@ msgstr ""
 msgid "Модель"
 msgstr ""
 
+#: app/pam/templates/pam_gap_analysis.html:3
+#: app/pam/templates/pam_gap_analysis.html:62
+msgid "Аналіз прогалин у даних"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:64
+msgid ""
+"Де відсутність детекції виду щось означає, а де ми просто мало слухали? "
+"Сторінка окремо показує зусилля (години записів), повноту виявлення "
+"видів, покриття сезонів і годин доби. Зелений колір означає, що даних "
+"достатньо, червоний означає прогалину, а сірий позначає ділянку "
+"досліджуваної території, де реєстраторів не було взагалі."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:71
+msgid "Всі доступні дані"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:78
+msgid "Період з:"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:82
+msgid "до:"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:86
+msgid "Група:"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:88
+msgid "Птахи"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:89
+msgid "Земноводні"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:90
+msgid "Кажани"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:91
+msgid "Усі групи"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:101
+msgid "Будь-яка модель"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:106
+msgid "Одиниця вибірки:"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:108
+msgid "Реєстратор-тиждень"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:109
+msgid "Реєстратор-доба"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:122
+#: app/pam/templates/pam_species_detailed.html:79
+#: app/pam/templates/pam_verification_interface.html:52
+#: app/pam/templates/pam_verification_segments.html:49
+#: app/pam/templates/pam_verifiers.html:39
+msgid "Застосувати"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:130
+msgid "Шар"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:132
+#: app/pam/templates/pam_gap_analysis.html:268
+msgid "Зведений індекс"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:133
+msgid ""
+"Середнє геометричне зусиль, чутливості до пулу видів і покриття сезонів. "
+"Слабкий хоч один вимір робить клітинку червоною."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:134
+msgid "Зусилля (години записів)"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:135
+msgid ""
+"Логарифмічна шкала. Зелений означає приблизно один реєстратор за сезон "
+"гніздування на кожен кілометр масштабу."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:136
+msgid "Чутливість до пулу видів"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:137
+#, python-format
+msgid ""
+"Яку частку видів, виявлених у радіусі %(km)s км, ми б уже виявили тут за "
+"наявних зусиль, якби всі вони тут жили."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:138
+msgid "Покриття вибірки (Chao & Jost)"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:139
+msgid ""
+"Імовірність, що наступна одиниця вибірки не дасть нового виду. Зважене на"
+" поширені види, тож рідкісних майже не помічає."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:140
+msgid "Повнота: виявлено / Chao2"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:141
+msgid "Частка оціненого видового багатства клітинки, яку вже виявлено."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:142
+#: app/pam/templates/pam_gap_analysis.html:269
+msgid "Покриття сезонів"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:143
+msgid "Скільки з 12 календарних місяців мають щонайменше 7 днів із записами."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:144
+#: app/pam/templates/pam_gap_analysis.html:251
+msgid "Покриття доби"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:145
+msgid ""
+"Скільки з 24 годин доби мають щонайменше годину записів сумарно. Запис "
+"лише на світанку нічого не каже про сов чи нічну міграцію."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:146
+msgid "Чи міг вид бути пропущений"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:147
+msgid "Імовірність, що вибраний вид було б виявлено в клітинці, якби він там жив."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:151
+msgid "Ядерна щільність зусиль"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:152
+msgid ""
+"Кожен реєстратор розмазує свої години записів гаусовим ядром. У дужках "
+"площа ділянки, якій відповідає ширина ядра (95% нормального розподілу)."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:156
+#: app/pam/templates/pam_gap_analysis.html:166
+msgid "км"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:156
+msgid "км²"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:162
+msgid "Масштаб сітки"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:172
+msgid "Клітинки без реєстраторів"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:173
+msgid "Локації реєстраторів"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:185
+msgid "Клітинка"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:186
+msgid ""
+"Клацніть клітинку на карті, щоб побачити криву накопичення видів і "
+"подробиці."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:195
+msgid "Виявлюваність видів"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:196
+msgid ""
+"Імовірність виявити вид за одну одиницю вибірки там, де він точно є, і "
+"скільки днів із записами треба, щоб пропустити присутній вид лише з "
+"імовірністю 5%. Найважче виявлювані види вгорі; за низького порога тут "
+"спливають і хибні детекції рідкісних для регіону видів."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:200
+msgid "Біотопи: прогалини в середовищі"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:201
+msgid ""
+"Зусилля й повнота, зведені за біотопами локацій. Біотоп із малими "
+"зусиллями недосліджений, де б на карті він не був. Локація з кількома "
+"біотопами враховується в кожному з них."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:207
+msgid "Як це пораховано"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:209
+msgid ""
+"Детекція означає, що класифікатор дав виду оцінку не нижчу за поріг "
+"confidence хоча б в одному записі цього дня. Детекції, відхилені "
+"консенсусом верифікаторів, не враховуються за будь-якої оцінки, а "
+"підтверджені враховуються за будь-якого порога. Поріг тут головний "
+"фільтр: верифікацією покрита мізерна частка детекцій."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:210
+msgid ""
+"Поріг працює в обидва боки. Низький додає хибні детекції, і кожна з них "
+"виглядає як рідкісний вид, виявлений один раз: Chao2 зростає, покриття "
+"падає, у пулі з'являються види, яких тут немає. Високий відкидає справжні"
+" тихі й далекі голоси, тож види, що рідко дають упевнену оцінку, "
+"зникають. Порівнювати клітинки, установи чи періоди можна лише за "
+"однакового порога."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:211
+msgid ""
+"Зусилля дорівнює сумі тривалостей записів. Днем із записами вважається "
+"календарний день за київським часом, у який на локації є хоча б один "
+"запис."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:212
+msgid ""
+"Сітка EEA на проєкції ETRS89-LAEA (EPSG:3035), та сама, що в модулі SDM. "
+"Реєстратори однієї клітинки об'єднуються в одну вибірку."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:213
+#, python-format
+msgid ""
+"Chao2 і покриття вибірки рахуються за частотами трапляння (Chao et al. "
+"2014, як iNEXT). Менше %(n)s одиниць вибірки в клітинці означає, що "
+"оцінка не робиться (штрихова межа)."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:214
+msgid ""
+"Імовірність виявлення виду дорівнює кількості одиниць вибірки з "
+"детекцією, поділеній на повні одиниці зусиль (дні із записами / 7 для "
+"тижня) на тих локаціях, де вид виявлявся хоч раз. Це оцінка зверху, бо "
+"вона спирається на місця, де вид точно є; для ранжування клітинок її "
+"досить, але модель зайнятості вона не замінює."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:215
+#, python-format
+msgid ""
+"Пул видів клітинки складають види з радіуса %(km)s км, виявлені "
+"щонайменше в 3 одиницях вибірки."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:216
+msgid ""
+"За замовчуванням одиниця вибірки дорівнює реєстратор-тижню. Детекції "
+"одного виду на одній точці в сусідні дні дуже залежні (птах співає з тієї"
+" самої гілки щоранку; імовірність детекції завтра після детекції сьогодні"
+" вп'ятеро вища за середню), а Chao2 і ймовірність пропуску припускають "
+"незалежні одиниці."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:217
+msgid ""
+"Досліджувана територія: буфер 5 км навколо реєстраторів із замиканням 10 "
+"км. Діри між групами реєстраторів до 20 км стають сірими клітинками."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:218
+msgid ""
+"Пул видів не враховує біотопу: водоплавні потраплять у «найімовірніше "
+"пропущені» і там, де води немає. Читати цей список треба з картою оселищ "
+"у голові."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:219
+msgid ""
+"Крапкова межа на шарах покриття й повноти означає, що є види, виявлені "
+"один раз, але жодного, виявленого двічі. Оцінка тоді спирається на "
+"поодинокі випадки, тож довіряти їй не можна."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:220
+msgid ""
+"Чутливі види, приховані для вашої ролі на інших сторінках модуля, тут теж"
+" не враховуються."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:239
+msgid "Рахую…"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:240
+msgid "Не вдалося завантажити дані."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:241
+msgid "У вибраній області немає записів."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:242
+msgid "Порожніх клітинок забагато, показано не всі."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:243
+#: app/pam/templates/pam_overview.html:381
+msgid "Локацій"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:244
+#: app/pam/templates/pam_location_coverage.html:35
+msgid "Днів із записами"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:245
+msgid "Годин записів"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:246
+msgid "Видів виявлено"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:247
+msgid "Chao2 (оцінка)"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:248
+msgid "Покриття вибірки"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:249
+msgid "Місяців покрито"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:250
+msgid "Годин доби покрито"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:252
+msgid "з них нічних"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:253
+msgid "Роки"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:254
+msgid "Клітинок з даними"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:255
+msgid "Немає реєстраторів"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:256
+msgid "Замало даних для оцінки"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:257
+msgid "Вид виявлено"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:258
+msgid "-- Виберіть вид --"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:259
+msgid "Спостережено"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:260
+msgid "Екстраполяція"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:261
+msgid "Одиниць вибірки"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:262
+#: app/pam/templates/pam_gap_analysis.html:277
+#: app/pam/templates/pam_overview.html:380
+msgid "Видів"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:263
+msgid "Найімовірніше пропущені"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:264
+msgid "Виявлені види"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:265
+#: app/pam/templates/pam_sample_upload.html:39
+msgid "Локації"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:266
+msgid "Ще днів із записами до покриття 95%"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:267
+msgid "Чутливість до пулу"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:270
+msgid "Повнота"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:271
+msgid "Зусилля, години записів"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:272
+msgid "годин / км²"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:273
+msgid "p за одиницю"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:274
+msgid "Днів із записами для 95%"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:275
+msgid "Біотоп"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:278
+msgid "Імовірність виявлення"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:279
+msgid "Нестійка оцінка: синглтони без дублетонів"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:280
+msgid "Немає пулу видів для порівняння"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:281
+msgid "ділянка ≈"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:282
+#, python-format
+msgid ""
+"За цього порога %(s)s видів і %(d)s видо-днів; за %(min)s їх %(s0)s і "
+"%(d0)s."
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:283
+msgid "Хвилин записів за годиною доби"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:341
+msgid "Карта (OSM)"
+msgstr ""
+
+#: app/pam/templates/pam_gap_analysis.html:341
+msgid "Супутник (Esri)"
+msgstr ""
+
 #: app/pam/templates/pam_home.html:3
 msgid "Пасивний акустичний моніторинг"
 msgstr ""
@@ -1675,100 +2170,108 @@ msgstr ""
 msgid "Міжрічна нормалізована кількість детекцій (на 24 год записів)."
 msgstr ""
 
+#: app/pam/templates/pam_home.html:52
+msgid "Прогалини в даних"
+msgstr ""
+
 #: app/pam/templates/pam_home.html:53
+msgid "Де записів було замало, щоб відсутність детекції виду щось означала."
+msgstr ""
+
+#: app/pam/templates/pam_home.html:63
 msgid "Нижня межа кількості особин, що співали водночас на розведених точках."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:62
+#: app/pam/templates/pam_home.html:72
 msgid "Верифікація"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:68
+#: app/pam/templates/pam_home.html:78
 msgid "Верифікація сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:69
+#: app/pam/templates/pam_home.html:79
 msgid "Прослуховування та верифікація аудіосегментів для оцінки точності BirdNET."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:74
+#: app/pam/templates/pam_home.html:84
 msgid "Перегляд сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:75
+#: app/pam/templates/pam_home.html:85
 msgid "Список завантажених сегментів з фільтрацією по видах і статусу."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:81
+#: app/pam/templates/pam_home.html:91
 msgid "Оцінка точності"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:82
+#: app/pam/templates/pam_home.html:92
 msgid ""
 "Метрики precision, recall, F1 для різних видів на основі верифікованих "
 "даних."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:91
+#: app/pam/templates/pam_home.html:101
 msgid "Управління"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:97
+#: app/pam/templates/pam_home.html:107
 #: app/pam/templates/pam_verification_priorities.html:3
 msgid "Пріоритети верифікації"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:98
+#: app/pam/templates/pam_home.html:108
 msgid ""
 "Таблиця видів із кількістю сегментів, детекцій і верифікацій — щоб "
 "бачити, які види варто верифікувати першими."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:105
+#: app/pam/templates/pam_home.html:115
 #: app/pam/templates/pam_sample_upload.html:3
 #: app/pam/templates/pam_sample_upload.html:15
 msgid "Автоматична підготовка сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:106
+#: app/pam/templates/pam_home.html:116
 msgid ""
 "Стратифікована вибірка детекцій + нарізка сегментів із локальних записів "
 "на боці браузера."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:111
+#: app/pam/templates/pam_home.html:121
 msgid "Адміністрування"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:112
+#: app/pam/templates/pam_home.html:122
 msgid "Сервісні дії: автопризначення біотопів точкам за лендковером та інше."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:120
+#: app/pam/templates/pam_home.html:130
 msgid "Експорт даних PAM моніторингу у CSV таблиці."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:127
+#: app/pam/templates/pam_home.html:137
 msgid "Імпорт даних"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:128
+#: app/pam/templates/pam_home.html:138
 msgid "Завантаження CSV-файлів від BirdNET та інших класифікаторів."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:133
+#: app/pam/templates/pam_home.html:143
 msgid "Завантаження сегментів"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:134
+#: app/pam/templates/pam_home.html:144
 msgid "Завантаження ZIP-архівів з аудіосегментами для верифікації."
 msgstr ""
 
-#: app/pam/templates/pam_home.html:139
+#: app/pam/templates/pam_home.html:149
 msgid "Управління локаціями"
 msgstr ""
 
-#: app/pam/templates/pam_home.html:140
+#: app/pam/templates/pam_home.html:150
 msgid "Редагування назв та біотопів точок акустичного моніторингу."
 msgstr ""
 
@@ -1988,10 +2491,6 @@ msgstr ""
 msgid "Сумарно записано"
 msgstr ""
 
-#: app/pam/templates/pam_location_coverage.html:35
-msgid "Днів із записами"
-msgstr ""
-
 #: app/pam/templates/pam_location_coverage.html:40
 msgid "Діапазон"
 msgstr ""
@@ -2179,14 +2678,6 @@ msgstr ""
 msgid "-- Всі локації --"
 msgstr ""
 
-#: app/pam/templates/pam_overview.html:380
-msgid "Видів"
-msgstr ""
-
-#: app/pam/templates/pam_overview.html:381
-msgid "Локацій"
-msgstr ""
-
 #: app/pam/templates/pam_overview.html:382
 msgid "Днів"
 msgstr ""
@@ -2251,10 +2742,6 @@ msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:32
 msgid "Усі доступні"
-msgstr ""
-
-#: app/pam/templates/pam_sample_upload.html:39
-msgid "Локації"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:39
@@ -2786,13 +3273,6 @@ msgstr ""
 
 #: app/pam/templates/pam_species_detailed.html:13
 msgid "Аналіз даних акустичного моніторингу фауни"
-msgstr ""
-
-#: app/pam/templates/pam_species_detailed.html:79
-#: app/pam/templates/pam_verification_interface.html:52
-#: app/pam/templates/pam_verification_segments.html:49
-#: app/pam/templates/pam_verifiers.html:39
-msgid "Застосувати"
 msgstr ""
 
 #: app/pam/templates/pam_species_detailed.html:80
