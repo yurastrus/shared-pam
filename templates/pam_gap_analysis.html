@@ -120,35 +120,33 @@
             <fieldset>
                 <label><input type="checkbox" id="show-empty" checked> {{ _('Клітинки без реєстраторів') }}</label>
                 <label><input type="checkbox" id="show-locations"> {{ _('Локації реєстраторів') }}</label>
+                <div class="gap-buffer" title="{{ _('Навколо реєстраторів, коли увімкнено їхні локації, і навколо запланованих точок.') }}">
+                    <label for="buffer-range">{{ _('Буфер') }} <output id="buffer-value" for="buffer-range">{{ buffer_default }}</output> {{ _('м') }}</label>
+                    <input type="range" id="buffer-range" min="{{ buffer_min }}" max="{{ buffer_max }}" step="10" value="{{ buffer_default }}">
+                </div>
             </fieldset>
 
-            <h2>{{ _('Планування') }}</h2>
+            <h2>{{ _('Заплановані точки') }} (<span id="planned-count">0</span>)</h2>
             <fieldset class="gap-tools">
-                <div class="gap-tool-buttons">
-                    <button type="button" id="tool-add-point" class="btn btn-sm btn-outline-secondary" aria-pressed="false">📍 {{ _('Додати точку') }}</button>
-                    <button type="button" id="tool-ruler" class="btn btn-sm btn-outline-secondary" aria-pressed="false">📏 {{ _('Лінійка') }}</button>
-                    <button type="button" id="tool-ruler-clear" class="btn btn-sm btn-link">{{ _('Стерти виміри') }}</button>
-                </div>
-                <p class="gap-tool-hint" id="tool-hint" role="status"></p>
-                <div class="gap-buffer">
-                    <label for="buffer-range">{{ _('Буфер (пунктирне кільце):') }} <output id="buffer-value" for="buffer-range">{{ buffer_default }}</output> {{ _('м') }}</label>
-                    <input type="range" id="buffer-range" min="{{ buffer_min }}" max="{{ buffer_max }}" step="10" value="{{ buffer_default }}">
-                    <small>{{ _('Навколо реєстраторів, коли увімкнено їхні локації, і навколо запланованих точок.') }}</small>
-                </div>
-                <p class="gap-tool-sub">{{ _('Заплановані точки') }} (<span id="planned-count">0</span>)</p>
                 <ul class="gap-planned" id="planned-list"></ul>
                 <div class="gap-planned-export" id="planned-export" hidden>
-                    <button type="button" id="planned-kml" class="btn btn-sm btn-primary">{{ _('Експорт KML') }}</button>
-                    <button type="button" id="planned-gpx" class="btn btn-sm btn-outline-primary">GPX</button>
-                    <button type="button" id="planned-clear" class="btn btn-sm btn-link">{{ _('Очистити') }}</button>
+                    <button type="button" id="planned-kml" class="gap-chip" title="{{ _('Експорт KML') }}">KML</button>
+                    <button type="button" id="planned-gpx" class="gap-chip" title="{{ _('Для навігаторів Garmin') }}">GPX</button>
+                    <button type="button" id="planned-clear" class="gap-chip gap-chip--icon" title="{{ _('Видалити всі заплановані точки?') }}" aria-label="{{ _('Очистити') }}">🗑</button>
                 </div>
-                <p class="gap-tool-note">{{ _('Точки зберігаються лише в цьому браузері і нікуди не надсилаються. KML читають Google Earth, OsmAnd, Locus; для навігаторів Garmin беріть GPX.') }}</p>
+                <p class="gap-tool-note">{{ _('Зберігаються лише в цьому браузері.') }}</p>
             </fieldset>
         </aside>
 
         <div>
             <div id="gap-map"></div>
             <div class="gap-status" id="gap-status" role="status"></div>
+            <div id="gap-map-toolbar" class="gap-map-toolbar leaflet-bar" hidden>
+                <button type="button" id="tool-add-point" title="{{ _('Додати точку') }}" aria-label="{{ _('Додати точку') }}" aria-pressed="false">📍</button>
+                <button type="button" id="tool-ruler" title="{{ _('Лінійка') }}" aria-label="{{ _('Лінійка') }}" aria-pressed="false">📏</button>
+                <button type="button" id="tool-ruler-clear" title="{{ _('Стерти виміри') }}" aria-label="{{ _('Стерти виміри') }}">🧽</button>
+            </div>
+            <div class="gap-tool-hint" id="tool-hint" role="status"></div>
         </div>
     </div>
 
@@ -262,14 +260,14 @@
         m: {{ _('м')|tojson }}, km: {{ _('км')|tojson }},
         pointPrefix: {{ _('Точка ')|tojson }},
         pointName: {{ _('Назва точки')|tojson }},
-        noPoints: {{ _('Ще немає. Увімкніть «Додати точку» і клацніть на карті.')|tojson }},
+        noPoints: {{ _('Ще немає: увімкніть 📍 і клацніть на карті.')|tojson }},
         zoomTo: {{ _('Наблизити до точки')|tojson }},
         deletePoint: {{ _('Видалити точку')|tojson }},
         confirmClear: {{ _('Видалити всі заплановані точки?')|tojson }},
         documentName: {{ _('Заплановані точки БіоМон')|tojson }},
         bufferLabel: {{ _('буфер')|tojson }},
-        addHint: {{ _('Клацніть на карті, щоб додати точку. Точки можна перетягувати.')|tojson }},
-        rulerStart: {{ _('Клацайте на карті, щоб виміряти відстань. Подвійний клік або Esc завершує.')|tojson }},
+        addHint: {{ _('Клік на карті додає точку, точки можна тягнути.')|tojson }},
+        rulerStart: {{ _('Клацайте вершини; подвійний клік або Esc завершує.')|tojson }},
         rulerHint: {{ _('Відстань:')|tojson }},
     };
 
