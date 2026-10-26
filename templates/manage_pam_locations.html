@@ -46,10 +46,13 @@
                 <span class="legend-item"><span class="legend-dot" style="background:#e783b0"></span>{{ _('Без EN назви') }}</span>
             </div>
             <div class="marker-legend" id="legend-service" style="display:none;">
-                <span class="legend-item"><span class="legend-dot" style="background:#2aad27"></span>{{ _('OK') }}</span>
-                <span class="legend-item"><span class="legend-dot" style="background:#f0a500"></span>{{ _('Увага') }}</span>
-                <span class="legend-item"><span class="legend-dot" style="background:#cb2b3e"></span>{{ _('Критично') }}</span>
-                <span class="legend-item"><span class="legend-dot" style="background:#9e9e9e"></span>{{ _('Невідомо') }}</span>
+                <span class="legend-item" title="{{ _('Ресурсу вистачить більше ніж на 14 днів') }}"><span class="legend-dot" style="background:#2aad27"></span>{{ _('OK') }}</span>
+                <span class="legend-item" title="{{ _('Ресурсу лишилось 4–14 днів') }}"><span class="legend-dot" style="background:#cac428"></span>{{ _('Увага') }}</span>
+                <span class="legend-item" title="{{ _('Ресурсу лишилось до 3 днів') }}"><span class="legend-dot" style="background:#cb8427"></span>{{ _('Критично') }}</span>
+                <span class="legend-item" title="{{ _('За прогнозом ресурс уже вичерпано, прилад, ймовірно, не пише') }}"><span class="legend-dot" style="background:#cb2b3e"></span>{{ _('Прострочено') }}</span>
+                <span class="legend-item" title="{{ _('Завантажені дані підтверджують, що прилад зупинився') }}"><span class="legend-dot" style="background:#3d3d3d"></span>{{ _('Зупинився') }}</span>
+                <span class="legend-item" title="{{ _('Є записи, але немає журналу обслуговування') }}"><span class="legend-dot" style="background:#9c2bcb"></span>{{ _('Немає журналу') }}</span>
+                <span class="legend-item" title="{{ _('Демонтовано, неактивна або бракує даних для прогнозу') }}"><span class="legend-dot" style="background:#9e9e9e"></span>{{ _('Інше') }}</span>
             </div>
         </div>
     </div>
@@ -143,6 +146,13 @@
                 <hr class="my-3">
                 {% endif %}
 
+                <!-- ── Service forecast ── -->
+                <h6 class="text-muted mb-2 service-section-title">
+                    <i class="fas fa-battery-half me-1"></i>{{ _('Прогноз обслуговування') }}
+                </h6>
+                <div id="service-forecast" class="service-forecast small mb-3"></div>
+
+                {% if can_edit %}
                 <!-- ── Service log ── -->
                 <h6 id="service-form-title" class="text-muted mb-2"
                     style="font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em;">
@@ -169,6 +179,7 @@
                             </select>
                         </div>
                     </div>
+                    <div id="service-device-fields">
                     <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label form-label-sm">{{ _('Заміна батарейок') }}</label>
@@ -192,10 +203,16 @@
                     <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label form-label-sm">{{ _('Год. запису/добу') }}</label>
-                            <input type="number" class="form-control form-control-sm" id="recording-hours" min="1" max="24" required placeholder="напр. 6">
+                            <input type="number" class="form-control form-control-sm" id="recording-hours" min="1" max="24" required placeholder="{{ _('напр. 6') }}">
                         </div>
-                        <div class="col-6">
-                            <label class="form-label form-label-sm">{{ _('Стан приладу') }}</label>
+                    </div>
+                    </div><!-- end service-device-fields -->
+                    <small id="removal-hint" class="text-muted mb-2 d-none">
+                        {{ _('Демонтаж: батарейки, SD-карта й розклад не потрібні.') }}
+                    </small>
+                    <div class="row g-2 mb-2">
+                        <div class="col-12">
+                            <label class="form-label form-label-sm">{{ _('Чи працював прилад, коли ви прийшли?') }}</label>
                             <div class="d-flex gap-2 mt-1">
                                 <div class="form-check form-check-inline me-0">
                                     <input class="form-check-input" type="radio" name="is-operational" id="op-yes" value="true">
@@ -223,9 +240,10 @@
                 </form>
 
                 <hr class="my-3">
+                {% endif %}
 
                 <!-- ── History ── -->
-                <h6 class="text-muted mb-2" style="font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em;">
+                <h6 class="text-muted mb-2 service-section-title">
                     <i class="fas fa-history me-1"></i>{{ _('Історія') }}
                 </h6>
                 <div id="history-placeholder" class="text-muted small">{{ _('Немає даних.') }}</div>
@@ -234,6 +252,37 @@
             </div><!-- end panel-content -->
         </div><!-- end right-panel -->
     </div><!-- end page-layout -->
+
+    <!-- Service plan: which recorders to visit first (service mode only) -->
+    <div id="service-plan" class="service-plan" style="display:none;">
+        <div class="service-plan-header">
+            <h5 class="mb-0"><i class="fas fa-route me-1"></i>{{ _('План обслуговування') }}</h5>
+            <div class="service-plan-filters" id="service-plan-filters">
+                <label><input type="checkbox" value="attention" checked> {{ _('Потребують візиту') }}</label>
+                <label><input type="checkbox" value="ok" checked> {{ _('OK') }}</label>
+                <label><input type="checkbox" value="other"> {{ _('Інше') }}</label>
+            </div>
+        </div>
+        <p class="text-muted small mb-2">
+            {{ _('Відсортовано за датою, до якої треба приїхати. Ресурс батарей і швидкість заповнення SD оцінено за історією прогонів, де це можливо.') }}
+        </p>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover service-plan-table mb-0">
+                <thead>
+                    <tr>
+                        <th>{{ _('Локація') }}</th>
+                        <th>{{ _('Статус') }}</th>
+                        <th>{{ _('Приїхати до') }}</th>
+                        <th>{{ _('Батарея') }}</th>
+                        <th>{{ _('SD') }}</th>
+                        <th>{{ _('Останній візит') }}</th>
+                        <th>{{ _('Втрачено днів') }}</th>
+                    </tr>
+                </thead>
+                <tbody id="service-plan-body"></tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -290,10 +339,37 @@ $(document).ready(function() {
     const serviceIcons = {
         ok:       mkServiceIcon('green'),
         warning:  mkServiceIcon('yellow'),
-        critical: mkServiceIcon('red'),
+        critical: mkServiceIcon('orange'),
+        overdue:  mkServiceIcon('red'),
+        stopped:  mkServiceIcon('black'),
+        no_log:   mkServiceIcon('violet'),
         unknown:  mkServiceIcon('grey'),
+        removed:  mkServiceIcon('grey', 'marker-inactive'),
         inactive: mkServiceIcon('grey', 'marker-inactive')
     };
+
+    // Service status vocabulary (codes come from service_forecast.py).
+    const SERVICE_STATUS_LABELS = {
+        ok:       "{{ _('OK') }}",
+        warning:  "{{ _('Увага') }}",
+        critical: "{{ _('Критично') }}",
+        overdue:  "{{ _('Прострочено') }}",
+        stopped:  "{{ _('Зупинився') }}",
+        removed:  "{{ _('Демонтовано') }}",
+        inactive: "{{ _('Неактивна') }}",
+        no_log:   "{{ _('Немає журналу') }}",
+        unknown:  "{{ _('Невідомо') }}"
+    };
+    const SERVICE_STATUS_HINTS = {
+        overdue:  "{{ _('За прогнозом ресурс уже вичерпано: прилад, імовірно, не пише.') }}",
+        stopped:  "{{ _('Завантажені дані цього розгортання обриваються: прилад зупинився.') }}",
+        removed:  "{{ _('Останній запис у журналі: демонтаж приладу.') }}",
+        inactive: "{{ _('Понад 200 днів немає ні записів, ні візитів.') }}",
+        no_log:   "{{ _('Є записи, але немає журналу обслуговування. Додайте візит встановлення, щоб отримати прогноз.') }}",
+        unknown:  "{{ _('Бракує даних для прогнозу (тип батарей, SD-карта чи розклад).') }}"
+    };
+    const SERVICE_ATTENTION = ['warning', 'critical', 'overdue', 'stopped'];
+    const SERVICE_ACTIVE = ['ok'].concat(SERVICE_ATTENTION);
 
     // Marker icon depending on mode (data/service) and location state.
     function getMarkerIcon(loc) {
@@ -320,34 +396,43 @@ $(document).ready(function() {
         else if (!loc.has_name_en)                             listItem.addClass('loc-no-name-en');
     }
 
+    // Days-left formatting shared by the tooltip, the panel and the plan.
+    function fmtDaysLeft(d) {
+        if (d === null || d === undefined) return '—';
+        return d < 0 ? '{{ _("вичерпано") }}' : '~' + d + ' {{ _("дн.") }}';
+    }
+    function batterySourceText(info) {
+        if (info.battery_source === 'history')
+            return '{{ _("ресурс") }} ~' + info.battery_capacity_hours + ' {{ _("год за історією") }} (n=' + info.battery_runs + ')';
+        if (info.battery_source === 'rated')
+            return '{{ _("паспортний ресурс") }} ~' + info.battery_capacity_hours + ' {{ _("год") }}';
+        if (info.battery_source === 'kept')
+            return '{{ _("залишок від попереднього візиту") }}';
+        return '';
+    }
+    function statusBadge(st) {
+        return `<span class="service-badge service-badge-${st}">${SERVICE_STATUS_LABELS[st] || st}</span>`;
+    }
+
     // Service forecast for the marker tooltip (service mode).
-    // Built from structured fields (not status_reason) to stay language-neutral.
+    // Built from structured fields to stay language-neutral.
     function buildServiceTooltip(loc, info) {
         const name = (loc && loc.name) ? loc.name : (info ? info.name : '');
-        if (!info) return `<strong>${name}</strong><br>{{ _('Немає даних про обслуговування') }}`;
-        const fmt = d => (d === null || d === undefined)
-            ? '—'
-            : (d < 0 ? '{{ _("прострочено") }}' : '~' + d + ' {{ _("дн.") }}');
-        let html = `<strong>${name}</strong>`;
-        if (info.status === 'inactive') {
-            html += '<br>{{ _("Неактивна / демонтовано") }}';
-            if (info.last_visit_date && info.last_visit_date !== '---')
-                html += '<br>{{ _("Останній візит") }}: ' + info.last_visit_date;
-            return html;
-        }
+        if (!info) return `<strong>${name}</strong>`;
+        let html = `<strong>${name}</strong> ${statusBadge(info.status)}`;
         if (info.last_visit_date && info.last_visit_date !== '---') {
             html += '<br>{{ _("Останній візит") }}: ' + info.last_visit_date;
             if (info.days_since_visit !== null && info.days_since_visit !== undefined)
                 html += ' (' + info.days_since_visit + ' {{ _("дн. тому") }})';
         }
-        const hasForecast = (info.battery_days_left !== null && info.battery_days_left !== undefined)
-                         || (info.sd_card_days_left !== null && info.sd_card_days_left !== undefined);
-        if (hasForecast) {
-            html += '<br>🔋 {{ _("Батарея") }}: ' + fmt(info.battery_days_left)
-                  + ' &nbsp; 💾 {{ _("SD-карта") }}: ' + fmt(info.sd_card_days_left);
-        } else {
-            html += '<br>{{ _("Немає записів для прогнозу") }}';
+        if (!SERVICE_ACTIVE.includes(info.status)) {
+            if (SERVICE_STATUS_HINTS[info.status]) html += '<br>' + SERVICE_STATUS_HINTS[info.status];
+            return html;
         }
+        html += '<br>🔋 ' + fmtDaysLeft(info.battery_days_left)
+              + ' &nbsp; 💾 ' + fmtDaysLeft(info.sd_card_days_left);
+        if (info.visit_by) html += '<br>{{ _("Приїхати до") }}: <strong>' + info.visit_by + '</strong>';
+        if (info.lost_days) html += '<br>{{ _("Втрачено днів") }}: ~' + info.lost_days;
         return html;
     }
 
@@ -472,6 +557,7 @@ $(document).ready(function() {
         $('#mode-btn-service').toggleClass('active', mapMode === 'service');
         $('#legend-data').toggle(mapMode === 'data');
         $('#legend-service').toggle(mapMode === 'service');
+        $('#service-plan').toggle(mapMode === 'service');
         if (mapMode === 'service') loadServiceStatus();
         else refreshAllMarkers();
     }
@@ -492,11 +578,50 @@ $(document).ready(function() {
             serviceStatus = {};
             data.forEach(loc => { serviceStatus[loc.id] = loc; });
             refreshAllMarkers();
+            renderServicePlan();
         } catch(e) {
             console.error('Помилка завантаження статусів:', e);
             setMapMode('data');
         }
     }
+
+    // Plan table: the soonest "visit by" date first, attention statuses on top.
+    function planGroup(st) {
+        if (SERVICE_ATTENTION.includes(st)) return 'attention';
+        return st === 'ok' ? 'ok' : 'other';
+    }
+    function renderServicePlan() {
+        const shown = $('#service-plan-filters input:checked').map((_, el) => el.value).get();
+        const rank = st => (SERVICE_ACTIVE.includes(st) ? 0 : 1);
+        const rows = Object.values(serviceStatus)
+            .filter(info => shown.includes(planGroup(info.status)))
+            .sort((a, b) => rank(a.status) - rank(b.status)
+                || (a.visit_by_iso || '9999').localeCompare(b.visit_by_iso || '9999')
+                || String(a.name).localeCompare(String(b.name)));
+        const body = $('#service-plan-body').empty();
+        if (!rows.length) {
+            body.append('<tr><td colspan="7" class="text-muted small">{{ _("Немає локацій у цій вибірці.") }}</td></tr>');
+            return;
+        }
+        rows.forEach(info => {
+            const limit = info.limiting === 'battery' ? ' 🔋' : (info.limiting === 'sd' ? ' 💾' : '');
+            const tr = $('<tr class="service-plan-row">').attr('data-location-id', info.id);
+            tr.append($('<td>').text(info.name));
+            tr.append($('<td>').html(statusBadge(info.status)));
+            tr.append($('<td>').text((info.visit_by || '—') + limit));
+            tr.append($('<td>').text(fmtDaysLeft(info.battery_days_left)));
+            tr.append($('<td>').text(fmtDaysLeft(info.sd_card_days_left)));
+            tr.append($('<td>').text(info.last_visit_date || '—'));
+            tr.append($('<td>').text(info.lost_days ? '~' + info.lost_days : ''));
+            body.append(tr);
+        });
+    }
+    $('#service-plan-filters').on('change', 'input', renderServicePlan);
+    $('#service-plan-body').on('click', '.service-plan-row', function() {
+        const id = Number($(this).data('location-id'));
+        selectLocation(id);
+        document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
 
     // ─── INSTITUTION FILTER ──────────────────────────────────────────────
     $('#global-inst-filter').on('change', function() {
@@ -563,10 +688,51 @@ $(document).ready(function() {
         $('#service-form-placeholder').hide();
         $('#service-log-form').show();
         $('#service-location-id').val(locationId);
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        $('#visit-datetime').val(now.toISOString().slice(0, 16));
+        currentForecast = null;
+        resetServiceForm();
+        loadForecast(locationId);
         loadHistory(locationId);
+    }
+
+    // ─── SERVICE FORECAST (right panel) ──────────────────────────────────
+    let currentForecast = null;   // forecast of the selected location, also used for prefill
+
+    function loadForecast(locationId) {
+        $('#service-forecast').html('<span class="text-muted">{{ _("Завантаження...") }}</span>');
+        fetch(`/{{ g.lang_code }}/api/pam/locations-with-status?location_id=${locationId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (activeLocationId != locationId) return;   // user moved on
+                currentForecast = (Array.isArray(data) && data.length) ? data[0] : null;
+                renderForecast(currentForecast);
+                if (!$('#service-visit-id').val()) resetServiceForm();
+            })
+            .catch(() => $('#service-forecast').html('<span class="text-danger">{{ _("Помилка завантаження.") }}</span>'));
+    }
+
+    function renderForecast(info) {
+        const box = $('#service-forecast');
+        if (!info) { box.html('<span class="text-muted">{{ _("Немає даних.") }}</span>'); return; }
+        let html = '<div class="mb-1">' + statusBadge(info.status) + '</div>';
+        if (!SERVICE_ACTIVE.includes(info.status)) {
+            box.html(html + '<div class="text-muted">' + (SERVICE_STATUS_HINTS[info.status] || '') + '</div>');
+            return;
+        }
+        if (info.visit_by) {
+            const lim = info.limiting === 'battery' ? '{{ _("лімітує батарея") }}' : '{{ _("лімітує SD-карта") }}';
+            html += '<div>{{ _("Приїхати до") }}: <strong>' + info.visit_by + '</strong> (' + lim + ')</div>';
+        }
+        html += '<div>🔋 {{ _("Батарея") }}: ' + fmtDaysLeft(info.battery_days_left);
+        const src = batterySourceText(info);
+        if (src) html += ' <span class="text-muted">· ' + src + '</span>';
+        html += '</div>';
+        html += '<div>💾 {{ _("SD-карта") }}: ' + fmtDaysLeft(info.sd_card_days_left)
+              + ' <span class="text-muted">· ~' + info.data_rate_mb_h + ' {{ _("МБ/год") }}</span></div>';
+        if (info.hours_per_day) html += '<div class="text-muted">{{ _("Розклад") }}: ' + info.hours_per_day + ' {{ _("год/добу") }}</div>';
+        if (info.last_recording) html += '<div class="text-muted">{{ _("Останній запис цього розгортання") }}: ' + info.last_recording + '</div>';
+        if (info.lost_days) html += '<div class="text-danger">{{ _("Втрачено днів даних") }}: ~' + info.lost_days + '</div>';
+        if (SERVICE_STATUS_HINTS[info.status]) html += '<div class="text-muted">' + SERVICE_STATUS_HINTS[info.status] + '</div>';
+        box.html(html);
     }
 
     function showPanel() {
@@ -710,9 +876,11 @@ $(document).ready(function() {
                         ? '<span class="badge bg-danger">{{ _("Ні") }}</span>'
                         : '<span class="badge bg-secondary">{{ _("?") }}</span>';
                     {% if can_edit %}
-                    const editBtn = `<button type="button" class="edit-visit-btn"
-                        style="background:none; border:1px solid #adb5bd; border-radius:3px; padding:1px 5px; font-size:0.78rem; cursor:pointer; color:#555; flex-shrink:0;"
-                        data-visit='${JSON.stringify(v).replace(/'/g, "&#39;")}'>&#9998;</button>`;
+                    const editBtn = v.can_modify ? `<button type="button" class="edit-visit-btn visit-action-btn"
+                        title="{{ _('Редагувати') }}"
+                        data-visit='${JSON.stringify(v).replace(/'/g, "&#39;")}'>&#9998;</button>
+                        <button type="button" class="delete-visit-btn visit-action-btn"
+                        title="{{ _('Видалити') }}" data-visit-id="${v.id}">&#128465;</button>` : '';
                     {% else %}
                     const editBtn = '';
                     {% endif %}
@@ -754,6 +922,7 @@ $(document).ready(function() {
         else if (v.is_operational === false) $('input[name="is-operational"][value="false"]').prop('checked', true);
         else                                 $('input[name="is-operational"][value=""]').prop('checked', true);
         $('#comments').val(v.comments || '');
+        applyPurposeRules();
         $('#service-save-btn').text('{{ _("Зберегти зміни") }}');
         $('#service-cancel-edit-btn').show();
         $('#service-log-form').show();
@@ -761,6 +930,54 @@ $(document).ready(function() {
         // Scroll to form.
         $('#panel-content').animate({ scrollTop: $('#service-form-title').offset().top }, 300);
     });
+
+    // Delete a mistaken record.
+    $('#history-content').on('click', '.delete-visit-btn', function() {
+        if (!confirm('{{ _("Видалити цей запис журналу? Цю дію не можна скасувати.") }}')) return;
+        const visitId = $(this).data('visit-id');
+        fetch(`/{{ g.lang_code }}/api/pam/service-visit/${visitId}/delete`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token() }}' }
+        })
+        .then(r => r.json().then(d => ({ ok: r.ok, d })))
+        .then(({ ok, d }) => {
+            if (!ok) throw new Error(d.error || '{{ _("Невідома помилка") }}');
+            if ($('#service-visit-id').val() == visitId) resetServiceForm();
+            afterServiceChange();
+        })
+        .catch(err => alert(`{{ _('Помилка:') }} ${err.message}`));
+    });
+
+    function afterServiceChange() {
+        const locId = $('#service-location-id').val();
+        loadHistory(locId);
+        loadForecast(locId);
+        if (mapMode === 'service') loadServiceStatus();
+    }
+
+    // Purpose decides which fields matter: a removal needs no battery, card or
+    // schedule; an installation cannot "keep" batteries or a card.
+    const BATTERY_KEPT_ID = '{{ battery_kept_id }}';
+    const SD_KEPT_ID = '{{ sd_kept_id }}';
+    const PURPOSE_INSTALL = '{{ purpose_install_id }}';
+    const PURPOSE_REMOVED = '{{ purpose_removed_id }}';
+    const PURPOSE_ROUTINE = '{{ purpose_routine_id }}';
+    function applyPurposeRules() {
+        const purpose = $('#visit-purpose').val();
+        const removal = purpose === PURPOSE_REMOVED;
+        $('#service-device-fields').toggle(!removal);
+        $('#removal-hint').toggleClass('d-none', !removal);
+        $('#sd-card-status, #recording-hours').prop('required', !removal);
+        const install = purpose === PURPOSE_INSTALL;
+        $(`#battery-type option[value="${BATTERY_KEPT_ID}"], #battery-type option[value=""]`).prop('disabled', install);
+        $(`#sd-card-status option[value="${SD_KEPT_ID}"]`).prop('disabled', install);
+        if (install) {
+            if (!$('#battery-type').val() || $('#battery-type').val() === BATTERY_KEPT_ID) $('#battery-type').val(null);
+            if ($('#sd-card-status').val() === SD_KEPT_ID) $('#sd-card-status').val(null);
+        }
+        $('#battery-type, #sd-card-status').trigger('change.select2');
+    }
+    $('#visit-purpose').on('change', applyPurposeRules);
 
     // Cancel visit edit — return to "New record" mode.
     $('#service-cancel-edit-btn').on('click', resetServiceForm);
@@ -770,10 +987,18 @@ $(document).ready(function() {
         $('#service-form-title').html('<i class="fas fa-plus-circle me-1"></i>{{ _("Новий запис") }}');
         $('#service-save-btn').text('{{ _("Зберегти запис") }}');
         $('#service-cancel-edit-btn').hide();
-        $('#visit-purpose').val('').trigger('change');
-        $('#battery-type').val('').trigger('change');
-        $('#sd-card-status').val('').trigger('change');
-        $('#recording-hours').val('');
+        // Prefill from the last visit: a recorder that is out gets "installation",
+        // one in the field gets "routine" with the same batteries and schedule.
+        const f = currentForecast;
+        const deployed = f && f.last_purpose_id && String(f.last_purpose_id) !== PURPOSE_REMOVED;
+        $('#visit-purpose').val(f ? (deployed ? PURPOSE_ROUTINE : PURPOSE_INSTALL) : '');
+        const lastBattery = f && f.last_battery_type_id && String(f.last_battery_type_id) !== BATTERY_KEPT_ID
+            ? String(f.last_battery_type_id) : '';
+        $('#battery-type').val(lastBattery);
+        $('#sd-card-status').val('');
+        $('#recording-hours').val(f && f.last_hours_per_day ? f.last_hours_per_day : '');
+        $('#visit-purpose, #battery-type, #sd-card-status').trigger('change.select2');
+        applyPurposeRules();
         $('input[name="is-operational"][value=""]').prop('checked', true);
         $('#comments').val('');
         // Reset date to "now".
@@ -810,10 +1035,8 @@ $(document).ready(function() {
         .then(r => r.json().then(d => ({ ok: r.ok, d })))
         .then(({ ok, d }) => {
             if (ok) {
-                alert(d.message);
                 resetServiceForm();
-                loadHistory($('#service-location-id').val());
-                if (mapMode === 'service') loadServiceStatus();
+                afterServiceChange();
             } else {
                 throw new Error(d.error || '{{ _("Невідома помилка") }}');
             }

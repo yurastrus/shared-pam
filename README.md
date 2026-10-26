@@ -495,6 +495,54 @@ other.
 
 ---
 
+## Recorder service forecast (manage-locations, since 2026-10-26)
+
+`/<lang>/pam/manage-locations` in "Service" mode colours each recorder by how
+long its batteries and SD card will last, and lists them in a **service plan**
+table sorted by the date someone should visit. The maths is in
+`service_forecast.py` (pure, tested in `tests/test_pam_service_forecast.py`);
+`routes.api_get_pam_locations_with_status` only reads the data.
+
+### Statuses
+`ok` (>14 days left), `warning` (4-14), `critical` (0-3), `overdue` (the
+forecast says it ran out), `stopped` (this deployment's uploaded data end and
+the forecast agrees), `removed`, `inactive` (no data and no visit for 200 days),
+`no_log` (recordings but no service log), `unknown` (not enough to forecast).
+
+### How the forecast works
+* Visits are replayed in order. **Kept batteries / kept card carry over** what
+  was left minus what was used since the previous visit; they no longer reset
+  the clock (the old code treated "batteries kept" as 200 fresh hours and a kept
+  card as empty).
+* **Battery capacity is learned**: a run that stopped recording at least 3 days
+  before the next visit, without filling its card, gives one sample
+  (days x hours/day). The median per battery type is used once there are 3
+  samples; otherwise `battery_types.estimated_recording_hours`. On the data of
+  2026-10: NiMH 2500 about 258 h (n=5, rated 300), lithium AA about 360 h
+  (n=15, rated 450).
+* **SD data rate is learned per location**: a run that wrote H hours to a C GB
+  card proves rate <= C/H. The smallest bound per location is used (capped at
+  290 MB/h, floored at 30); unknown locations get the median of the location
+  rates. The old fixed 290 MB/h made 64 GB cards look full after 35 days,
+  while they really held 50-114 days.
+* `is_operational` ("was it working when you arrived") is stored and shown but
+  not used: in the log it contradicts the comments too often.
+
+### Service log form
+Fields follow the visit purpose: a removal hides batteries, card and schedule
+(stored as card "kept" and 0 h, the columns are NOT NULL); an installation
+cannot "keep" batteries or a card. A new record is prefilled from the last
+visit. Dates more than a day ahead are rejected; hours must be 1-24. Only the
+author or an admin can edit or delete a record (`/api/pam/service-visit/<id>/delete`).
+
+### Performance
+One range join over `recordings` for all visits plus one `GROUP BY` for the
+latest recording (~0.3 s on 600k recordings), instead of a query per location.
+A per-location `LATERAL MAX()` is slow here (~5 s): there is no
+`(location_id, datetime_start)` index.
+
+---
+
 ## Integration
 
 This package is registered in biomon's `create_app()` factory as the `pam_bp` blueprint. It connects to a dedicated PostgreSQL database (`PAM_DATABASE_URL`) and uses institution-based access control inherited from the main app's `User` / `Institution` models.

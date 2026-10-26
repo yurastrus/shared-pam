@@ -16,6 +16,7 @@ from .pam_segment_sampling import (
 from app.utils.decorators import role_required
 from . import pam_bp
 from . import access as pam_access
+from . import service_forecast
 from .utils import get_pam_db_connection, get_pam_engine, generate_spectrogram_image, get_occurrence_data, get_institution_filter, get_models_list, get_reference_model_id
 import io
 import csv
@@ -2790,6 +2791,11 @@ def manage_pam_locations(lang_code):
                                sd_card_statuses=sd_card_statuses,
                                visit_purposes=visit_purposes,
                                can_edit=can_edit,
+                               battery_kept_id=service_forecast.BATTERY_KEPT_TYPE_ID,
+                               sd_kept_id=service_forecast.SD_KEPT_STATUS_ID,
+                               purpose_install_id=service_forecast.PURPOSE_INSTALL,
+                               purpose_removed_id=service_forecast.PURPOSE_REMOVED,
+                               purpose_routine_id=service_forecast.PURPOSE_ROUTINE,
                                geoserver_url=current_app.config.get('GEOSERVER_URL', ''))
     finally:
         if conn: conn.close()
@@ -3335,7 +3341,7 @@ def api_pam_species_dynamics(lang_code):
                 sba.year,
                 sba.detection_count,
                 sba.effort_hours,
-                CASE WHEN '{lang_code}' = 'uk' THEN b.name_ua ELSE b.name_en END as biotope_name
+                CASE WHEN :lang = 'uk' THEN b.name_ua ELSE b.name_en END as biotope_name
             FROM species_biotope_yearly_activity sba
             JOIN biotopes b ON sba.biotope_id = b.id
             WHERE sba.species_id = :species_id 
@@ -3343,7 +3349,7 @@ def api_pam_species_dynamics(lang_code):
               AND {biotope_condition}
             ORDER BY sba.year, biotope_name
         """)
-        biotope_result = conn.execute(biotope_query, params).mappings().fetchall()
+        biotope_result = conn.execute(biotope_query, {**params, "lang": lang_code}).mappings().fetchall()
         
         biotope_data = []
         for row in biotope_result:
@@ -3839,15 +3845,49 @@ def api_yearly_trends_table(lang_code):
     finally:
         if conn: conn.close()
 
+# Every service visit with what was recorded until the next visit at that location.
+# One range join instead of a query per location (the old N+1 version took seconds).
+SERVICE_VISITS_SQL = text("""
+    WITH v AS (
+        SELECT sv.id, sv.location_id, sv.visit_datetime, sv.visit_purpose_id,
+               sv.recording_hours_per_day, sv.battery_type_id, sv.sd_card_status_id,
+               sv.is_operational,
+               LEAD(sv.visit_datetime) OVER (PARTITION BY sv.location_id
+                                             ORDER BY sv.visit_datetime) AS next_visit
+        FROM service_visits sv
+    )
+    SELECT v.location_id, v.visit_datetime, v.visit_purpose_id, v.recording_hours_per_day,
+           v.battery_type_id, v.is_operational, bt.estimated_recording_hours, scs.capacity_gb,
+           MAX(r.datetime_start) AS last_recording,
+           COALESCE(SUM(r.duration_minutes), 0) / 60.0 AS recorded_hours
+    FROM v
+    LEFT JOIN battery_types bt ON bt.id = v.battery_type_id
+    LEFT JOIN sd_card_status scs ON scs.id = v.sd_card_status_id
+    LEFT JOIN recordings r
+           ON r.location_id = v.location_id
+          AND r.datetime_start >= v.visit_datetime
+          AND (v.next_visit IS NULL OR r.datetime_start < v.next_visit)
+    GROUP BY v.id, v.location_id, v.visit_datetime, v.visit_purpose_id, v.recording_hours_per_day,
+             v.battery_type_id, v.is_operational, bt.estimated_recording_hours, scs.capacity_gb
+""")
+
+
 @pam_bp.route('/<lang_code>/api/pam/locations-with-status')
 @login_required
 def api_get_pam_locations_with_status(lang_code):
-    """Return PAM locations with their predicted status; supports ?institution_id=X filtering."""
+    """PAM locations with their service forecast.
+
+    ?institution_id=X narrows to one institution, ?location_id=X to one location
+    (used by the forecast block in the location panel). The maths lives in
+    service_forecast.py; calibration always uses the whole visit history, which
+    exposes no per-location data.
+    """
     g.lang_code = lang_code
 
     is_admin = current_user.has_role('admin')
     user_inst_ids = pam_access.allowed_institution_ids(current_user)
     selected_inst_id = request.args.get('institution_id', '')
+    selected_loc_id = request.args.get('location_id', '')
 
     # Build the SQL condition for institution-based access control.
     if is_admin:
@@ -3863,122 +3903,72 @@ def api_get_pam_locations_with_status(lang_code):
     else:
         return jsonify([])
 
+    # Additional filter for the institution selected in the dropdown.
+    if selected_inst_id and selected_inst_id.isdigit():
+        inst_condition += """ AND EXISTS (
+            SELECT 1 FROM location_institutions li_sel
+            WHERE li_sel.location_id = l.location_id
+            AND li_sel.institution_id = :selected_inst_id
+        )"""
+        inst_params['selected_inst_id'] = int(selected_inst_id)
+    if selected_loc_id and selected_loc_id.isdigit():
+        inst_condition += " AND l.location_id = :selected_loc_id"
+        inst_params['selected_loc_id'] = int(selected_loc_id)
+
     conn = None
     try:
         conn = get_pam_db_connection()
 
-        INACTIVE_MARKER_DAYS = 200
-        DEVICE_REMOVED_PURPOSE_ID = 3
-        TIME_WARNING_DAYS = 14
-        TIME_CRITICAL_DAYS = 3
-        DATA_RATE_MB_PER_HOUR = 290
-        status_severity = {'ok': 0, 'warning': 1, 'critical': 2}
-
-        # Additional filter for the institution selected in the dropdown.
-        if selected_inst_id and selected_inst_id.isdigit():
-            inst_condition += """ AND EXISTS (
-                SELECT 1 FROM location_institutions li_sel
-                WHERE li_sel.location_id = l.location_id
-                AND li_sel.institution_id = :selected_inst_id
-            )"""
-            inst_params['selected_inst_id'] = int(selected_inst_id)
-
-        last_data_query = text("SELECT location_id, MAX(datetime_start) as last_data_date FROM recordings GROUP BY location_id")
-        last_data_results = conn.execute(last_data_query).fetchall()
-        last_data_map = {row.location_id: row.last_data_date for row in last_data_results}
-
         locations = conn.execute(
-            text(f"SELECT l.location_id, l.location_name, l.lat, l.lon FROM locations l WHERE {inst_condition}"),
+            text(f"SELECT l.location_id, l.location_name, l.location_name_en, l.lat, l.lon "
+                 f"FROM locations l WHERE {inst_condition}"),
             inst_params
         ).fetchall()
+        if not locations:
+            return jsonify([])
+
+        last_data_map = {
+            row.location_id: row.last_data_date for row in conn.execute(text(
+                "SELECT location_id, MAX(datetime_start) AS last_data_date "
+                "FROM recordings GROUP BY location_id")).fetchall()
+        }
+        visits_by_loc = service_forecast.visits_from_rows(conn.execute(SERVICE_VISITS_SQL).fetchall())
+        cal = service_forecast.calibrate(visits_by_loc)
+        today = date.today()
+
         response_data = []
-        
         for loc in locations:
-            last_visit_query = text("""
-                SELECT 
-                    sv.visit_datetime, sv.recording_hours_per_day, sv.visit_purpose_id,
-                    bt.estimated_recording_hours, scs.capacity_gb
-                FROM service_visits sv
-                LEFT JOIN battery_types bt ON sv.battery_type_id = bt.id
-                LEFT JOIN sd_card_status scs ON sv.sd_card_status_id = scs.id
-                WHERE sv.location_id = :location_id
-                ORDER BY sv.visit_datetime DESC LIMIT 1
-            """)
-            last_visit = conn.execute(last_visit_query, {'location_id': loc.location_id}).fetchone()
-
-            status, status_reason = 'unknown', "Немає даних про обслуговування"
-            days_since_visit, battery_days_left, sd_card_days_left = None, None, None
-
-            if last_visit and last_visit.visit_purpose_id == DEVICE_REMOVED_PURPOSE_ID:
-                status, status_reason = 'inactive', "Прилад демонтовано"
-            else:
-                # Activity = the most recent of: latest recording OR latest service visit.
-                # A fresh install/service counts as activity, so a location is not "dead"
-                # just because its last recording is old if the device was recently reinstalled
-                # (bug: a reinstall used to show as inactive).
-                last_recording_date = last_data_map.get(loc.location_id)
-                last_visit_date = last_visit.visit_datetime if last_visit else None
-                _activity_candidates = [d for d in (last_recording_date, last_visit_date) if d is not None]
-                last_activity_date = (
-                    max(_activity_candidates, key=lambda d: d.replace(tzinfo=None))
-                    if _activity_candidates else None
-                )
-
-                if not last_activity_date:
-                    status, status_reason = 'inactive', "Немає ані даних, ані записів про обслуговування"
-                else:
-                    days_since_activity = (datetime.now(last_activity_date.tzinfo).date() - last_activity_date.date()).days
-                    
-                    if days_since_activity > INACTIVE_MARKER_DAYS:
-                        status = 'inactive'
-                        status_reason = f"Останні дані понад {INACTIVE_MARKER_DAYS} днів тому"
-                    elif last_visit:
-                        days_since_visit = (datetime.now(last_visit.visit_datetime.tzinfo).date() - last_visit.visit_datetime.date()).days
-                        
-                        if last_visit.recording_hours_per_day and last_visit.estimated_recording_hours:
-                            predicted_battery_days = last_visit.estimated_recording_hours / last_visit.recording_hours_per_day
-                            battery_days_left = predicted_battery_days - days_since_visit
-
-                        card_capacity_gb = last_visit.capacity_gb
-                        if not card_capacity_gb:
-                            prev_card_query = text("""
-                                SELECT scs.capacity_gb FROM service_visits sv
-                                JOIN sd_card_status scs ON sv.sd_card_status_id = scs.id
-                                WHERE sv.location_id = :location_id AND scs.capacity_gb IS NOT NULL
-                                ORDER BY sv.visit_datetime DESC LIMIT 1
-                            """)
-                            prev_card = conn.execute(prev_card_query, {'location_id': loc.location_id}).fetchone()
-                            if prev_card:
-                                card_capacity_gb = float(prev_card.capacity_gb) if prev_card.capacity_gb else None
-
-                        if card_capacity_gb and last_visit.recording_hours_per_day:
-                            daily_usage_gb = (last_visit.recording_hours_per_day * DATA_RATE_MB_PER_HOUR) / 1024
-                            predicted_sd_card_days = float(card_capacity_gb) / daily_usage_gb if daily_usage_gb > 0 else float('inf')
-                            sd_card_days_left = predicted_sd_card_days - days_since_visit
-                        
-                        battery_status = 'ok'
-                        if battery_days_left is not None and battery_days_left <= TIME_CRITICAL_DAYS: battery_status = 'critical'
-                        elif battery_days_left is not None and battery_days_left <= TIME_WARNING_DAYS: battery_status = 'warning'
-                        
-                        sd_card_status = 'ok'
-                        if sd_card_days_left is not None and sd_card_days_left <= TIME_CRITICAL_DAYS: sd_card_status = 'critical'
-                        elif sd_card_days_left is not None and sd_card_days_left <= TIME_WARNING_DAYS: sd_card_status = 'warning'
-                        
-                        if status_severity[sd_card_status] > status_severity[battery_status]:
-                            status, status_reason = sd_card_status, "Лімітуючий фактор: SD-карта"
-                        else:
-                            status, status_reason = battery_status, "Лімітуючий фактор: Батарея"
-                    else:
-                        status, status_reason = 'unknown', 'Є свіжі дані, але немає записів обслуговування для прогнозу'
-
+            visits = visits_by_loc.get(loc.location_id, [])
+            fc = service_forecast.forecast_location(
+                loc.location_id, visits, last_data_map.get(loc.location_id), cal, today)
+            name = loc.location_name
+            if lang_code == 'en' and getattr(loc, 'location_name_en', None):
+                name = loc.location_name_en
             response_data.append({
-                'id': loc.location_id, 'name': loc.location_name, 'latitude': float(loc.lat), 'longitude': float(loc.lon),
-                'status': status, 'last_visit_date': last_visit.visit_datetime.strftime('%d.%m.%Y') if last_visit else '---',
-                'days_since_visit': days_since_visit, 'status_reason': status_reason,
-                'battery_days_left': round(battery_days_left) if battery_days_left is not None else None,
-                'sd_card_days_left': round(sd_card_days_left) if sd_card_days_left is not None else None
+                'id': loc.location_id, 'name': name,
+                'latitude': float(loc.lat), 'longitude': float(loc.lon),
+                'status': fc['status'],
+                'status_reason': fc['reason'],
+                'last_visit_date': visits[-1].visit_datetime.strftime('%d.%m.%Y') if visits else '---',
+                'days_since_visit': fc['days_since_visit'],
+                'battery_days_left': fc['battery_days_left'],
+                'sd_card_days_left': fc['sd_card_days_left'],
+                'limiting': fc['limiting'],
+                'visit_by': fc['visit_by'].strftime('%d.%m.%Y') if fc['visit_by'] else None,
+                'visit_by_iso': fc['visit_by'].isoformat() if fc['visit_by'] else None,
+                'lost_days': fc['lost_days'],
+                'last_recording': fc['last_recording'].strftime('%d.%m.%Y') if fc['last_recording'] else None,
+                'battery_source': fc['battery_source'],
+                'battery_runs': fc['battery_runs'],
+                'battery_capacity_hours': fc['battery_capacity_hours'],
+                'hours_per_day': fc['hours_per_day'],
+                'data_rate_mb_h': fc['data_rate_mb_h'],
+                # Prefill for the next service record.
+                'last_purpose_id': visits[-1].purpose_id if visits else None,
+                'last_battery_type_id': visits[-1].battery_type_id if visits else None,
+                'last_hours_per_day': visits[-1].hours_per_day if visits else None,
             })
-            
+
         return jsonify(response_data)
     except Exception as e:
         current_app.logger.error(f"Error fetching PAM locations with status: {e}", exc_info=True)
@@ -4010,9 +4000,9 @@ def api_get_pam_service_history(lang_code, location_id):
                 sv.id, sv.visit_datetime, sv.is_operational, sv.comments, sv.user_id,
                 sv.visit_purpose_id, sv.battery_type_id, sv.sd_card_status_id,
                 sv.recording_hours_per_day,
-                CASE WHEN '{lang_code}' = 'uk' THEN vp.name_ua ELSE vp.name_en END as purpose,
-                CASE WHEN '{lang_code}' = 'uk' THEN bt.name_ua ELSE bt.name_en END as battery_info,
-                CASE WHEN '{lang_code}' = 'uk' THEN scs.name_ua ELSE scs.name_en END as sd_card_info
+                CASE WHEN :lang = 'uk' THEN vp.name_ua ELSE vp.name_en END as purpose,
+                CASE WHEN :lang = 'uk' THEN bt.name_ua ELSE bt.name_en END as battery_info,
+                CASE WHEN :lang = 'uk' THEN scs.name_ua ELSE scs.name_en END as sd_card_info
             FROM service_visits sv
             JOIN visit_purposes vp ON sv.visit_purpose_id = vp.id
             LEFT JOIN battery_types bt ON sv.battery_type_id = bt.id
@@ -4022,7 +4012,7 @@ def api_get_pam_service_history(lang_code, location_id):
             LIMIT 20
         """)
         
-        visits = conn.execute(history_query, {'location_id': location_id}).fetchall()
+        visits = conn.execute(history_query, {'location_id': location_id, 'lang': lang_code}).fetchall()
         if not visits: return jsonify([])
 
         user_ids = [v.user_id for v in visits]
@@ -4037,6 +4027,7 @@ def api_get_pam_service_history(lang_code, location_id):
                 'visit_datetime_raw': v.visit_datetime.strftime('%Y-%m-%dT%H:%M'),
                 'user': user_map.get(v.user_id, f"User ID: {v.user_id}"),
                 'is_own': v.user_id == current_user.id,
+                'can_modify': v.user_id == current_user.id or current_user.has_role('admin'),
                 'purpose': v.purpose,
                 'visit_purpose_id': v.visit_purpose_id,
                 'battery_type_id': v.battery_type_id,
@@ -4055,6 +4046,70 @@ def api_get_pam_service_history(lang_code, location_id):
     finally:
         if conn: conn.close()
 
+# A visit dated further ahead than this is a typo, not a plan (the form sends
+# local time while the DB stores it as UTC, hence the slack).
+SERVICE_VISIT_FUTURE_SLACK = timedelta(days=1)
+
+
+class ServiceVisitInputError(ValueError):
+    """Form validation failure whose message can be shown to the user."""
+
+
+def _parse_service_visit(data):
+    """Validate a service-log form payload; returns SQL params.
+
+    Raises ServiceVisitInputError (user-facing message) or ValueError/TypeError
+    (malformed values). A removal visit needs no battery, card or schedule: the
+    recorder leaves the site. The columns are NOT NULL, so the card is stored as
+    "kept" and the schedule as 0 hours (the recorder no longer records there).
+    """
+    visit_datetime_str = data.get('visit_datetime')
+    visit_purpose_id = data.get('visit_purpose_id')
+    if not visit_datetime_str or not visit_purpose_id:
+        raise ServiceVisitInputError("Не всі обов'язкові поля заповнені.")
+    purpose = int(visit_purpose_id)
+    visit_dt = datetime.fromisoformat(visit_datetime_str)
+    if visit_dt.replace(tzinfo=None) > datetime.now() + SERVICE_VISIT_FUTURE_SLACK:
+        raise ServiceVisitInputError('Дата візиту в майбутньому.')
+
+    removal = purpose == service_forecast.PURPOSE_REMOVED
+    sd_card_status_id = data.get('sd_card_status_id')
+    hours = data.get('recording_hours_per_day')
+    if removal:
+        sd_card_status_id = sd_card_status_id or service_forecast.SD_KEPT_STATUS_ID
+        hours = hours or 0
+    elif not sd_card_status_id or not hours:
+        raise ServiceVisitInputError("Не всі обов'язкові поля заповнені.")
+    hours = int(hours)
+    if not (0 if removal else 1) <= hours <= 24:
+        raise ServiceVisitInputError('Години запису мають бути від 1 до 24.')
+
+    is_operational_str = data.get('is_camera_operational')
+    battery = data.get('battery_type_id')
+    return {
+        'visit_datetime': visit_dt,
+        'visit_purpose_id': purpose,
+        'battery_type_id': int(battery) if battery and not removal else None,
+        'sd_card_status_id': int(sd_card_status_id),
+        'recording_hours_per_day': hours,
+        'is_operational': True if is_operational_str == 'true' else False if is_operational_str == 'false' else None,
+        'comments': (data.get('comments') or '').strip() or None,
+    }
+
+
+def _user_can_edit_pam_location(conn, location_id):
+    """Admin, or a user whose institution is linked to the location."""
+    if current_user.has_role('admin'):
+        return True
+    user_inst_ids = pam_access.allowed_institution_ids(current_user)
+    if not user_inst_ids:
+        return False
+    return conn.execute(text("""
+        SELECT 1 FROM location_institutions
+        WHERE location_id = :loc_id AND institution_id = ANY(:inst_ids)
+    """), {'loc_id': location_id, 'inst_ids': user_inst_ids}).fetchone() is not None
+
+
 @pam_bp.route('/<lang_code>/api/pam/service-log/create', methods=['POST'])
 @login_required
 @role_required('manager')
@@ -4063,54 +4118,29 @@ def api_create_pam_service_visit(lang_code):
     g.lang_code = lang_code
     conn = None
     try:
-        data = request.json
-
+        data = request.json or {}
         location_id = data.get('location_id')
-        sd_card_status_id = data.get('sd_card_status_id')
-        visit_datetime_str = data.get('visit_datetime')
-        recording_hours_per_day = data.get('recording_hours_per_day')
-        visit_purpose_id = data.get('visit_purpose_id')
-
-        if not all([location_id, sd_card_status_id, visit_datetime_str, recording_hours_per_day, visit_purpose_id]):
-            return jsonify({'success': False, 'error': 'Не всі обов\'язкові поля заповнені.'}), 400
-
-        is_operational_str = data.get('is_camera_operational')
-        is_camera_operational = True if is_operational_str == 'true' else False if is_operational_str == 'false' else None
-
-        params = {
-            "location_id": int(location_id), "user_id": current_user.id,
-            "visit_datetime": datetime.fromisoformat(visit_datetime_str),
-            "is_operational": is_camera_operational,
-            "battery_type_id": int(data['battery_type_id']) if data.get('battery_type_id') else None,
-            "sd_card_status_id": int(sd_card_status_id),
-            "recording_hours_per_day": int(recording_hours_per_day),
-            "visit_purpose_id": int(visit_purpose_id),
-            "comments": data.get('comments', '').strip() or None
-        }
+        if not location_id:
+            return jsonify({'success': False, 'error': "Не всі обов'язкові поля заповнені."}), 400
+        try:
+            params = _parse_service_visit(data)
+        except ServiceVisitInputError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        params.update(location_id=int(location_id), user_id=current_user.id)
 
         conn = get_pam_db_connection()
-        # Access check: admin or a user whose institution is linked to the location.
-        if not current_user.has_role('admin'):
-            user_inst_ids = pam_access.allowed_institution_ids(current_user)
-            if not user_inst_ids:
-                return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
-            has_access = conn.execute(text("""
-                SELECT 1 FROM location_institutions
-                WHERE location_id = :loc_id AND institution_id = ANY(:inst_ids)
-            """), {'loc_id': int(location_id), 'inst_ids': user_inst_ids}).fetchone()
-            if not has_access:
-                return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
-        insert_query = text("""
-            INSERT INTO service_visits (location_id, user_id, visit_datetime, is_operational, 
-                                        battery_type_id, sd_card_status_id, recording_hours_per_day, 
+        if not _user_can_edit_pam_location(conn, int(location_id)):
+            return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
+        conn.execute(text("""
+            INSERT INTO service_visits (location_id, user_id, visit_datetime, is_operational,
+                                        battery_type_id, sd_card_status_id, recording_hours_per_day,
                                         visit_purpose_id, comments)
-            VALUES (:location_id, :user_id, :visit_datetime, :is_operational, 
-                    :battery_type_id, :sd_card_status_id, :recording_hours_per_day, 
+            VALUES (:location_id, :user_id, :visit_datetime, :is_operational,
+                    :battery_type_id, :sd_card_status_id, :recording_hours_per_day,
                     :visit_purpose_id, :comments)
-        """)
-        conn.execute(insert_query, params)
+        """), params)
         conn.commit()
-        
+
         current_app.logger.info(f"User {current_user.username} created new PAM service visit for location {location_id}")
         return jsonify({'success': True, 'message': 'Запис успішно додано до журналу!'}), 201
     except (ValueError, TypeError) as e:
@@ -4124,6 +4154,25 @@ def api_create_pam_service_visit(lang_code):
     finally:
         if conn: conn.close()
 
+
+def _check_visit_editable(conn, visit_id):
+    """None if the current user may change this visit, else an error response.
+
+    Location access is required; besides that, only the author or an admin may
+    change or delete a record, so one manager cannot rewrite another's log.
+    """
+    row = conn.execute(
+        text("SELECT location_id, user_id FROM service_visits WHERE id = :id"), {'id': visit_id}
+    ).fetchone()
+    if not row:
+        return jsonify({'success': False, 'error': 'Запис не знайдено.'}), 404
+    if not _user_can_edit_pam_location(conn, row.location_id):
+        return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
+    if not current_user.has_role('admin') and row.user_id != current_user.id:
+        return jsonify({'success': False, 'error': 'Змінювати можна лише власні записи.'}), 403
+    return None
+
+
 @pam_bp.route('/<lang_code>/api/pam/service-visit/<int:visit_id>/update', methods=['POST'])
 @login_required
 @role_required('manager')
@@ -4132,49 +4181,16 @@ def api_update_pam_service_visit(lang_code, visit_id):
     g.lang_code = lang_code
     conn = None
     try:
-        data = request.json
-        visit_datetime_str = data.get('visit_datetime')
-        sd_card_status_id  = data.get('sd_card_status_id')
-        recording_hours    = data.get('recording_hours_per_day')
-        visit_purpose_id   = data.get('visit_purpose_id')
-
-        if not all([visit_datetime_str, sd_card_status_id, recording_hours, visit_purpose_id]):
-            return jsonify({'success': False, 'error': 'Не всі обов\'язкові поля заповнені.'}), 400
-
-        is_operational_str  = data.get('is_camera_operational')
-        is_camera_operational = True if is_operational_str == 'true' else False if is_operational_str == 'false' else None
+        try:
+            params = _parse_service_visit(request.json or {})
+        except ServiceVisitInputError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        params['id'] = visit_id
 
         conn = get_pam_db_connection()
-
-        # Verify the record exists and the user has access to its location.
-        visit_row = conn.execute(
-            text("SELECT location_id FROM service_visits WHERE id = :id"),
-            {'id': visit_id}
-        ).fetchone()
-        if not visit_row:
-            return jsonify({'success': False, 'error': 'Запис не знайдено.'}), 404
-
-        if not current_user.has_role('admin'):
-            user_inst_ids = pam_access.allowed_institution_ids(current_user)
-            if not user_inst_ids:
-                return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
-            has_access = conn.execute(text("""
-                SELECT 1 FROM location_institutions
-                WHERE location_id = :loc_id AND institution_id = ANY(:inst_ids)
-            """), {'loc_id': visit_row.location_id, 'inst_ids': user_inst_ids}).fetchone()
-            if not has_access:
-                return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
-
-        params = {
-            'id': visit_id,
-            'visit_datetime':        datetime.fromisoformat(visit_datetime_str),
-            'visit_purpose_id':      int(visit_purpose_id),
-            'battery_type_id':       int(data['battery_type_id']) if data.get('battery_type_id') else None,
-            'sd_card_status_id':     int(sd_card_status_id),
-            'recording_hours_per_day': int(recording_hours),
-            'is_operational':        is_camera_operational,
-            'comments':              data.get('comments', '').strip() or None,
-        }
+        error = _check_visit_editable(conn, visit_id)
+        if error:
+            return error
         conn.execute(text("""
             UPDATE service_visits
             SET visit_datetime          = :visit_datetime,
@@ -4200,6 +4216,31 @@ def api_update_pam_service_visit(lang_code, visit_id):
         return jsonify({'success': False, 'error': 'Помилка сервера.'}), 500
     finally:
         if conn: conn.close()
+
+
+@pam_bp.route('/<lang_code>/api/pam/service-visit/<int:visit_id>/delete', methods=['POST'])
+@login_required
+@role_required('manager')
+def api_delete_pam_service_visit(lang_code, visit_id):
+    """Delete a mistaken entry from the PAM service log (author or admin)."""
+    g.lang_code = lang_code
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        error = _check_visit_editable(conn, visit_id)
+        if error:
+            return error
+        conn.execute(text("DELETE FROM service_visits WHERE id = :id"), {'id': visit_id})
+        conn.commit()
+        current_app.logger.info(f"User {current_user.username} deleted PAM service visit {visit_id}")
+        return jsonify({'success': True, 'message': 'Запис видалено.'})
+    except Exception as e:
+        if conn: conn.rollback()
+        current_app.logger.error(f"Error deleting PAM service visit {visit_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Помилка сервера.'}), 500
+    finally:
+        if conn: conn.close()
+
 
 @pam_bp.route('/<lang_code>/api/pam/get-weather-overlay')
 def api_get_weather_overlay(lang_code):

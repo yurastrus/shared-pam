@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-15 12:06+0300\n"
+"POT-Creation-Date: 2026-10-26 12:14+0200\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: uk\n"
@@ -27,7 +27,7 @@ msgid "Управління локаціями ПАМ"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:16
-#: app/pam/templates/manage_pam_locations.html:597
+#: app/pam/templates/manage_pam_locations.html:763
 #: app/pam/templates/pam_import.html:52 app/pam/templates/pam_import.html:388
 #: app/pam/templates/pam_import.html:486
 msgid "Нова локація"
@@ -80,256 +80,400 @@ msgid "Без EN назви"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:49
+msgid "Ресурсу вистачить більше ніж на 14 днів"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:49
+#: app/pam/templates/manage_pam_locations.html:262
+#: app/pam/templates/manage_pam_locations.html:353
 msgid "OK"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:50
+msgid "Ресурсу лишилось 4–14 днів"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:50
+#: app/pam/templates/manage_pam_locations.html:354
 msgid "Увага"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:51
+msgid "Ресурсу лишилось до 3 днів"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:51
+#: app/pam/templates/manage_pam_locations.html:355
 msgid "Критично"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:52
-#: app/pam/templates/pam_service_log.html:93
-#: app/pam/templates/pam_service_log.html:256
-msgid "Невідомо"
+msgid "За прогнозом ресурс уже вичерпано, прилад, ймовірно, не пише"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:67
+#: app/pam/templates/manage_pam_locations.html:52
+#: app/pam/templates/manage_pam_locations.html:356
+msgid "Прострочено"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:53
+msgid "Завантажені дані підтверджують, що прилад зупинився"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:53
+#: app/pam/templates/manage_pam_locations.html:357
+msgid "Зупинився"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:54
+msgid "Є записи, але немає журналу обслуговування"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:54
+#: app/pam/templates/manage_pam_locations.html:360
+msgid "Немає журналу"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:55
+msgid "Демонтовано, неактивна або бракує даних для прогнозу"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:55
+#: app/pam/templates/manage_pam_locations.html:263
+msgid "Інше"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:70
 #: app/pam/templates/pam_location_coverage.html:10
 msgid "Календар покриття записами"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:82
+#: app/pam/templates/manage_pam_locations.html:85
 msgid "Виберіть локацію зі списку або на карті."
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:94
+#: app/pam/templates/manage_pam_locations.html:97
 #: app/pam/templates/pam_import.html:60
 msgid "Назва (укр)"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:98
+#: app/pam/templates/manage_pam_locations.html:101
 #: app/pam/templates/pam_import.html:64
 msgid "Назва (англ)"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:102
+#: app/pam/templates/manage_pam_locations.html:105
 msgid "Область / State-Province"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:103
+#: app/pam/templates/manage_pam_locations.html:106
 msgid "напр. Lviv Oblast"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:107
+#: app/pam/templates/manage_pam_locations.html:110
 #: app/pam/templates/pam_import.html:69
 msgid "Широта"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:111
+#: app/pam/templates/manage_pam_locations.html:114
 #: app/pam/templates/pam_import.html:73
 msgid "Довгота"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:116
+#: app/pam/templates/manage_pam_locations.html:119
 msgid "Клацніть на карті або введіть координати вручну."
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:120
+#: app/pam/templates/manage_pam_locations.html:123
 #: app/pam/templates/pam_import.html:80
 msgid "Установи"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:129
+#: app/pam/templates/manage_pam_locations.html:132
 #: app/pam/templates/pam_import.html:88
 msgid "Біотопи"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:139
-#: app/pam/templates/manage_pam_locations.html:582
-#: app/pam/templates/manage_pam_locations.html:844
+#: app/pam/templates/manage_pam_locations.html:142
+#: app/pam/templates/manage_pam_locations.html:748
+#: app/pam/templates/manage_pam_locations.html:1067
 #: app/pam/templates/pam_import.html:101 app/pam/templates/pam_import.html:528
 msgid "Зберегти"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:140
-#: app/pam/templates/manage_pam_locations.html:221
+#: app/pam/templates/manage_pam_locations.html:143
+#: app/pam/templates/manage_pam_locations.html:238
 #: app/pam/templates/pam_import.html:105
 msgid "Скасувати"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:149
-#: app/pam/templates/manage_pam_locations.html:770
-msgid "Новий запис"
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:152
-msgid "Виберіть локацію, щоб додати запис."
+#: app/pam/templates/manage_pam_locations.html:151
+msgid "Прогноз обслуговування"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:159
+#: app/pam/templates/manage_pam_locations.html:987
+msgid "Новий запис"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:162
+msgid "Виберіть локацію, щоб додати запис."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:169
 msgid "Дата і час"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:163
+#: app/pam/templates/manage_pam_locations.html:173
 #: app/pam/templates/pam_service_log.html:46
 msgid "Результат візиту"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:165
-#: app/pam/templates/manage_pam_locations.html:185
-#: app/pam/templates/manage_pam_locations.html:260
+#: app/pam/templates/manage_pam_locations.html:175
+#: app/pam/templates/manage_pam_locations.html:196
+#: app/pam/templates/manage_pam_locations.html:309
 #: app/pam/templates/pam_service_log.html:48
 #: app/pam/templates/pam_service_log.html:68
 msgid "-- Виберіть --"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:174
+#: app/pam/templates/manage_pam_locations.html:185
 msgid "Заміна батарейок"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:176
+#: app/pam/templates/manage_pam_locations.html:187
 #: app/pam/templates/pam_service_log.html:59
 msgid "-- Без заміни --"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:183
+#: app/pam/templates/manage_pam_locations.html:194
 msgid "Статус SD"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:194
+#: app/pam/templates/manage_pam_locations.html:205
 msgid "Год. запису/добу"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:198
-#: app/pam/templates/pam_service_log.html:81
-msgid "Стан приладу"
+#: app/pam/templates/manage_pam_locations.html:206
+msgid "напр. 6"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:202
-#: app/pam/templates/manage_pam_locations.html:708
+#: app/pam/templates/manage_pam_locations.html:211
+msgid "Демонтаж: батарейки, SD-карта й розклад не потрібні."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:215
+msgid "Чи працював прилад, коли ви прийшли?"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:219
+#: app/pam/templates/manage_pam_locations.html:874
 #: app/pam/templates/pam_service_log.html:253
 msgid "Так"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:206
-#: app/pam/templates/manage_pam_locations.html:710
+#: app/pam/templates/manage_pam_locations.html:223
+#: app/pam/templates/manage_pam_locations.html:876
 #: app/pam/templates/pam_service_log.html:255
 msgid "Ні"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:210
-#: app/pam/templates/manage_pam_locations.html:711
+#: app/pam/templates/manage_pam_locations.html:227
+#: app/pam/templates/manage_pam_locations.html:877
 msgid "?"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:216
+#: app/pam/templates/manage_pam_locations.html:233
 #: app/pam/templates/pam_service_log.html:99
 msgid "Коментарі"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:220
-#: app/pam/templates/manage_pam_locations.html:771
+#: app/pam/templates/manage_pam_locations.html:237
+#: app/pam/templates/manage_pam_locations.html:988
 #: app/pam/templates/pam_service_log.html:102
 msgid "Зберегти запис"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:229
+#: app/pam/templates/manage_pam_locations.html:247
 msgid "Історія"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:231
+#: app/pam/templates/manage_pam_locations.html:249
+#: app/pam/templates/manage_pam_locations.html:715
 msgid "Немає даних."
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:257
+#: app/pam/templates/manage_pam_locations.html:259
+msgid "План обслуговування"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:261
+msgid "Потребують візиту"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:267
+msgid ""
+"Відсортовано за датою, до якої треба приїхати. Ресурс батарей і швидкість"
+" заповнення SD оцінено за історією прогонів, де це можливо."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:273
+#: app/pam/templates/pam_import.html:40
+#: app/pam/templates/pam_verification_segments.html:271
+msgid "Локація"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:274
+#: app/pam/templates/pam_verification_segments.html:274
+msgid "Статус"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:275
+#: app/pam/templates/manage_pam_locations.html:434
+#: app/pam/templates/manage_pam_locations.html:723
+msgid "Приїхати до"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:276
+#: app/pam/templates/manage_pam_locations.html:725
+msgid "Батарея"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:277
+msgid "SD"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:278
+#: app/pam/templates/manage_pam_locations.html:424
+msgid "Останній візит"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:279
+#: app/pam/templates/manage_pam_locations.html:435
+msgid "Втрачено днів"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:306
 #: app/pam/templates/pam_import.html:467
 msgid "Виберіть біотопи..."
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:258
+#: app/pam/templates/manage_pam_locations.html:307
 #: app/pam/templates/pam_import.html:466
 msgid "Виберіть установи..."
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:327
-msgid "Немає даних про обслуговування"
+#: app/pam/templates/manage_pam_locations.html:358
+msgid "Демонтовано"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:330
-msgid "прострочено"
+#: app/pam/templates/manage_pam_locations.html:359
+msgid "Неактивна"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:330
+#: app/pam/templates/manage_pam_locations.html:361
+#: app/pam/templates/pam_service_log.html:93
+#: app/pam/templates/pam_service_log.html:256
+msgid "Невідомо"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:364
+msgid "За прогнозом ресурс уже вичерпано: прилад, імовірно, не пише."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:365
+msgid "Завантажені дані цього розгортання обриваються: прилад зупинився."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:366
+msgid "Останній запис у журналі: демонтаж приладу."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:367
+msgid "Понад 200 днів немає ні записів, ні візитів."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:368
+msgid ""
+"Є записи, але немає журналу обслуговування. Додайте візит встановлення, "
+"щоб отримати прогноз."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:369
+msgid "Бракує даних для прогнозу (тип батарей, SD-карта чи розклад)."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:402
+msgid "вичерпано"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:402
 #: app/pam/templates/pam_service_log.html:200
 #: app/pam/templates/pam_service_log.html:203
 msgid "дн."
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:333
-msgid "Неактивна / демонтовано"
+#: app/pam/templates/manage_pam_locations.html:406
+msgid "ресурс"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:335
-#: app/pam/templates/manage_pam_locations.html:339
-msgid "Останній візит"
+#: app/pam/templates/manage_pam_locations.html:406
+msgid "год за історією"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:341
+#: app/pam/templates/manage_pam_locations.html:408
+msgid "паспортний ресурс"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:408
+#: app/pam/templates/pam_location_coverage.html:30
+msgid "год"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:410
+msgid "залишок від попереднього візиту"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:426
 msgid "дн. тому"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:346
-msgid "Батарея"
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:347
-msgid "SD-карта"
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:349
-msgid "Немає записів для прогнозу"
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:374
+#: app/pam/templates/manage_pam_locations.html:459
 #: app/pam/templates/pam_import.html:337
 msgid "Національні природні парки"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:375
+#: app/pam/templates/manage_pam_locations.html:460
 #: app/pam/templates/pam_import.html:338
 msgid "Біосферні заповідники"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:376
+#: app/pam/templates/manage_pam_locations.html:461
 #: app/pam/templates/pam_import.html:339
 msgid "Регіональні ландшафтні парки"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:377
+#: app/pam/templates/manage_pam_locations.html:462
 #: app/pam/templates/pam_import.html:340
 msgid "Заказники"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:378
+#: app/pam/templates/manage_pam_locations.html:463
 #: app/pam/templates/pam_import.html:341
 msgid "Природні заповідники"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:379
+#: app/pam/templates/manage_pam_locations.html:464
 #: app/pam/templates/pam_import.html:342
 msgid "Пам'ятки природи"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:380
+#: app/pam/templates/manage_pam_locations.html:465
 #: app/pam/templates/pam_import.html:343
 msgid "Заповідні урочища"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:399
+#: app/pam/templates/manage_pam_locations.html:484
 #: app/pam/templates/pam_cooccurrence.html:554
 #: app/pam/templates/pam_import.html:372
 #: app/pam/templates/pam_overview.html:419
@@ -338,7 +482,7 @@ msgstr ""
 msgid "OSM"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:399
+#: app/pam/templates/manage_pam_locations.html:484
 #: app/pam/templates/pam_cooccurrence.html:554
 #: app/pam/templates/pam_import.html:372
 #: app/pam/templates/pam_overview.html:419
@@ -347,41 +491,17 @@ msgstr ""
 msgid "Супутник"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:410
+#: app/pam/templates/manage_pam_locations.html:495
 #: app/pam/templates/pam_import.html:357
 msgid "Території ПЗФ"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:581
-msgid "Редагування:"
+#: app/pam/templates/manage_pam_locations.html:603
+msgid "Немає локацій у цій вибірці."
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:598
-msgid "Створити"
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:642
-#: app/pam/templates/pam_service_log.html:320
-msgid "Помилка збереження:"
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:648
-#: app/pam/templates/pam_import.html:499
-msgid "Вкажіть назву локації."
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:649
-msgid "Вкажіть координати: клацніть на карті або введіть вручну."
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:691
-#: app/pam/templates/manage_pam_locations.html:821
-#: app/pam/templates/pam_sample_upload.html:336
-#: app/pam/templates/pam_species_detailed.html:182
-msgid "Помилка:"
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:699
+#: app/pam/templates/manage_pam_locations.html:701
+#: app/pam/templates/manage_pam_locations.html:865
 #: app/pam/templates/pam_data_export.html:92
 #: app/pam/templates/pam_evaluation_results.html:184
 #: app/pam/templates/pam_import.html:216
@@ -393,31 +513,107 @@ msgstr ""
 msgid "Завантаження..."
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:729
-msgid "Прилад:"
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:730
-msgid "Бат.:"
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:731
-msgid "SD:"
-msgstr ""
-
-#: app/pam/templates/manage_pam_locations.html:739
+#: app/pam/templates/manage_pam_locations.html:710
+#: app/pam/templates/manage_pam_locations.html:907
 msgid "Помилка завантаження."
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:746
+#: app/pam/templates/manage_pam_locations.html:722
+msgid "лімітує батарея"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:722
+msgid "лімітує SD-карта"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:729
+msgid "SD-карта"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:730
+msgid "МБ/год"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:731
+msgid "Розклад"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:731
+msgid "год/добу"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:732
+msgid "Останній запис цього розгортання"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:733
+msgid "Втрачено днів даних"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:747
+msgid "Редагування:"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:764
+msgid "Створити"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:808
+#: app/pam/templates/pam_service_log.html:320
+msgid "Помилка збереження:"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:814
+#: app/pam/templates/pam_import.html:499
+msgid "Вкажіть назву локації."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:815
+msgid "Вкажіть координати: клацніть на карті або введіть вручну."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:857
+#: app/pam/templates/manage_pam_locations.html:948
+#: app/pam/templates/manage_pam_locations.html:1044
+#: app/pam/templates/pam_sample_upload.html:336
+#: app/pam/templates/pam_species_detailed.html:182
+msgid "Помилка:"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:880
+msgid "Редагувати"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:883
+msgid "Видалити"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:897
+msgid "Прилад:"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:898
+msgid "Бат.:"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:899
+msgid "SD:"
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:914
 msgid "Редагування запису"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:757
+#: app/pam/templates/manage_pam_locations.html:926
 msgid "Зберегти зміни"
 msgstr ""
 
-#: app/pam/templates/manage_pam_locations.html:818
+#: app/pam/templates/manage_pam_locations.html:936
+msgid "Видалити цей запис журналу? Цю дію не можна скасувати."
+msgstr ""
+
+#: app/pam/templates/manage_pam_locations.html:944
+#: app/pam/templates/manage_pam_locations.html:1041
 #: app/pam/templates/pam_import.html:670
 #: app/pam/templates/pam_service_log.html:317
 #: app/pam/templates/pam_verification_upload.html:248
@@ -2370,11 +2566,6 @@ msgstr ""
 msgid "Імпорт даних ПАМ"
 msgstr ""
 
-#: app/pam/templates/pam_import.html:40
-#: app/pam/templates/pam_verification_segments.html:271
-msgid "Локація"
-msgstr ""
-
 #: app/pam/templates/pam_import.html:43 app/pam/templates/pam_import.html:430
 #: app/pam/templates/pam_import.html:453
 msgid "— Виберіть локацію —"
@@ -2568,10 +2759,6 @@ msgstr ""
 
 #: app/pam/templates/pam_location_coverage.html:27
 msgid "Усього записів"
-msgstr ""
-
-#: app/pam/templates/pam_location_coverage.html:30
-msgid "год"
 msgstr ""
 
 #: app/pam/templates/pam_location_coverage.html:31
@@ -3154,6 +3341,10 @@ msgstr ""
 
 #: app/pam/templates/pam_service_log.html:77
 msgid "Годин запису на добу"
+msgstr ""
+
+#: app/pam/templates/pam_service_log.html:81
+msgid "Стан приладу"
 msgstr ""
 
 #: app/pam/templates/pam_service_log.html:85
@@ -3903,10 +4094,6 @@ msgstr ""
 msgid "Час запису"
 msgstr ""
 
-#: app/pam/templates/pam_verification_segments.html:274
-msgid "Статус"
-msgstr ""
-
 #: app/pam/templates/pam_verification_segments.html:275
 msgid "Верифікації"
 msgstr ""
@@ -4349,5 +4536,17 @@ msgstr ""
 #~ "Клацайте на карті, щоб виміряти "
 #~ "відстань. Подвійний клік або Esc "
 #~ "завершує."
+#~ msgstr ""
+
+#~ msgid "Немає даних про обслуговування"
+#~ msgstr ""
+
+#~ msgid "прострочено"
+#~ msgstr ""
+
+#~ msgid "Неактивна / демонтовано"
+#~ msgstr ""
+
+#~ msgid "Немає записів для прогнозу"
 #~ msgstr ""
 
