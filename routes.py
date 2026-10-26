@@ -3933,8 +3933,8 @@ def api_get_pam_locations_with_status(lang_code):
                 "FROM recordings GROUP BY location_id")).fetchall()
         }
         visits_by_loc = service_forecast.visits_from_rows(conn.execute(SERVICE_VISITS_SQL).fetchall())
-        cal = service_forecast.calibrate(visits_by_loc)
         today = date.today()
+        cal = service_forecast.calibrate(visits_by_loc, today)
 
         response_data = []
         for loc in locations:

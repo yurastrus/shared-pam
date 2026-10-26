@@ -13,12 +13,19 @@ Three rules that the old inline code got wrong:
 
 * "Batteries kept" / "card kept" do not reset the clock. The remaining resource
   is carried over from the previous visit minus what was used since then.
-* Battery capacity is learned from history. A run that stopped recording well
-  before the next visit shows how many hours that battery type really gave.
-  The rated value from `battery_types` is only the fallback.
-* The SD data rate is learned from history too. Every run that wrote H hours to
-  a card of C GB proves that rate <= C / H (the card was not overfilled), so the
-  smallest such bound per location is a safe estimate for that recorder.
+* Battery capacity is learned from recent history. A run that stopped recording
+  well before the next visit shows how many hours that battery type really
+  gave. Only runs of the last CALIBRATION_WINDOW_DAYS count, because brands
+  under one type change (lithium AA: Energizer/Pixel gave ~450 h until 2025,
+  Varta bought in 2026 gives ~340 h). The rated value from `battery_types` is
+  only the fallback.
+* The SD data rate is a fixed, known number: every recorder is a Song Meter
+  Micro writing 24 kHz 16-bit mono WAV, ~165 MB/h (the old code assumed 290,
+  so a 64 GB card looked full after 35 days instead of ~60 at 6 h/day).
+
+Field numbers behind these choices (Song Meter Summary logs, 208 deployments,
+and the service log; see scripts/analyze_songmeter_battery.py): NiMH 2500 mAh
+~260 recorded hours to cut-off, lithium AA 340-450 h depending on brand.
 """
 
 from __future__ import annotations
@@ -40,8 +47,8 @@ SD_KEPT_STATUS_ID = 1         # "Залишено наявну" (capacity_gb IS 
 WARNING_DAYS = 14
 CRITICAL_DAYS = 3
 INACTIVE_DAYS = 200           # no data and no visit for this long → inactive
-DEFAULT_DATA_RATE_MB_PER_HOUR = 290.0
-MIN_DATA_RATE_MB_PER_HOUR = 30.0   # guard against a mislabelled card
+DATA_RATE_MB_PER_HOUR = 165.0  # Song Meter Micro, 24 kHz x 16 bit mono = 164.8 MiB/h
+CALIBRATION_WINDOW_DAYS = 365  # battery runs older than this do not count
 STOP_GAP_DAYS = 3             # last recording this far before the next visit = run ended early
 STOPPED_FACT_DAYS = 7         # current deployment silent this long + forecast exhausted = stopped
 MIN_CALIBRATION_RUNS = 3
@@ -81,10 +88,8 @@ class Visit:
 
 @dataclass
 class Calibration:
-    """Values learned from the whole service history."""
+    """Values learned from the recent service history."""
     battery_hours: dict = field(default_factory=dict)   # type_id -> (hours, n_runs)
-    location_rate: dict = field(default_factory=dict)   # location_id -> MB/h
-    default_rate: float = DEFAULT_DATA_RATE_MB_PER_HOUR
 
     def battery_capacity(self, visit: Visit):
         """(hours, source, n_runs) for a fresh battery of this visit's type."""
@@ -96,7 +101,9 @@ class Calibration:
         return None, None, 0
 
     def rate(self, location_id) -> float:
-        return self.location_rate.get(location_id, self.default_rate)
+        # One recorder model with one setting everywhere; kept as a method so a
+        # per-location rate can come back if other recorders join the network.
+        return DATA_RATE_MB_PER_HOUR
 
 
 def _daily_gb(hours_per_day, rate_mb_h):
@@ -112,32 +119,20 @@ def _runs(visits: list[Visit]):
             yield cur, nxt
 
 
-def calibrate(visits_by_location: dict) -> Calibration:
-    """Learn data rates and battery capacities from completed runs.
+def calibrate(visits_by_location: dict, today: Optional[date] = None) -> Calibration:
+    """Learn battery capacities from completed runs of the last year.
 
     `visits_by_location` maps location_id -> list[Visit] sorted by time.
     """
     cal = Calibration()
+    since = (date.fromordinal((today or date.today()).toordinal() - CALIBRATION_WINDOW_DAYS))
 
-    # 1. Data rate: each run that wrote to a fresh card bounds the rate from above.
-    for loc_id, visits in visits_by_location.items():
-        bounds = [v.card_capacity_gb * 1024.0 / v.recorded_hours
-                  for v, _ in _runs(visits)
-                  if v.fresh_card and v.recorded_hours > 0]
-        if bounds:
-            cal.location_rate[loc_id] = max(MIN_DATA_RATE_MB_PER_HOUR,
-                                            min(DEFAULT_DATA_RATE_MB_PER_HOUR, min(bounds)))
-    if len(cal.location_rate) >= MIN_CALIBRATION_RUNS:
-        # Unknown recorder: the median bound is still an upper bound for most
-        # recorders, so the SD forecast errs on the early side.
-        cal.default_rate = statistics.median(cal.location_rate.values())
-
-    # 2. Battery capacity: runs that stopped early and did not fill the card.
+    # Battery capacity: runs that stopped early and did not fill the card.
     samples: dict = {}
     for loc_id, visits in visits_by_location.items():
         rate = cal.rate(loc_id)
         for v, nxt in _runs(visits):
-            if not (v.fresh_battery and v.hours_per_day and v.last_recording):
+            if not (v.fresh_battery and v.hours_per_day and v.last_recording) or v.day < since:
                 continue
             if (nxt.day - v.last_recording.date()).days < STOP_GAP_DAYS:
                 continue        # still recording at the next visit: battery did not run out

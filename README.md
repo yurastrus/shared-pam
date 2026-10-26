@@ -514,17 +514,22 @@ the forecast agrees), `removed`, `inactive` (no data and no visit for 200 days),
   was left minus what was used since the previous visit; they no longer reset
   the clock (the old code treated "batteries kept" as 200 fresh hours and a kept
   card as empty).
-* **Battery capacity is learned**: a run that stopped recording at least 3 days
-  before the next visit, without filling its card, gives one sample
-  (days x hours/day). The median per battery type is used once there are 3
-  samples; otherwise `battery_types.estimated_recording_hours`. On the data of
-  2026-10: NiMH 2500 about 258 h (n=5, rated 300), lithium AA about 360 h
-  (n=15, rated 450).
-* **SD data rate is learned per location**: a run that wrote H hours to a C GB
-  card proves rate <= C/H. The smallest bound per location is used (capped at
-  290 MB/h, floored at 30); unknown locations get the median of the location
-  rates. The old fixed 290 MB/h made 64 GB cards look full after 35 days,
-  while they really held 50-114 days.
+* **Battery capacity is learned from the last year**: a run that stopped
+  recording at least 3 days before the next visit, without filling its card,
+  gives one sample (days x hours/day). The median per battery type is used once
+  there are 3 samples from the last 365 days; otherwise
+  `battery_types.estimated_recording_hours`. The window matters because brands
+  change under one type: lithium AA (Energizer/Pixel) gave ~450 h until 2025,
+  the Varta cells bought in 2026 give ~340 h. On 2026-10-26: NiMH 2500 252 h
+  (n=3), lithium AA 339 h (n=12).
+* **SD data rate is fixed at 165 MB/h**: every recorder is a Song Meter Micro
+  writing 24 kHz 16-bit mono WAV in 5-min files. The old 290 MB/h made 64 GB
+  cards look full after 35 days instead of ~60 (at 6 h/day).
+* **Fallback capacities are field values** (set by
+  `scripts/set_pam_battery_field_hours.py`, previous rated values in its
+  header): NiMH 2500 260 h, 2000 210 h, 1900 200 h, lithium AA 340 h. NiMH comes
+  from 76 Song Meter runs to cut-off (median 261 h,
+  `scripts/analyze_songmeter_battery.py`), lithium from the 2026 service log.
 * `is_operational` ("was it working when you arrived") is stored and shown but
   not used: in the log it contradicts the comments too often.
 
