@@ -86,6 +86,9 @@
             </div>
 
             <div id="panel-content" class="panel-body">
+                <p id="readonly-note" class="text-muted" style="display:none;">
+                    {{ _('Ви не керуєте установою цієї локації: доступний лише перегляд.') }}
+                </p>
 
                 {% if can_edit %}
                 <!-- ── Location editor ── -->
@@ -674,9 +677,16 @@ $(document).ready(function() {
         // Show right panel.
         showPanel();
 
+        // A location of an institution the user only sees: read-only panel
+        // (forecast and history), no edit or service form.
+        const selLoc = locationsData.find(l => l.location_id == locationId);
+        const editable = !selLoc || selLoc.editable !== false;
+        $('#edit-form, #edit-form-title').toggle(editable);
+        $('#readonly-note').toggle(!editable);
+
         // Load details for the edit form.
         {% if can_edit %}
-        fetch(`/{{ g.lang_code }}/pam/api/location/${locationId}`)
+        if (editable) fetch(`/{{ g.lang_code }}/pam/api/location/${locationId}`)
             .then(r => r.json())
             .then(data => { if (!data.error) populateEditForm(data); })
             .catch(() => {});
@@ -690,6 +700,7 @@ $(document).ready(function() {
         $('#service-location-id').val(locationId);
         currentForecast = null;
         resetServiceForm();
+        if (!editable) $('#service-log-form').hide();
         loadForecast(locationId);
         loadHistory(locationId);
     }
@@ -1061,6 +1072,8 @@ $(document).ready(function() {
 
         $('#panel-content').hide();
         $('#placeholder').show();
+        $('#edit-form, #edit-form-title').show();
+        $('#readonly-note').hide();
 
         {% if can_edit %}
         $('#coord-hint').hide();

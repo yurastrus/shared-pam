@@ -2707,11 +2707,14 @@ def manage_pam_locations(lang_code):
         conn = get_pam_db_connection()
         is_admin = current_user.has_role('admin')
 
-        # 1. Fetch ALL institutions from the main DB. 
+        # 1. Fetch ALL institutions from the main DB. The page lists what the
+        # user can see (verifiers use it read-only); only institutions they
+        # manage are offered in the edit form (since 2026-10-27).
         if is_admin:
             all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
         else:
-            all_inst_objects = pam_access.manage_institutions(current_user)
+            all_inst_objects = pam_access.allowed_institutions(current_user)
+        managed_ids = set(pam_access.manage_institution_ids(current_user))
         
         # Institution bilingual names: build a name map for the current language.
         if lang_code == 'uk':
@@ -2719,7 +2722,9 @@ def manage_pam_locations(lang_code):
         else:
             inst_names_map = {i.id: (i.name_en or i.name_uk) for i in all_inst_objects}
             
-        all_assignable_list =[{'id': i.id, 'name': inst_names_map[i.id]} for i in all_inst_objects]
+        all_assignable_list = [{'id': i.id, 'name': inst_names_map[i.id]}
+                               for i in all_inst_objects
+                               if is_admin or i.id in managed_ids]
 
         # 2. Fetch locations (with both name variants) from the PAM DB.
         loc_query = text("""
@@ -2762,14 +2767,15 @@ def manage_pam_locations(lang_code):
         for lid, loc in locations_dict.items():
             loc['biotope_ids'] = loc_biotope_map.get(lid, [])
 
-        # 4. Filter to what the manager can see.
-        # Since 2026-10-27: the institutions the user manages, not every one
-        # they can see.
-        user_inst_ids = pam_access.manage_institution_ids(current_user)
+        # 4. Filter to what the user can see; mark what they may edit (a
+        # location of an institution they manage, since 2026-10-27).
+        user_inst_ids = pam_access.allowed_institution_ids(current_user)
         if is_admin:
             final_locations = list(locations_dict.values())
         else:
             final_locations =[loc for loc in locations_dict.values() if any(i in user_inst_ids for i in loc['inst_ids'])]
+        for loc in final_locations:
+            loc['editable'] = is_admin or any(i in managed_ids for i in loc['inst_ids'])
 
         # 5. Institution list for the top filter.
         filter_institutions = [{'id': i_id, 'name': inst_names_map[i_id]}
@@ -2784,7 +2790,7 @@ def manage_pam_locations(lang_code):
         sd_card_statuses = conn.execute(text("SELECT id, name_ua, name_en FROM sd_card_status ORDER BY id")).fetchall()
         visit_purposes = conn.execute(text("SELECT id, name_ua, name_en FROM visit_purposes ORDER BY id")).fetchall()
 
-        can_edit = is_admin or bool(user_inst_ids)
+        can_edit = is_admin or bool(managed_ids)
 
         return render_template('manage_pam_locations.html',
                                locations=final_locations,
@@ -3992,9 +3998,10 @@ def api_get_pam_service_history(lang_code, location_id):
     conn = None
     try:
         conn = get_pam_db_connection()
-        # Access check: admin or a user whose institution is linked to the location.
+        # Access check: admin or a user whose institution is linked to the
+        # location. Read-only, so seeing the location is enough.
         if not current_user.has_role('admin'):
-            user_inst_ids = pam_access.manage_institution_ids(current_user)
+            user_inst_ids = pam_access.allowed_institution_ids(current_user)
             if not user_inst_ids:
                 return jsonify({'error': 'Доступ заборонено'}), 403
             has_access = conn.execute(text("""
