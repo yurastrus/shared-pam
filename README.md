@@ -548,6 +548,17 @@ A per-location `LATERAL MAX()` is slow here (~5 s): there is no
 
 ---
 
+## Manager rights per institution (since 2026-10-27)
+
+The `manager` role only opens the manager pages. *Where* someone manages is the
+host's per-institution flag (`can_manage_pam` in biomon's `user_institutions`).
+Manage-locations, location details/create/update, the service log, coverage and
+import ask `access.manage_institution_ids` / `_user_can_edit_pam_location`, not
+`allowed_institution_ids` ("can see"). A host without the method falls back to
+the old meaning. Segment ZIP upload and evaluation recalculation stay global.
+
+---
+
 ## Integration
 
 This package is registered in biomon's `create_app()` factory as the `pam_bp` blueprint. It connects to a dedicated PostgreSQL database (`PAM_DATABASE_URL`) and uses institution-based access control inherited from the main app's `User` / `Institution` models.

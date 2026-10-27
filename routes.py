@@ -144,7 +144,9 @@ def pam_home(lang_code):
         can_verifier=auth and current_user.has_role(
             'manager', 'pam_verifier', 'roztochya_user', 'fzs_user', 'volunteer_user'
         ),
-        is_manager=auth and current_user.has_role('manager'),
+        # Manager cards only for someone who manages at least one institution
+        # in PAM; the role alone, with nothing to manage, shows nothing.
+        is_manager=auth and pam_access.manages_any(current_user),
         is_admin=auth and current_user.has_role('admin'),
         can_export=has_pam_export_access(),
     )
@@ -2709,7 +2711,7 @@ def manage_pam_locations(lang_code):
         if is_admin:
             all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
         else:
-            all_inst_objects = pam_access.allowed_institutions(current_user)
+            all_inst_objects = pam_access.manage_institutions(current_user)
         
         # Institution bilingual names: build a name map for the current language.
         if lang_code == 'uk':
@@ -2761,7 +2763,9 @@ def manage_pam_locations(lang_code):
             loc['biotope_ids'] = loc_biotope_map.get(lid, [])
 
         # 4. Filter to what the manager can see.
-        user_inst_ids =pam_access.allowed_institution_ids(current_user)
+        # Since 2026-10-27: the institutions the user manages, not every one
+        # they can see.
+        user_inst_ids = pam_access.manage_institution_ids(current_user)
         if is_admin:
             final_locations = list(locations_dict.values())
         else:
@@ -2780,7 +2784,7 @@ def manage_pam_locations(lang_code):
         sd_card_statuses = conn.execute(text("SELECT id, name_ua, name_en FROM sd_card_status ORDER BY id")).fetchall()
         visit_purposes = conn.execute(text("SELECT id, name_ua, name_en FROM visit_purposes ORDER BY id")).fetchall()
 
-        can_edit = current_user.has_role('manager')
+        can_edit = is_admin or bool(user_inst_ids)
 
         return render_template('manage_pam_locations.html',
                                locations=final_locations,
@@ -2817,7 +2821,9 @@ def get_pam_location_details(lang_code, location_id):
         
         if not location:
             return jsonify({'error': 'Локацію не знайдено.'}), 404
-        
+        if not _user_can_edit_pam_location(conn, location_id):
+            return jsonify({'error': 'Доступ заборонено'}), 403
+
         # Biotopes.
         b_ids = conn.execute(text("SELECT biotope_id FROM location_biotopes WHERE location_id = :id"), {'id': location_id}).fetchall()
         
@@ -2934,7 +2940,7 @@ def api_create_pam_location(lang_code):
             return jsonify({'success': False, 'error': 'Некоректні координати.'}), 400
 
         is_admin = current_user.has_role('admin')
-        user_inst_ids = pam_access.allowed_institution_ids(current_user)
+        user_inst_ids = pam_access.manage_institution_ids(current_user)
 
         if not is_admin and institution_ids and not all(i_id in user_inst_ids for i_id in institution_ids):
             return jsonify({'success': False, 'error': 'Доступ заборонено: можна призначати лише свої установи.'}), 403
@@ -2997,9 +3003,11 @@ def update_pam_location(lang_code, location_id):
         conn = get_pam_db_connection()
         new_inst_ids = data.get('institution_ids', [])
         is_admin = current_user.has_role('admin')
-        user_inst_ids = pam_access.allowed_institution_ids(current_user)
+        user_inst_ids = pam_access.manage_institution_ids(current_user)
 
         if not is_admin and not all(i_id in user_inst_ids for i_id in new_inst_ids):
+            return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
+        if not _user_can_edit_pam_location(conn, location_id):
             return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
 
         with conn.begin(): 
@@ -3986,7 +3994,7 @@ def api_get_pam_service_history(lang_code, location_id):
         conn = get_pam_db_connection()
         # Access check: admin or a user whose institution is linked to the location.
         if not current_user.has_role('admin'):
-            user_inst_ids = pam_access.allowed_institution_ids(current_user)
+            user_inst_ids = pam_access.manage_institution_ids(current_user)
             if not user_inst_ids:
                 return jsonify({'error': 'Доступ заборонено'}), 403
             has_access = conn.execute(text("""
@@ -4098,10 +4106,11 @@ def _parse_service_visit(data):
 
 
 def _user_can_edit_pam_location(conn, location_id):
-    """Admin, or a user whose institution is linked to the location."""
+    """Admin, or a user who manages an institution linked to the location
+    (seeing the location is not enough since 2026-10-27)."""
     if current_user.has_role('admin'):
         return True
-    user_inst_ids = pam_access.allowed_institution_ids(current_user)
+    user_inst_ids = pam_access.manage_institution_ids(current_user)
     if not user_inst_ids:
         return False
     return conn.execute(text("""
@@ -4630,7 +4639,7 @@ def pam_import(lang_code):
         if is_admin:
             all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
         else:
-            all_inst_objects = pam_access.allowed_institutions(current_user)
+            all_inst_objects = pam_access.manage_institutions(current_user)
 
         if lang_code == 'uk':
             inst_names_map = {i.id: i.name_uk for i in all_inst_objects}
@@ -4663,7 +4672,7 @@ def pam_import(lang_code):
             if row.institution_id:
                 locations_dict[lid]['inst_ids'].append(row.institution_id)
 
-        user_inst_ids = pam_access.allowed_institution_ids(current_user)
+        user_inst_ids = pam_access.manage_institution_ids(current_user)
         if is_admin:
             final_locations = list(locations_dict.values())
         else:
@@ -4782,7 +4791,7 @@ def api_pam_import(lang_code):
             conf_column = conf_columns[model_id]
 
             if not is_admin:
-                user_inst_ids = pam_access.allowed_institution_ids(current_user)
+                user_inst_ids = pam_access.manage_institution_ids(current_user)
                 row = conn.execute(text("""
                     SELECT 1 FROM location_institutions
                     WHERE location_id = :loc AND institution_id = ANY(:insts)
