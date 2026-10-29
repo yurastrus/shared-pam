@@ -439,6 +439,57 @@
                 }
             }
 
+            // Ranking table: sortable by every column; the sort survives re-renders
+            // until the filters change (new data starts from the server's order).
+            let rankingData = [];
+            let rankingSort = {key: 'rank', asc: true};
+            const rankingCollator = new Intl.Collator('{{ g.lang_code }}', {numeric: true, sensitivity: 'base'});
+            const rankingColumns = [
+                {key: 'rank', label: "{{ _('#') }}"},
+                {key: 'display_name', label: "{{ _('Вид') }}"},
+                {key: 'redbook_rank', label: "{{ _('ЧКУ') }}", title: "{{ _('Червона книга України (2021)') }}"},
+                {key: 'detection_count', label: "{{ _('Детекції') }}"},
+            ];
+
+            function compareRanking(a, b) {
+                const x = a[rankingSort.key], y = b[rankingSort.key];
+                const xEmpty = x === null || x === undefined, yEmpty = y === null || y === undefined;
+                if (xEmpty || yEmpty) return xEmpty === yEmpty ? a.rank - b.rank : (xEmpty ? 1 : -1);  // empty last
+                const c = typeof x === 'number' ? x - y : rankingCollator.compare(x, y);
+                return rankingSort.asc ? c : -c;
+            }
+
+            function escapeHtml(v) {
+                return String(v).replace(/[&<>"']/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch]));
+            }
+
+            function renderRankingTable() {
+                const head = rankingColumns.map(col => {
+                    const cls = col.key === rankingSort.key ? (rankingSort.asc ? 'sort-asc' : 'sort-desc') : '';
+                    const title = col.title ? ` title="${col.title}"` : '';
+                    return `<th data-sort-key="${col.key}" class="${cls}"${title}>${col.label}</th>`;
+                }).join('');
+                let tableHtml = `<div class="table-scroll"><table class="ranking-table ranking-table--sortable"><thead><tr>${head}</tr></thead><tbody>`;
+                rankingData.slice().sort(compareRanking).forEach(species => {
+                    const detailUrlParams = getApiParams();
+                    detailUrlParams.set('species', species.scientific_name);
+                    const detailUrl = `{{ url_for('pam.pam_detailed', lang_code=g.lang_code) }}?${detailUrlParams.toString()}`;
+                    const status = species.redbook_label ? `<span class="redbook-status">${escapeHtml(species.redbook_label)}</span>` : '';
+                    tableHtml += `<tr onclick="window.location.href='${detailUrl}'"><td>${species.rank}</td><td><a href="${detailUrl}" class="species-link">${species.display_name}</a></td><td>${status}</td><td>${species.detection_count.toLocaleString()}</td></tr>`;
+                });
+                tableHtml += '</tbody></table></div>';
+                rankingContent.html(tableHtml);
+            }
+
+            rankingContent.on('click', 'th[data-sort-key]', function () {
+                const key = $(this).data('sortKey');
+                // First click: names and Red Book ascending, counts descending.
+                rankingSort = key === rankingSort.key
+                    ? {key: key, asc: !rankingSort.asc}
+                    : {key: key, asc: key !== 'detection_count'};
+                renderRankingTable();
+            });
+
             function updateRankingTable() {
                 rankingContent.html('<div class="spinner-wrapper"><div class="spinner-border" style="width: 3rem; height: 3rem; color: #0779e4;" role="status"></div></div>');
                 
@@ -446,15 +497,9 @@
                     .then(response => response.ok ? response.json() : Promise.reject(response))
                     .then(data => {
                         if (data && data.length > 0) {
-                            let tableHtml = `<div class="table-scroll"><table class="ranking-table"><thead><tr><th>{{ _('#') }}</th><th>{{ _('Вид') }}</th><th>{{ _('Детекції') }}</th></tr></thead><tbody>`;
-                            data.forEach(species => {
-                                const detailUrlParams = getApiParams();
-                                detailUrlParams.set('species', species.scientific_name);
-                                const detailUrl = `{{ url_for('pam.pam_detailed', lang_code=g.lang_code) }}?${detailUrlParams.toString()}`;
-                                tableHtml += `<tr onclick="window.location.href='${detailUrl}'"><td>${species.rank}</td><td><a href="${detailUrl}" class="species-link">${species.display_name}</a></td><td>${species.detection_count.toLocaleString()}</td></tr>`;
-                            });
-                            tableHtml += '</tbody></table></div>';
-                            rankingContent.html(tableHtml);
+                            rankingData = data;
+                            rankingSort = {key: 'rank', asc: true};
+                            renderRankingTable();
                         } else {
                             rankingContent.html('<div class="overview-message info">{{ _("Дані не знайдено. Спробуйте змінити фільтри.") }}</div>');
                         }

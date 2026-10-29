@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-29 11:53+0200\n"
+"POT-Creation-Date: 2026-10-29 12:14+0200\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -20,115 +20,115 @@ msgstr ""
 msgid "Помилка завантаження сторінки."
 msgstr "Error loading the page."
 
-#: app/pam/species_admin.py:30
+#: app/pam/redbook.py:12
 msgid "зниклий"
 msgstr "extinct"
 
-#: app/pam/species_admin.py:31
+#: app/pam/redbook.py:13
 msgid "зниклий в природі"
 msgstr "extinct in the wild"
 
-#: app/pam/species_admin.py:32
+#: app/pam/redbook.py:14
 msgid "зникаючий"
 msgstr "endangered"
 
-#: app/pam/species_admin.py:33
+#: app/pam/redbook.py:15
 msgid "вразливий"
 msgstr "vulnerable"
 
-#: app/pam/species_admin.py:34
+#: app/pam/redbook.py:16
 msgid "рідкісний"
 msgstr "rare"
 
-#: app/pam/species_admin.py:35
+#: app/pam/redbook.py:17
 msgid "неоцінений"
 msgstr "not evaluated"
 
-#: app/pam/species_admin.py:36
+#: app/pam/redbook.py:18
 msgid "недостатньо відомий"
 msgstr "data deficient"
 
-#: app/pam/species_admin.py:44 app/pam/templates/pam_species_admin_list.html:36
+#: app/pam/species_admin.py:32 app/pam/templates/pam_species_admin_list.html:36
 msgid "Латинська назва"
 msgstr "Scientific name"
 
-#: app/pam/species_admin.py:45 app/pam/templates/pam_species_admin_list.html:37
+#: app/pam/species_admin.py:33 app/pam/templates/pam_species_admin_list.html:37
 msgid "Українська назва"
 msgstr "Ukrainian name"
 
-#: app/pam/species_admin.py:46 app/pam/templates/pam_species_admin_list.html:38
+#: app/pam/species_admin.py:34 app/pam/templates/pam_species_admin_list.html:38
 msgid "Англійська назва"
 msgstr "English name"
 
-#: app/pam/species_admin.py:47
+#: app/pam/species_admin.py:35
 msgid "Царство"
 msgstr "Kingdom"
 
-#: app/pam/species_admin.py:48
+#: app/pam/species_admin.py:36
 msgid "Тип"
 msgstr "Phylum"
 
-#: app/pam/species_admin.py:49 app/pam/templates/pam_species_admin_list.html:39
+#: app/pam/species_admin.py:37 app/pam/templates/pam_species_admin_list.html:39
 #: app/pam/templates/pam_verification_priorities.html:24
 msgid "Клас"
 msgstr "Class"
 
-#: app/pam/species_admin.py:50 app/pam/templates/pam_species_admin_list.html:40
+#: app/pam/species_admin.py:38 app/pam/templates/pam_species_admin_list.html:40
 #: app/pam/templates/pam_verification_priorities.html:25
 msgid "Ряд"
 msgstr "Order"
 
-#: app/pam/species_admin.py:51 app/pam/templates/pam_species_admin_list.html:41
+#: app/pam/species_admin.py:39 app/pam/templates/pam_species_admin_list.html:41
 #: app/pam/templates/pam_verification_priorities.html:26
 msgid "Родина"
 msgstr "Family"
 
-#: app/pam/species_admin.py:52
+#: app/pam/species_admin.py:40
 #: app/pam/templates/pam_verification_priorities.html:27
 msgid "Рід"
 msgstr "Genus"
 
-#: app/pam/species_admin.py:53 app/pam/templates/pam_species_admin_list.html:42
+#: app/pam/species_admin.py:41 app/pam/templates/pam_species_admin_list.html:42
 msgid "Статус присутності"
 msgstr "Establishment means"
 
-#: app/pam/species_admin.py:54
+#: app/pam/species_admin.py:42 app/pam/templates/pam_overview.html:450
 msgid "Червона книга України (2021)"
 msgstr "Red Data Book of Ukraine (2021)"
 
-#: app/pam/species_admin.py:55
+#: app/pam/species_admin.py:43
 msgid "Видимість (потрібна роль)"
 msgstr "Visibility (required role)"
 
-#: app/pam/species_admin.py:115
+#: app/pam/species_admin.py:103
 #, python-format
 msgid "Невідома категорія Червоної книги: %(v)s"
 msgstr "Unknown Red Data Book category: %(v)s"
 
-#: app/pam/species_admin.py:118
+#: app/pam/species_admin.py:106
 #, python-format
 msgid "Невідома роль: %(v)s"
 msgstr "Unknown role: %(v)s"
 
-#: app/pam/species_admin.py:121
+#: app/pam/species_admin.py:109
 #, python-format
 msgid "Поле «%(f)s» обов'язкове."
 msgstr "The field “%(f)s” is required."
 
-#: app/pam/species_admin.py:123
+#: app/pam/species_admin.py:111
 #, python-format
 msgid "Поле «%(f)s» довше за %(n)s символів."
 msgstr "The field “%(f)s” is longer than %(n)s characters."
 
-#: app/pam/species_admin.py:135
+#: app/pam/species_admin.py:123
 msgid "Вид з такою латинською назвою вже є."
 msgstr "A species with this scientific name already exists."
 
-#: app/pam/species_admin.py:138
+#: app/pam/species_admin.py:126
 msgid "Вид не знайдено."
 msgstr "Species not found."
 
-#: app/pam/species_admin.py:181
+#: app/pam/species_admin.py:170
 #, python-format
 msgid "Збережено: %(n)s"
 msgstr "Saved: %(n)s"
@@ -707,7 +707,7 @@ msgid "Помилка:"
 msgstr "Error:"
 
 #: app/pam/templates/manage_pam_locations.html:891
-#: app/pam/templates/pam_species_admin_list.html:62
+#: app/pam/templates/pam_species_admin_list.html:64
 msgid "Редагувати"
 msgstr "Edit"
 
@@ -3269,21 +3269,25 @@ msgstr "Species:"
 msgid "Для вибраних фільтрів немає локацій з детекціями."
 msgstr "There are no locations with detections for the selected filters."
 
-#: app/pam/templates/pam_overview.html:449
+#: app/pam/templates/pam_overview.html:448
 msgid "#"
 msgstr "#"
 
-#: app/pam/templates/pam_overview.html:449
+#: app/pam/templates/pam_overview.html:450
+msgid "ЧКУ"
+msgstr "RDBU"
+
+#: app/pam/templates/pam_overview.html:451
 #: app/pam/templates/pam_species_detailed.html:504
 #: app/pam/templates/pam_species_detailed.html:592
 msgid "Детекції"
 msgstr "Detections"
 
-#: app/pam/templates/pam_overview.html:459
+#: app/pam/templates/pam_overview.html:504
 msgid "Дані не знайдено. Спробуйте змінити фільтри."
 msgstr "No data found. Try changing the filters."
 
-#: app/pam/templates/pam_overview.html:464
+#: app/pam/templates/pam_overview.html:509
 #: app/pam/templates/pam_species_detailed.html:550
 #: app/pam/templates/pam_species_detailed.html:566
 #: app/pam/templates/pam_species_detailed.html:573
@@ -3789,7 +3793,7 @@ msgstr "Red Data Book"
 msgid "Видимість"
 msgstr "Visibility"
 
-#: app/pam/templates/pam_species_admin_list.html:60
+#: app/pam/templates/pam_species_admin_list.html:62
 msgid "усім"
 msgstr "everyone"
 

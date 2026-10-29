@@ -27,6 +27,7 @@ from flask import current_app
 from flask_login import current_user
 
 from . import access as pam_access
+from .redbook import REDBOOK_LABELS, REDBOOK_RANK
 
 # SQLAlchemy
 from sqlalchemy import create_engine, table, text, column
@@ -1157,10 +1158,11 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
                 s.scientific_name,
                 s.common_name_en,
                 s.common_name_uk,
+                s.redbook2021,
                 COUNT(d.detection_id) as detection_count
             {from_clause}
             {where_clause}
-            GROUP BY s.species_id, s.scientific_name, s.common_name_en, s.common_name_uk
+            GROUP BY s.species_id, s.scientific_name, s.common_name_en, s.common_name_uk, s.redbook2021
             HAVING COUNT(d.detection_id) >= :min_detections
             ORDER BY detection_count DESC
         """
@@ -1179,7 +1181,11 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
                 'rank': i,
                 'scientific_name': row['scientific_name'],
                 'display_name': display_name,
-                'detection_count': row['detection_count']
+                'detection_count': row['detection_count'],
+                # Red Book 2021: code, translated label, severity (0 = extinct).
+                'redbook2021': row['redbook2021'],
+                'redbook_label': str(REDBOOK_LABELS[row['redbook2021']]) if row['redbook2021'] in REDBOOK_LABELS else None,
+                'redbook_rank': REDBOOK_RANK.get(row['redbook2021']),
             })
         
         return ranking

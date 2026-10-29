@@ -19,22 +19,10 @@ from sqlalchemy import text
 from app.utils.decorators import role_required
 from . import pam_bp
 from .domain import _, _l
+from .redbook import REDBOOK_CODES, REDBOOK_LABELS
 from .utils import get_pam_engine
 
 NEW_OPTION = '__new__'
-
-# Red Data Book of Ukraine 2021 (order No. 29 of 19.01.2021), stored as codes.
-REDBOOK_CODES = ('extinct', 'extinct_in_wild', 'endangered', 'vulnerable',
-                 'rare', 'not_evaluated', 'data_deficient')
-REDBOOK_LABELS = {
-    'extinct': _l('зниклий'),
-    'extinct_in_wild': _l('зниклий в природі'),
-    'endangered': _l('зникаючий'),
-    'vulnerable': _l('вразливий'),
-    'rare': _l('рідкісний'),
-    'not_evaluated': _l('неоцінений'),
-    'data_deficient': _l('недостатньо відомий'),
-}
 
 # Taxonomic ranks from the top; picking a lower one fills the ones above it.
 TAXON_RANKS = ('kingdom', 'phylum', 'class', 'order_rank', 'family', 'genus')

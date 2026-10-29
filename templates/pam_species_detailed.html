@@ -238,13 +238,36 @@
         };
 
         // --- Page initialisation ---
+        // Filters arriving in the URL (from pam_overview's species links) are
+        // restored here: dates, model, confidence, min detections, institutions,
+        // locations, biotopes and the species itself.
+        const urlParams = new URLSearchParams(window.location.search);
+        // A species without an evaluated threshold resets the slider to 0.95 on
+        // change. Restoring the species (and loadAllThresholds re-triggering it)
+        // must not undo the confidence that came in the URL; a species the user
+        // picks by hand clears this flag.
+        let keepUrlConfidence = urlParams.has('confidence');
+
         (function setupInitialValues() {
-            const urlParams = new URLSearchParams(window.location.search);
             const today = new Date();
             const yearAgo = new Date();
             yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-            startDateInput.val(yearAgo.toISOString().split('T')[0]);
-            endDateInput.val(today.toISOString().split('T')[0]);
+            startDateInput.val(urlParams.get('start_date') || yearAgo.toISOString().split('T')[0]);
+            endDateInput.val(urlParams.get('end_date') || today.toISOString().split('T')[0]);
+
+            // Model before confidence: its change handler sets the slider's min.
+            const modelSel = document.getElementById('model-select');
+            const urlModel = urlParams.get('mode') === 'combined' ? 'combined'
+                : (urlParams.get('mode') === 'model' && urlParams.get('model_id') ? `model:${urlParams.get('model_id')}` : null);
+            if (modelSel && urlModel && modelSel.querySelector(`option[value="${urlModel}"]`)) {
+                // The model's change handler is bound further down, after this
+                // runs, so apply its effect here: raw scores, slider from 0.
+                $(modelSel).val(urlModel);
+                $('#model-mode-hint').show();
+                confidenceSlider.attr('min', '0');
+                setThresholdButton.prop('disabled', true).addClass('btn-secondary');
+            }
+
             confidenceSlider.val(urlParams.get('confidence') || '0.95');
             confidenceValueSpan.text(parseFloat(confidenceSlider.val()).toFixed(2));
             
@@ -252,6 +275,7 @@
             minObsValueSpan.text(minObsSlider.val());
             
             speciesSelect.select2({ placeholder: '{{ _("-- Будь ласка, виберіть --") }}', allowClear: true });
+            speciesSelect.on('select2:select select2:clear', () => { keepUrlConfidence = false; });
             institutionSelect.select2({ 
                 placeholder: '{{ _("-- Всі установи/проекти --") }}', 
                 allowClear: true,
@@ -261,7 +285,7 @@
                         biotopesSelect.select2({ placeholder: '{{ _("-- Всі біотопи --") }}', allowClear: true });
             locationsSelect.select2({ placeholder: '{{ _("-- Всі локації --") }}', allowClear: true });
 
-            updateDynamicFilters(() => {
+            function restoreRest() {
                 const species = urlParams.get('species');
                 const locations = urlParams.get('locations');
                 const biotopes = urlParams.get('biotopes');
@@ -272,6 +296,20 @@
                 
                 if (species) {
                     setTimeout(() => runDashboardUpdate(), 100);
+                }
+            }
+
+            // Institutions first (their options arrive with the filter data), then
+            // reload locations/biotopes for them, then the rest.
+            updateDynamicFilters(() => {
+                const institutions = urlParams.get('institution_id');
+                if (institutions) {
+                    // 'change.select2' updates the widget without firing our own
+                    // change handler, which would reload the lists a second time.
+                    institutionSelect.val(institutions.split(',')).trigger('change.select2');
+                    updateDynamicFilters(restoreRest);
+                } else {
+                    restoreRest();
                 }
             });
 
@@ -386,15 +424,18 @@
 
         function handleSpeciesChange() {
             const selectedSpecies = $(this).val();
+            // Non-BirdNET models use raw scores, so their slider goes down to 0.
+            const sliderMin = ($('#model-select').val() || 'birdnet') === 'birdnet' ? DEFAULT_MIN_CONFIDENCE : 0;
             if (selectedSpecies && speciesThresholdsMap[selectedSpecies]) {
                 const threshold = speciesThresholdsMap[selectedSpecies];
                 setThresholdButton.prop('disabled', false).removeClass('btn-secondary')
                     .text(`{{ _('Поріг') }} ${threshold} (p≥0.95)`).data('threshold', threshold);
-                confidenceSlider.prop('min', Math.min(threshold, DEFAULT_MIN_CONFIDENCE));
+                confidenceSlider.prop('min', Math.min(threshold, sliderMin));
             } else {
                 setThresholdButton.prop('disabled', true).addClass('btn-secondary')
                     .text(`{{ _('Поріг p≥0.95') }}`).removeData('threshold');
-                confidenceSlider.val('0.95').trigger('input').prop('min', DEFAULT_MIN_CONFIDENCE);
+                confidenceSlider.prop('min', sliderMin);
+                if (!keepUrlConfidence) confidenceSlider.val('0.95').trigger('input');
             }
         }
         

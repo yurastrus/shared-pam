@@ -3541,7 +3541,7 @@ body.dark-theme .gap-tool-note { color: var(--text-secondary, #aaa); }
 .sp-table tbody tr.sp-odd td { background: #f5f7fa; }
 .sp-table tbody tr:hover td { background: #e8f0fe; }
 /* Red Book species: the three name columns share the status colour. */
-.sp-table tr[data-redlisted="1"] td:nth-child(-n+3) { color: #b02a37; font-weight: 600; }
+.sp-table tr[data-redlisted="1"] td:nth-child(n+2):nth-child(-n+4) { color: #b02a37; font-weight: 600; }
 /* Sortable headers (species_admin.js). */
 .sp-table th[data-sortable] { cursor: pointer; user-select: none; }
 .sp-table th[data-sortable]:hover { text-decoration: underline; }
@@ -3549,4 +3549,18 @@ body.dark-theme .gap-tool-note { color: var(--text-secondary, #aaa); }
 .sp-table th.sp-sort-desc::after { content: " ▼"; font-size: .75em; }
 /* Species visible only to a role: lighter text, Red Book names lighter red. */
 .sp-table tr[data-restricted="1"] td { color: #8a9099; }
-.sp-table tr[data-restricted="1"][data-redlisted="1"] td:nth-child(-n+3) { color: #d98a92; }
+.sp-table tr[data-restricted="1"][data-redlisted="1"] td:nth-child(n+2):nth-child(-n+4) { color: #d98a92; }
+
+/* Species ranking on pam_overview: sortable headers, Red Book status. */
+.ranking-table--sortable th[data-sort-key] { cursor: pointer; user-select: none; white-space: nowrap; }
+.ranking-table--sortable th[data-sort-key]:hover { text-decoration: underline; }
+.ranking-table--sortable th.sort-asc::after { content: " ▲"; font-size: .75em; }
+.ranking-table--sortable th.sort-desc::after { content: " ▼"; font-size: .75em; }
+.ranking-table .redbook-status { color: #b02a37; font-weight: 600; white-space: nowrap; }
+/* The list scrolls inside a viewport-high box, so its horizontal scrollbar
+   is always on screen; the header row stays visible while scrolling down. */
+.sp-table-wrap { max-height: calc(100vh - 120px); overflow: auto; border: 1px solid #e3e6ea; }
+.sp-table { margin-bottom: 0; }
+.sp-table thead th { position: sticky; top: 0; z-index: 2; background: #fff; box-shadow: inset 0 -2px 0 #dee2e6; }
+.sp-table td:first-child, .sp-table th:first-child { position: sticky; left: 0; z-index: 1; background: #fff; }
+.sp-table thead th:first-child { z-index: 3; }
