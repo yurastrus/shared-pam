@@ -163,7 +163,8 @@ def species_admin_list(lang_code):
     with get_pam_engine().connect() as conn:
         rows = list_species(conn)
     return render_template('pam_species_admin_list.html', rows=rows,
-                           redbook_labels=REDBOOK_LABELS)
+                           redbook_labels=REDBOOK_LABELS,
+                           redbook_rank={c: f'{i:02d}' for i, c in enumerate(REDBOOK_CODES)})
 
 
 @pam_bp.route('/<lang_code>/pam/admin/species/new', methods=['GET', 'POST'])

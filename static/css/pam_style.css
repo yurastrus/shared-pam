@@ -3542,3 +3542,11 @@ body.dark-theme .gap-tool-note { color: var(--text-secondary, #aaa); }
 .sp-table tbody tr:hover td { background: #e8f0fe; }
 /* Red Book species: the three name columns share the status colour. */
 .sp-table tr[data-redlisted="1"] td:nth-child(-n+3) { color: #b02a37; font-weight: 600; }
+/* Sortable headers (species_admin.js). */
+.sp-table th[data-sortable] { cursor: pointer; user-select: none; }
+.sp-table th[data-sortable]:hover { text-decoration: underline; }
+.sp-table th.sp-sort-asc::after { content: " ▲"; font-size: .75em; }
+.sp-table th.sp-sort-desc::after { content: " ▼"; font-size: .75em; }
+/* Species visible only to a role: lighter text, Red Book names lighter red. */
+.sp-table tr[data-restricted="1"] td { color: #8a9099; }
+.sp-table tr[data-restricted="1"][data-redlisted="1"] td:nth-child(-n+3) { color: #d98a92; }
