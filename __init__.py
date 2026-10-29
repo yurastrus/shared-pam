@@ -26,3 +26,4 @@ def _inject_pam_translations():
 
 from . import routes
 from . import gap_routes  # noqa: E402,F401  (registers the gap analysis routes)
+from . import species_admin  # noqa: E402,F401  (admin species editor)

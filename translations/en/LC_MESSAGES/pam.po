@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-27 22:00+0200\n"
+"POT-Creation-Date: 2026-10-29 11:53+0200\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -19,6 +19,119 @@ msgstr ""
 #: app/pam/gap_routes.py:219
 msgid "Помилка завантаження сторінки."
 msgstr "Error loading the page."
+
+#: app/pam/species_admin.py:30
+msgid "зниклий"
+msgstr "extinct"
+
+#: app/pam/species_admin.py:31
+msgid "зниклий в природі"
+msgstr "extinct in the wild"
+
+#: app/pam/species_admin.py:32
+msgid "зникаючий"
+msgstr "endangered"
+
+#: app/pam/species_admin.py:33
+msgid "вразливий"
+msgstr "vulnerable"
+
+#: app/pam/species_admin.py:34
+msgid "рідкісний"
+msgstr "rare"
+
+#: app/pam/species_admin.py:35
+msgid "неоцінений"
+msgstr "not evaluated"
+
+#: app/pam/species_admin.py:36
+msgid "недостатньо відомий"
+msgstr "data deficient"
+
+#: app/pam/species_admin.py:44 app/pam/templates/pam_species_admin_list.html:36
+msgid "Латинська назва"
+msgstr "Scientific name"
+
+#: app/pam/species_admin.py:45 app/pam/templates/pam_species_admin_list.html:37
+msgid "Українська назва"
+msgstr "Ukrainian name"
+
+#: app/pam/species_admin.py:46 app/pam/templates/pam_species_admin_list.html:38
+msgid "Англійська назва"
+msgstr "English name"
+
+#: app/pam/species_admin.py:47
+msgid "Царство"
+msgstr "Kingdom"
+
+#: app/pam/species_admin.py:48
+msgid "Тип"
+msgstr "Phylum"
+
+#: app/pam/species_admin.py:49 app/pam/templates/pam_species_admin_list.html:39
+#: app/pam/templates/pam_verification_priorities.html:24
+msgid "Клас"
+msgstr "Class"
+
+#: app/pam/species_admin.py:50 app/pam/templates/pam_species_admin_list.html:40
+#: app/pam/templates/pam_verification_priorities.html:25
+msgid "Ряд"
+msgstr "Order"
+
+#: app/pam/species_admin.py:51 app/pam/templates/pam_species_admin_list.html:41
+#: app/pam/templates/pam_verification_priorities.html:26
+msgid "Родина"
+msgstr "Family"
+
+#: app/pam/species_admin.py:52
+#: app/pam/templates/pam_verification_priorities.html:27
+msgid "Рід"
+msgstr "Genus"
+
+#: app/pam/species_admin.py:53 app/pam/templates/pam_species_admin_list.html:42
+msgid "Статус присутності"
+msgstr "Establishment means"
+
+#: app/pam/species_admin.py:54
+msgid "Червона книга України (2021)"
+msgstr "Red Data Book of Ukraine (2021)"
+
+#: app/pam/species_admin.py:55
+msgid "Видимість (потрібна роль)"
+msgstr "Visibility (required role)"
+
+#: app/pam/species_admin.py:115
+#, python-format
+msgid "Невідома категорія Червоної книги: %(v)s"
+msgstr "Unknown Red Data Book category: %(v)s"
+
+#: app/pam/species_admin.py:118
+#, python-format
+msgid "Невідома роль: %(v)s"
+msgstr "Unknown role: %(v)s"
+
+#: app/pam/species_admin.py:121
+#, python-format
+msgid "Поле «%(f)s» обов'язкове."
+msgstr "The field “%(f)s” is required."
+
+#: app/pam/species_admin.py:123
+#, python-format
+msgid "Поле «%(f)s» довше за %(n)s символів."
+msgstr "The field “%(f)s” is longer than %(n)s characters."
+
+#: app/pam/species_admin.py:135
+msgid "Вид з такою латинською назвою вже є."
+msgstr "A species with this scientific name already exists."
+
+#: app/pam/species_admin.py:138
+msgid "Вид не знайдено."
+msgstr "Species not found."
+
+#: app/pam/species_admin.py:181
+#, python-format
+msgid "Збережено: %(n)s"
+msgstr "Saved: %(n)s"
 
 #: app/pam/templates/manage_pam_locations.html:3
 #: app/pam/templates/manage_pam_locations.html:13
@@ -203,12 +316,14 @@ msgstr "Habitats"
 #: app/pam/templates/manage_pam_locations.html:759
 #: app/pam/templates/manage_pam_locations.html:1080
 #: app/pam/templates/pam_import.html:101 app/pam/templates/pam_import.html:528
+#: app/pam/templates/pam_species_admin_edit.html:73
 msgid "Зберегти"
 msgstr "Save"
 
 #: app/pam/templates/manage_pam_locations.html:146
 #: app/pam/templates/manage_pam_locations.html:241
 #: app/pam/templates/pam_import.html:105
+#: app/pam/templates/pam_species_admin_edit.html:74
 msgid "Скасувати"
 msgstr "Cancel"
 
@@ -592,6 +707,7 @@ msgid "Помилка:"
 msgstr "Error:"
 
 #: app/pam/templates/manage_pam_locations.html:891
+#: app/pam/templates/pam_species_admin_list.html:62
 msgid "Редагувати"
 msgstr "Edit"
 
@@ -1406,7 +1522,7 @@ msgstr "node size is the number of partners"
 msgid "пари ближче за мін. відстань виключені"
 msgstr "pairs closer than the min distance are excluded"
 
-#: app/pam/templates/pam_data_export.html:3 app/pam/templates/pam_home.html:129
+#: app/pam/templates/pam_data_export.html:3 app/pam/templates/pam_home.html:135
 msgid "Експорт даних"
 msgstr "Data export"
 
@@ -2688,31 +2804,44 @@ msgstr ""
 "Service actions: landcover-based biotope auto-assignment for points and "
 "more."
 
-#: app/pam/templates/pam_home.html:130
+#: app/pam/templates/pam_home.html:127
+#: app/pam/templates/pam_species_admin_list.html:11
+msgid "Довідник видів"
+msgstr "Species list"
+
+#: app/pam/templates/pam_home.html:128
+msgid ""
+"Перегляд і редагування таблиці видів: назви, систематика, статус у "
+"Червоній книзі, видимість."
+msgstr ""
+"View and edit the species table: names, taxonomy, Red Data Book status, "
+"visibility."
+
+#: app/pam/templates/pam_home.html:136
 msgid "Експорт даних PAM моніторингу у CSV таблиці."
 msgstr "Export PAM monitoring data as CSV tables."
 
-#: app/pam/templates/pam_home.html:137
+#: app/pam/templates/pam_home.html:143
 msgid "Імпорт даних"
 msgstr "Import data"
 
-#: app/pam/templates/pam_home.html:138
+#: app/pam/templates/pam_home.html:144
 msgid "Завантаження CSV-файлів від BirdNET та інших класифікаторів."
 msgstr "Upload CSV files from BirdNET and other classifiers."
 
-#: app/pam/templates/pam_home.html:143
+#: app/pam/templates/pam_home.html:149
 msgid "Завантаження сегментів"
 msgstr "Upload segments"
 
-#: app/pam/templates/pam_home.html:144
+#: app/pam/templates/pam_home.html:150
 msgid "Завантаження ZIP-архівів з аудіосегментами для верифікації."
 msgstr "Upload ZIP archives with audio segments for verification."
 
-#: app/pam/templates/pam_home.html:149
+#: app/pam/templates/pam_home.html:155
 msgid "Управління локаціями"
 msgstr "Location management"
 
-#: app/pam/templates/pam_home.html:150
+#: app/pam/templates/pam_home.html:156
 msgid "Редагування назв та біотопів точок акустичного моніторингу."
 msgstr "Edit names and habitats of acoustic monitoring points."
 
@@ -3582,6 +3711,88 @@ msgstr "SD-card:"
 msgid "Помилка завантаження історії."
 msgstr "Error loading history."
 
+#: app/pam/templates/pam_species_admin_edit.html:3
+#: app/pam/templates/pam_species_admin_edit.html:11
+msgid "Редагування виду"
+msgstr "Edit species"
+
+#: app/pam/templates/pam_species_admin_edit.html:3
+#: app/pam/templates/pam_species_admin_edit.html:11
+msgid "Новий вид"
+msgstr "New species"
+
+#: app/pam/templates/pam_species_admin_edit.html:12
+msgid "До довідника видів"
+msgstr "Back to the species list"
+
+#: app/pam/templates/pam_species_admin_edit.html:35
+msgid ""
+"Імпорт детекцій зіставляє види за латинською назвою: після перейменування"
+" нові детекції зі старою назвою створять окремий вид."
+msgstr ""
+"Detection import matches species by scientific name: after a rename, new "
+"detections with the old name will create a separate species."
+
+#: app/pam/templates/pam_species_admin_edit.html:41
+msgid "— не вказано —"
+msgstr "— not set —"
+
+#: app/pam/templates/pam_species_admin_edit.html:48
+msgid "Додати нове…"
+msgstr "Add new…"
+
+#: app/pam/templates/pam_species_admin_edit.html:51
+msgid "Нове значення"
+msgstr "New value"
+
+#: app/pam/templates/pam_species_admin_edit.html:55
+msgid "— не занесений —"
+msgstr "— not listed —"
+
+#: app/pam/templates/pam_species_admin_edit.html:63
+msgid "— видно всім —"
+msgstr "— visible to everyone —"
+
+#: app/pam/templates/pam_species_admin_list.html:3
+msgid "Довідник видів — PAM"
+msgstr "Species list — PAM"
+
+#: app/pam/templates/pam_species_admin_list.html:12
+msgid ""
+"Таблиця видів модуля акустичного моніторингу. Редагування доступне лише "
+"адміністраторам."
+msgstr ""
+"Species table of the acoustic monitoring module. Editing is available to "
+"admins only."
+
+#: app/pam/templates/pam_species_admin_list.html:16
+msgid "Додати вид"
+msgstr "Add species"
+
+#: app/pam/templates/pam_species_admin_list.html:24
+msgid "Пошук за назвою, родиною…"
+msgstr "Search by name, family…"
+
+#: app/pam/templates/pam_species_admin_list.html:26
+msgid "Усі класи"
+msgstr "All classes"
+
+#: app/pam/templates/pam_species_admin_list.html:29
+msgid "Показано"
+msgstr "Shown"
+
+#: app/pam/templates/pam_species_admin_list.html:43
+msgid "Червона книга"
+msgstr "Red Data Book"
+
+#: app/pam/templates/pam_species_admin_list.html:44
+msgid "Видимість"
+msgstr "Visibility"
+
+#: app/pam/templates/pam_species_admin_list.html:60
+msgid "усім"
+msgstr "everyone"
+
 #: app/pam/templates/pam_species_dashboard.html:13
 msgid ""
 "УВАГА! Це експериментальна сторінка. Не варто тренди на основі ПАМ "
@@ -4141,22 +4352,6 @@ msgstr "enough verified"
 #: app/pam/templates/pam_verification_priorities.html:23
 msgid "Порядок за пріоритетом (початкове сортування)"
 msgstr "Priority order (initial sorting)"
-
-#: app/pam/templates/pam_verification_priorities.html:24
-msgid "Клас"
-msgstr "Class"
-
-#: app/pam/templates/pam_verification_priorities.html:25
-msgid "Ряд"
-msgstr "Order"
-
-#: app/pam/templates/pam_verification_priorities.html:26
-msgid "Родина"
-msgstr "Family"
-
-#: app/pam/templates/pam_verification_priorities.html:27
-msgid "Рід"
-msgstr "Genus"
 
 #: app/pam/templates/pam_verification_priorities.html:29
 #: app/pam/templates/pam_verification_segments.html:64

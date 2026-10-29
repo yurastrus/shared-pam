@@ -121,6 +121,12 @@
                 <span class="hub-card__title">{{ _('Адміністрування') }}</span>
                 <span class="hub-card__desc">{{ _('Сервісні дії: автопризначення біотопів точкам за лендковером та інше.') }}</span>
             </a>
+
+            <a class="hub-card" href="{{ url_for('pam.species_admin_list', lang_code=g.lang_code) }}">
+                <span class="hub-card__icon">🐦</span>
+                <span class="hub-card__title">{{ _('Довідник видів') }}</span>
+                <span class="hub-card__desc">{{ _('Перегляд і редагування таблиці видів: назви, систематика, статус у Червоній книзі, видимість.') }}</span>
+            </a>
             {% endif %}
 
             {% if can_export %}
