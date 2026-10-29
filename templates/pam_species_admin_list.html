@@ -48,6 +48,7 @@
         <tbody>
         {% for r in rows %}
             <tr id="sp-{{ r.id }}" data-class="{{ r['class'] or '' }}"
+                data-redlisted="{{ 1 if r.redbook2021 else 0 }}"
                 data-search="{{ [r.scientific_name, r.common_name_uk, r.common_name_en, r.order_rank, r.family, r.genus] | select | join(' ') | lower }}">
                 <td><em>{{ r.scientific_name }}</em></td>
                 <td>{{ r.common_name_uk or '' }}</td>
