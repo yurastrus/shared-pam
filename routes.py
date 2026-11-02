@@ -4363,7 +4363,9 @@ def api_update_pam_service_visit(lang_code, visit_id):
                 recording_hours_per_day = :recording_hours_per_day,
                 is_operational          = :is_operational,
                 comments                = :comments,
-                device_type_id          = :device_type_id
+                -- Only installations send a model; editing any other visit
+                -- keeps the one already stored (e.g. a backfilled first visit).
+                device_type_id          = COALESCE(:device_type_id, device_type_id)
             WHERE id = :id
         """), params)
         conn.commit()
