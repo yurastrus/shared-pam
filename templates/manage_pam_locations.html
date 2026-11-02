@@ -144,10 +144,8 @@
                     <div class="d-flex gap-2 mt-3 pt-2 border-top">
                         <button type="submit" id="save-btn" class="btn btn-primary btn-sm flex-fill">{{ _('Зберегти') }}</button>
                         <button type="button" id="cancel-btn" class="btn btn-outline-secondary btn-sm">{{ _('Скасувати') }}</button>
-                        <button type="button" id="delete-location-btn" class="btn btn-outline-danger btn-sm" style="display:none;"
-                                title="{{ _('Видалити локацію (лише якщо на неї ще не завантажено даних)') }}">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <button type="button" id="delete-location-btn" class="btn btn-sm" style="display:none;"
+                                title="{{ _('Видалити локацію (лише якщо на неї ще не завантажено даних)') }}">&#128465; {{ _('Видалити') }}</button>
                     </div>
                     <small class="text-muted d-block mt-2"><span class="text-danger">*</span> {{ _("обов'язкові поля") }}</small>
                 </form>
