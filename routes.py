@@ -2948,7 +2948,11 @@ def api_create_pam_location(lang_code):
         is_admin = current_user.has_role('admin')
         user_inst_ids = pam_access.manage_institution_ids(current_user)
 
-        if not is_admin and institution_ids and not all(i_id in user_inst_ids for i_id in institution_ids):
+        # An institution is mandatory: a location outside every institution of
+        # its creator disappears from their list at once (since 2026-11-02).
+        if not institution_ids:
+            return jsonify({'success': False, 'error': 'Оберіть установу.'}), 400
+        if not is_admin and not all(i_id in user_inst_ids for i_id in institution_ids):
             return jsonify({'success': False, 'error': 'Доступ заборонено: можна призначати лише свої установи.'}), 403
 
         state_province = (data.get('state_province') or '').strip() or None
@@ -3015,6 +3019,12 @@ def update_pam_location(lang_code, location_id):
             return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
         if not _user_can_edit_pam_location(conn, location_id):
             return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
+        if not (data.get('name') or '').strip():
+            return jsonify({'success': False, 'error': 'Вкажіть назву локації.'}), 400
+        # A manager's save rewrites only their own institution rows, so an empty
+        # list would strip the location from every institution they manage.
+        if not is_admin and not new_inst_ids:
+            return jsonify({'success': False, 'error': 'Оберіть установу.'}), 400
 
         with conn.begin(): 
             # Update location names.
@@ -3033,6 +3043,44 @@ def update_pam_location(lang_code, location_id):
                              [{'l_id': location_id, 'i_id': i_id} for i_id in new_inst_ids])
 
         return jsonify({'success': True, 'message': 'Оновлено'})
+    finally:
+        if conn: conn.close()
+
+
+@pam_bp.route('/<lang_code>/pam/api/location/<int:location_id>/delete', methods=['POST'])
+@login_required
+@role_required('manager')
+def delete_pam_location(lang_code, location_id):
+    """Delete a location created by mistake (since 2026-11-02).
+
+    Refused once recordings or service visits exist: those are data, and the
+    location is what ties them to a place.
+    """
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        if not _user_can_edit_pam_location(conn, location_id):
+            return jsonify({'success': False, 'error': 'Доступ заборонено'}), 403
+
+        if conn.execute(text("SELECT 1 FROM recordings WHERE location_id = :id LIMIT 1"),
+                        {'id': location_id}).fetchone() is not None:
+            return jsonify({'success': False, 'code': 'has_data',
+                            'error': 'На локацію вже завантажено дані, видалити її не можна.'}), 409
+        if conn.execute(text("SELECT 1 FROM service_visits WHERE location_id = :id LIMIT 1"),
+                        {'id': location_id}).fetchone() is not None:
+            return jsonify({'success': False, 'code': 'has_service_log',
+                            'error': 'Для локації є записи журналу обслуговування, видалити її не можна.'}), 409
+
+        with conn.begin():
+            conn.execute(text("DELETE FROM location_biotopes WHERE location_id = :id"), {'id': location_id})
+            conn.execute(text("DELETE FROM location_institutions WHERE location_id = :id"), {'id': location_id})
+            conn.execute(text("DELETE FROM locations WHERE location_id = :id"), {'id': location_id})
+
+        current_app.logger.info(f"User {current_user.username} deleted PAM location id={location_id}")
+        return jsonify({'success': True, 'message': 'Локацію видалено'})
+    except Exception as e:
+        current_app.logger.error(f"Error deleting PAM location {location_id}: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Помилка сервера при видаленні локації.'}), 500
     finally:
         if conn: conn.close()
 
