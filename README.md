@@ -540,6 +540,18 @@ cannot "keep" batteries or a card. A new record is prefilled from the last
 visit. Dates more than a day ahead are rejected; hours must be 1-24. Only the
 author or an admin can edit or delete a record (`/api/pam/service-visit/<id>/delete`).
 
+### Service plan page (since 2026-11-02)
+`/<lang>/pam/service-plan` is the field view of the same forecast: managers
+only, locations of institutions they manage (`manage_institution_ids`), admin
+all. Map and cards share one selection; KML export and coordinate copy work on
+the selection. What is on site now comes from `service_forecast.current_equipment`
+(model from the last installation, latest fresh batteries and card).
+
+### Recorder model (since 2026-11-02)
+`device_types` (SM Micro 2, SM Micro, SM Mini, SM Mini 2, AudioMoth, Other) and
+`service_visits.device_type_id`, set on installation visits only (required
+there). Migration `migrations/0009_device_types.sql`; older visits are NULL.
+
 ### Performance
 One range join over `recordings` for all visits plus one `GROUP BY` for the
 latest recording (~0.3 s on 600k recordings), instead of a query per location.

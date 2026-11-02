@@ -187,6 +187,18 @@
                     </div>
                     <div id="service-device-fields">
                     <div class="row g-2 mb-2">
+                        <div class="col-12">
+                            <label class="form-label form-label-sm" for="device-type">{{ _('Тип приладу') }}</label>
+                            <select id="device-type" class="form-control form-control-sm" disabled>
+                                <option value="">{{ _('-- Виберіть --') }}</option>
+                                {% for d in device_types %}
+                                    <option value="{{ d.id }}">{{ d.name_ua if g.lang_code == 'uk' else d.name_en }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted" id="device-type-hint">{{ _('Вказується під час встановлення приладу.') }}</small>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label form-label-sm">{{ _('Заміна батарейок') }}</label>
                             <select id="battery-type" class="form-control form-control-sm">
@@ -262,7 +274,8 @@
     <!-- Service plan: which recorders to visit first (service mode only) -->
     <div id="service-plan" class="service-plan" style="display:none;">
         <div class="service-plan-header">
-            <h5 class="mb-0"><i class="fas fa-route me-1"></i>{{ _('План обслуговування') }}</h5>
+            <h5 class="mb-0"><i class="fas fa-route me-1"></i>{{ _('План обслуговування') }}
+                <a class="service-plan-open" href="{{ url_for('pam.pam_service_plan', lang_code=g.lang_code) }}">{{ _('Окрема сторінка для телефона') }} &rarr;</a></h5>
             <div class="service-plan-filters" id="service-plan-filters">
                 <label><input type="checkbox" value="attention" checked> {{ _('Потребують візиту') }}</label>
                 <label><input type="checkbox" value="ok" checked> {{ _('OK') }}</label>
@@ -312,7 +325,7 @@ $(document).ready(function() {
     $('#biotope-select').select2({ placeholder: "{{ _('Виберіть біотопи...') }}" });
     $('#inst-select').select2({ placeholder: "{{ _('Виберіть установи...') }}" });
     {% endif %}
-    $('#visit-purpose, #battery-type, #sd-card-status').select2({ placeholder: "{{ _('-- Виберіть --') }}", width: '100%' });
+    $('#visit-purpose, #battery-type, #sd-card-status, #device-type').select2({ placeholder: "{{ _('-- Виберіть --') }}", width: '100%' });
 
     // ─── DATA ──────────────────────────────────────────────────────────────
     const locationsData = {{ locations|tojson }};
@@ -937,7 +950,7 @@ $(document).ready(function() {
                                 </span>
                             </div>
                             <div class="small mt-1">
-                                {{ _('Прилад:') }} ${opBadge} |
+                                ${v.device_info ? `{{ _('Тип:') }} ${v.device_info} | ` : ''}{{ _('Прилад:') }} ${opBadge} |
                                 {{ _('Бат.:') }} ${v.battery_info} |
                                 {{ _('SD:') }} ${v.sd_card_info}
                             </div>
@@ -959,6 +972,7 @@ $(document).ready(function() {
         $('#visit-datetime').val(v.visit_datetime_raw);
         $('#visit-purpose').val(v.visit_purpose_id).trigger('change');
         $('#battery-type').val(v.battery_type_id || '').trigger('change');
+        $('#device-type').val(v.device_type_id || '').trigger('change');
         $('#sd-card-status').val(v.sd_card_status_id).trigger('change');
         $('#recording-hours').val(v.recording_hours_per_day);
         if (v.is_operational === true)       $('input[name="is-operational"][value="true"]').prop('checked', true);
@@ -1018,7 +1032,10 @@ $(document).ready(function() {
             if (!$('#battery-type').val() || $('#battery-type').val() === BATTERY_KEPT_ID) $('#battery-type').val(null);
             if ($('#sd-card-status').val() === SD_KEPT_ID) $('#sd-card-status').val(null);
         }
-        $('#battery-type, #sd-card-status').trigger('change.select2');
+        // The recorder model is part of a new deployment only.
+        $('#device-type').prop('disabled', !install).prop('required', install);
+        if (!install) $('#device-type').val(null);
+        $('#battery-type, #sd-card-status, #device-type').trigger('change.select2');
     }
     $('#visit-purpose').on('change', applyPurposeRules);
 
@@ -1039,8 +1056,9 @@ $(document).ready(function() {
             ? String(f.last_battery_type_id) : '';
         $('#battery-type').val(lastBattery);
         $('#sd-card-status').val('');
+        $('#device-type').val('');
         $('#recording-hours').val(f && f.last_hours_per_day ? f.last_hours_per_day : '');
-        $('#visit-purpose, #battery-type, #sd-card-status').trigger('change.select2');
+        $('#visit-purpose, #battery-type, #sd-card-status, #device-type').trigger('change.select2');
         applyPurposeRules();
         $('input[name="is-operational"][value=""]').prop('checked', true);
         $('#comments').val('');
@@ -1062,6 +1080,7 @@ $(document).ready(function() {
             visit_purpose_id: $('#visit-purpose').val(),
             sd_card_status_id: $('#sd-card-status').val(),
             battery_type_id: $('#battery-type').val(),
+            device_type_id: $('#device-type').val(),
             recording_hours_per_day: $('#recording-hours').val(),
             is_camera_operational: $('input[name="is-operational"]:checked').val(),
             comments: $('#comments').val()

@@ -2789,6 +2789,7 @@ def manage_pam_locations(lang_code):
         battery_types = conn.execute(text("SELECT id, name_ua, name_en FROM battery_types ORDER BY name_ua")).fetchall()
         sd_card_statuses = conn.execute(text("SELECT id, name_ua, name_en FROM sd_card_status ORDER BY id")).fetchall()
         visit_purposes = conn.execute(text("SELECT id, name_ua, name_en FROM visit_purposes ORDER BY id")).fetchall()
+        device_types = conn.execute(text(DEVICE_TYPES_SQL)).fetchall()
 
         can_edit = is_admin or bool(managed_ids)
 
@@ -2800,6 +2801,7 @@ def manage_pam_locations(lang_code):
                                battery_types=battery_types,
                                sd_card_statuses=sd_card_statuses,
                                visit_purposes=visit_purposes,
+                               device_types=device_types,
                                can_edit=can_edit,
                                battery_kept_id=service_forecast.BATTERY_KEPT_TYPE_ID,
                                sd_kept_id=service_forecast.SD_KEPT_STATUS_ID,
@@ -3934,6 +3936,60 @@ SERVICE_VISITS_SQL = text("""
 """)
 
 
+def _service_forecast_items(conn, locations, lang_code):
+    """Forecast dicts for ``locations`` (rows with location_id, names, lat, lon).
+
+    Two reads (latest recording per location, every visit with its recorded
+    hours) whatever the number of locations. Shared by the manage-locations
+    service mode and the service plan page.
+    """
+    last_data_map = {
+        row.location_id: row.last_data_date for row in conn.execute(text(
+            "SELECT location_id, MAX(datetime_start) AS last_data_date "
+            "FROM recordings GROUP BY location_id")).fetchall()
+    }
+    visits_by_loc = service_forecast.visits_from_rows(conn.execute(SERVICE_VISITS_SQL).fetchall())
+    today = date.today()
+    cal = service_forecast.calibrate(visits_by_loc, today)
+
+    response_data = []
+    for loc in locations:
+        visits = visits_by_loc.get(loc.location_id, [])
+        fc = service_forecast.forecast_location(
+            loc.location_id, visits, last_data_map.get(loc.location_id), cal, today)
+        name = loc.location_name
+        if lang_code == 'en' and getattr(loc, 'location_name_en', None):
+            name = loc.location_name_en
+        response_data.append({
+            'id': loc.location_id, 'name': name,
+            'latitude': float(loc.lat), 'longitude': float(loc.lon),
+            'status': fc['status'],
+            'status_reason': fc['reason'],
+            'last_visit_date': visits[-1].visit_datetime.strftime('%d.%m.%Y') if visits else '---',
+            'days_since_visit': fc['days_since_visit'],
+            'battery_days_left': fc['battery_days_left'],
+            'sd_card_days_left': fc['sd_card_days_left'],
+            'limiting': fc['limiting'],
+            'visit_by': fc['visit_by'].strftime('%d.%m.%Y') if fc['visit_by'] else None,
+            'visit_by_iso': fc['visit_by'].isoformat() if fc['visit_by'] else None,
+            'lost_days': fc['lost_days'],
+            'last_recording': fc['last_recording'].strftime('%d.%m.%Y') if fc['last_recording'] else None,
+            'battery_source': fc['battery_source'],
+            'battery_runs': fc['battery_runs'],
+            'battery_capacity_hours': fc['battery_capacity_hours'],
+            'hours_per_day': fc['hours_per_day'],
+            'data_rate_mb_h': fc['data_rate_mb_h'],
+            # Prefill for the next service record.
+            'last_purpose_id': visits[-1].purpose_id if visits else None,
+            'last_battery_type_id': visits[-1].battery_type_id if visits else None,
+            'last_hours_per_day': visits[-1].hours_per_day if visits else None,
+        })
+    return response_data
+
+
+DEVICE_TYPES_SQL = "SELECT id, name_ua, name_en FROM device_types ORDER BY sort_order, id"
+
+
 @pam_bp.route('/<lang_code>/api/pam/locations-with-status')
 @login_required
 def api_get_pam_locations_with_status(lang_code):
@@ -3989,54 +4045,87 @@ def api_get_pam_locations_with_status(lang_code):
         if not locations:
             return jsonify([])
 
-        last_data_map = {
-            row.location_id: row.last_data_date for row in conn.execute(text(
-                "SELECT location_id, MAX(datetime_start) AS last_data_date "
-                "FROM recordings GROUP BY location_id")).fetchall()
-        }
-        visits_by_loc = service_forecast.visits_from_rows(conn.execute(SERVICE_VISITS_SQL).fetchall())
-        today = date.today()
-        cal = service_forecast.calibrate(visits_by_loc, today)
-
-        response_data = []
-        for loc in locations:
-            visits = visits_by_loc.get(loc.location_id, [])
-            fc = service_forecast.forecast_location(
-                loc.location_id, visits, last_data_map.get(loc.location_id), cal, today)
-            name = loc.location_name
-            if lang_code == 'en' and getattr(loc, 'location_name_en', None):
-                name = loc.location_name_en
-            response_data.append({
-                'id': loc.location_id, 'name': name,
-                'latitude': float(loc.lat), 'longitude': float(loc.lon),
-                'status': fc['status'],
-                'status_reason': fc['reason'],
-                'last_visit_date': visits[-1].visit_datetime.strftime('%d.%m.%Y') if visits else '---',
-                'days_since_visit': fc['days_since_visit'],
-                'battery_days_left': fc['battery_days_left'],
-                'sd_card_days_left': fc['sd_card_days_left'],
-                'limiting': fc['limiting'],
-                'visit_by': fc['visit_by'].strftime('%d.%m.%Y') if fc['visit_by'] else None,
-                'visit_by_iso': fc['visit_by'].isoformat() if fc['visit_by'] else None,
-                'lost_days': fc['lost_days'],
-                'last_recording': fc['last_recording'].strftime('%d.%m.%Y') if fc['last_recording'] else None,
-                'battery_source': fc['battery_source'],
-                'battery_runs': fc['battery_runs'],
-                'battery_capacity_hours': fc['battery_capacity_hours'],
-                'hours_per_day': fc['hours_per_day'],
-                'data_rate_mb_h': fc['data_rate_mb_h'],
-                # Prefill for the next service record.
-                'last_purpose_id': visits[-1].purpose_id if visits else None,
-                'last_battery_type_id': visits[-1].battery_type_id if visits else None,
-                'last_hours_per_day': visits[-1].hours_per_day if visits else None,
-            })
-
-        return jsonify(response_data)
+        return jsonify(_service_forecast_items(conn, locations, lang_code))
     except Exception as e:
         current_app.logger.error(f"Error fetching PAM locations with status: {e}", exc_info=True)
         return jsonify({'error': 'Failed to load location status data'}), 500
     finally:
         if conn: conn.close()
+
+# Equipment now on site: every visit with the names the service plan shows.
+SERVICE_EQUIPMENT_SQL = text("""
+    SELECT sv.location_id, sv.visit_datetime, sv.visit_purpose_id,
+           sv.battery_type_id,
+           CASE WHEN :lang = 'uk' THEN bt.name_ua ELSE bt.name_en END AS battery_name,
+           sv.sd_card_status_id, scs.capacity_gb,
+           sv.device_type_id,
+           CASE WHEN :lang = 'uk' THEN dt.name_ua ELSE dt.name_en END AS device_name
+    FROM service_visits sv
+    LEFT JOIN battery_types bt ON bt.id = sv.battery_type_id
+    LEFT JOIN sd_card_status scs ON scs.id = sv.sd_card_status_id
+    LEFT JOIN device_types dt ON dt.id = sv.device_type_id
+    WHERE sv.location_id = ANY(:ids)
+""")
+
+
+@pam_bp.route('/<lang_code>/pam/service-plan')
+@login_required
+@role_required('manager')
+def pam_service_plan(lang_code):
+    """Field view of the service plan: which recorders to visit, on a phone.
+
+    Managers only, and only locations of institutions they manage (admins see
+    all). Read-only: the service log itself stays on manage-locations. The data
+    are rendered into the page so it works in one request on a weak signal.
+    """
+    g.lang_code = lang_code
+    is_admin = current_user.has_role('admin')
+    managed_ids = pam_access.manage_institution_ids(current_user)
+    if is_admin:
+        institutions = Institution.query.order_by(Institution.name_uk).all()
+    else:
+        institutions = (Institution.query.filter(Institution.id.in_(managed_ids))
+                        .order_by(Institution.name_uk).all()) if managed_ids else []
+
+    items = []
+    if is_admin or managed_ids:
+        conn = None
+        try:
+            conn = get_pam_db_connection()
+            where = "TRUE" if is_admin else """EXISTS (
+                SELECT 1 FROM location_institutions li
+                WHERE li.location_id = l.location_id AND li.institution_id = ANY(:inst_ids))"""
+            locations = conn.execute(text(f"""
+                SELECT l.location_id, l.location_name, l.location_name_en, l.lat, l.lon,
+                       ARRAY(SELECT li2.institution_id FROM location_institutions li2
+                             WHERE li2.location_id = l.location_id) AS inst_ids
+                FROM locations l WHERE {where}
+            """), {'inst_ids': managed_ids}).fetchall()
+            if locations:
+                items = _service_forecast_items(conn, locations, lang_code)
+                equipment = service_forecast.current_equipment(conn.execute(
+                    SERVICE_EQUIPMENT_SQL,
+                    {'ids': [l.location_id for l in locations], 'lang': lang_code}).fetchall())
+                inst_map = {l.location_id: list(l.inst_ids or []) for l in locations}
+                fmt = lambda d: d.strftime('%d.%m.%Y') if d else None
+                for it in items:
+                    eq = equipment.get(it['id'], {})
+                    it.update(
+                        inst_ids=inst_map.get(it['id'], []),
+                        device=eq.get('device'),
+                        battery=eq.get('battery'),
+                        battery_since=fmt(eq.get('battery_since')),
+                        card_gb=eq.get('card_gb'),
+                        card_since=fmt(eq.get('card_since')),
+                    )
+        finally:
+            if conn: conn.close()
+
+    name_attr = 'name_uk' if lang_code == 'uk' else 'name_en'
+    inst_list = [{'id': i.id, 'name': getattr(i, name_attr) or i.name_uk} for i in institutions]
+    return render_template('pam_service_plan.html', items=items, institutions=inst_list,
+                           today=date.today().isoformat())
+
 
 @pam_bp.route('/<lang_code>/api/pam/location/<int:location_id>/service-history')
 @login_required
@@ -4062,13 +4151,15 @@ def api_get_pam_service_history(lang_code, location_id):
             SELECT
                 sv.id, sv.visit_datetime, sv.is_operational, sv.comments, sv.user_id,
                 sv.visit_purpose_id, sv.battery_type_id, sv.sd_card_status_id,
-                sv.recording_hours_per_day,
+                sv.recording_hours_per_day, sv.device_type_id,
+                CASE WHEN :lang = 'uk' THEN dt.name_ua ELSE dt.name_en END as device_info,
                 CASE WHEN :lang = 'uk' THEN vp.name_ua ELSE vp.name_en END as purpose,
                 CASE WHEN :lang = 'uk' THEN bt.name_ua ELSE bt.name_en END as battery_info,
                 CASE WHEN :lang = 'uk' THEN scs.name_ua ELSE scs.name_en END as sd_card_info
             FROM service_visits sv
             JOIN visit_purposes vp ON sv.visit_purpose_id = vp.id
             LEFT JOIN battery_types bt ON sv.battery_type_id = bt.id
+            LEFT JOIN device_types dt ON sv.device_type_id = dt.id
             JOIN sd_card_status scs ON sv.sd_card_status_id = scs.id
             WHERE sv.location_id = :location_id
             ORDER BY sv.visit_datetime DESC
@@ -4096,6 +4187,8 @@ def api_get_pam_service_history(lang_code, location_id):
                 'battery_type_id': v.battery_type_id,
                 'sd_card_status_id': v.sd_card_status_id,
                 'recording_hours_per_day': v.recording_hours_per_day,
+                'device_type_id': v.device_type_id,
+                'device_info': v.device_info,
                 'is_operational': v.is_operational,
                 'battery_info': v.battery_info or 'Не замінювались',
                 'sd_card_info': v.sd_card_info,
@@ -4147,9 +4240,15 @@ def _parse_service_visit(data):
     if not (0 if removal else 1) <= hours <= 24:
         raise ServiceVisitInputError('Години запису мають бути від 1 до 24.')
 
+    # The recorder model belongs to a deployment: asked at installation only.
+    device = data.get('device_type_id') if purpose == service_forecast.PURPOSE_INSTALL else None
+    if purpose == service_forecast.PURPOSE_INSTALL and not device:
+        raise ServiceVisitInputError('Вкажіть тип приладу.')
+
     is_operational_str = data.get('is_camera_operational')
     battery = data.get('battery_type_id')
     return {
+        'device_type_id': int(device) if device else None,
         'visit_datetime': visit_dt,
         'visit_purpose_id': purpose,
         'battery_type_id': int(battery) if battery and not removal else None,
@@ -4198,10 +4297,10 @@ def api_create_pam_service_visit(lang_code):
         conn.execute(text("""
             INSERT INTO service_visits (location_id, user_id, visit_datetime, is_operational,
                                         battery_type_id, sd_card_status_id, recording_hours_per_day,
-                                        visit_purpose_id, comments)
+                                        visit_purpose_id, comments, device_type_id)
             VALUES (:location_id, :user_id, :visit_datetime, :is_operational,
                     :battery_type_id, :sd_card_status_id, :recording_hours_per_day,
-                    :visit_purpose_id, :comments)
+                    :visit_purpose_id, :comments, :device_type_id)
         """), params)
         conn.commit()
 
@@ -4263,7 +4362,8 @@ def api_update_pam_service_visit(lang_code, visit_id):
                 sd_card_status_id       = :sd_card_status_id,
                 recording_hours_per_day = :recording_hours_per_day,
                 is_operational          = :is_operational,
-                comments                = :comments
+                comments                = :comments,
+                device_type_id          = :device_type_id
             WHERE id = :id
         """), params)
         conn.commit()

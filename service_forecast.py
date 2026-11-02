@@ -294,3 +294,52 @@ def visits_from_rows(rows: Iterable) -> dict:
     for visits in grouped.values():
         visits.sort(key=lambda v: v.visit_datetime)
     return grouped
+
+
+# Nominal card size from usable capacity (sd_card_status.capacity_gb holds
+# what the card really fits: 64 GB -> 59.6, i.e. GiB of a decimal "GB").
+_GB_TO_GIB = 0.93125
+
+
+def nominal_card_gb(capacity_gb) -> Optional[int]:
+    if not capacity_gb:
+        return None
+    return int(round(float(capacity_gb) / _GB_TO_GIB))
+
+
+def current_equipment(rows: Iterable) -> dict:
+    """What is on each site now, from the service log.
+
+    ``rows``: one per visit with location_id, visit_datetime, visit_purpose_id,
+    battery_type_id, battery_name, sd_card_status_id, capacity_gb,
+    device_type_id, device_name (any order). Returns location_id -> dict with
+    device, battery, battery_since, card_gb, card_since (None when unknown).
+
+    An installation starts a new deployment, so earlier batteries, card and
+    device stop counting; a removal clears everything. "Kept" batteries or
+    card leave the previous entry (and its date) in place. The device model is
+    recorded at installation only.
+    """
+    grouped: dict = {}
+    for r in rows:
+        grouped.setdefault(r.location_id, []).append(r)
+    out = {}
+    for loc_id, visits in grouped.items():
+        visits.sort(key=lambda v: v.visit_datetime)
+        eq = dict(device=None, battery=None, battery_since=None, card_gb=None, card_since=None)
+        for v in visits:
+            day = v.visit_datetime.date()
+            if v.visit_purpose_id == PURPOSE_REMOVED:
+                eq = dict.fromkeys(eq)
+                continue
+            if v.visit_purpose_id == PURPOSE_INSTALL:
+                eq = dict.fromkeys(eq)
+            if v.device_type_id is not None:
+                eq['device'] = v.device_name
+            if v.battery_type_id is not None and v.battery_type_id != BATTERY_KEPT_TYPE_ID:
+                eq.update(battery=v.battery_name, battery_since=day)
+            gb = nominal_card_gb(v.capacity_gb)
+            if gb:
+                eq.update(card_gb=gb, card_since=day)
+        out[loc_id] = eq
+    return out
