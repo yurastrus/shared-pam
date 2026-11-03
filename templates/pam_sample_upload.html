@@ -19,7 +19,8 @@
     </p>
 
     {# Filled in by applyPrefill() when the page was opened from the
-       co-occurrence map with parameters in the query string. #}
+       co-occurrence map or the species dashboard with parameters in the
+       query string. #}
     <div id="su-prefill-banner" class="pam-scope-banner" style="display:none;"></div>
 
     <!-- STEP 1: institution + locations -->
@@ -140,6 +141,12 @@
                 </select>
             </div>
         </div>
+        {# Shown instead of the month/year window when the species dashboard
+           handed over an exact period (date_from/date_to). #}
+        <div id="su-date-range" class="pam-scope-banner mt-2" style="display:none;">
+            <span id="su-date-range-text"></span>
+            <button type="button" id="su-date-range-clear" class="btn btn-sm btn-link p-0 ms-2">{{ _('Скинути й обрати місяці та роки') }}</button>
+        </div>
         <div class="su-help mt-1">
             {{ _('Місяці не залежать від року. Період «лютий, квітень» дає всі записи за лютий, березень і квітень кожного з вибраних років. Якщо місяць «від» пізніший за місяць «до» (напр. листопад і лютий), період читається через новий рік як один сезон.') }}
         </div>
@@ -190,6 +197,7 @@
 
     // ── state ─────────────────────────────────────────────────────────────
     let plannedSegments = [];             // from /prepare
+    let exactPeriod = null;               // {from, to} from the species dashboard
     let fileMap = new Map();              // basename(lower) -> File
 
     const $ = (id) => document.getElementById(id);
@@ -291,7 +299,7 @@
         }
         const y0 = parseInt($('su-year-start').value, 10);
         const y1 = parseInt($('su-year-end').value, 10);
-        if (y0 && y1 && y0 > y1) {
+        if (!exactPeriod && y0 && y1 && y0 > y1) {
             return "{{ _('Рік «від» пізніший за рік «до».') }}";
         }
         return null;
@@ -305,25 +313,33 @@
         if (problem) { $('su-prepare-info').textContent = problem; return; }
         $('su-prepare').disabled = true;
         $('su-prepare-info').textContent = "{{ _('Формування вибірки...') }}";
+        const body = {
+            species_name: species,
+            location_ids: ids,
+            confidence_threshold: parseFloat($('su-conf').value) || 0.1,
+            // A max of 1 (or blank) is the whole range: send null so the
+            // server adds no upper-bound clause at all.
+            confidence_max: confMaxValue(),
+            n_strata: parseInt($('su-strata').value, 10) || 10,
+            sample_size: parseInt($('su-size').value, 10) || 700,
+            model_id: parseInt(($('su-model') || {}).value, 10) || null,
+        };
+        // An exact period replaces the month/year window rather than being
+        // intersected with it: the disabled selectors are not what the user sees.
+        if (exactPeriod) {
+            body.date_from = exactPeriod.from;
+            body.date_to = exactPeriod.to;
+        } else {
+            body.month_start = parseInt($('su-month-start').value, 10) || 1;
+            body.month_end = parseInt($('su-month-end').value, 10) || 12;
+            body.year_start = parseInt($('su-year-start').value, 10) || null;
+            body.year_end = parseInt($('su-year-end').value, 10) || null;
+        }
         try {
             const r = await fetch(URL_PREPARE, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-                body: JSON.stringify({
-                    species_name: species,
-                    location_ids: ids,
-                    confidence_threshold: parseFloat($('su-conf').value) || 0.1,
-                    // A max of 1 (or blank) is the whole range: send null so the
-                    // server adds no upper-bound clause at all.
-                    confidence_max: confMaxValue(),
-                    n_strata: parseInt($('su-strata').value, 10) || 10,
-                    sample_size: parseInt($('su-size').value, 10) || 700,
-                    model_id: parseInt(($('su-model') || {}).value, 10) || null,
-                    month_start: parseInt($('su-month-start').value, 10) || 1,
-                    month_end: parseInt($('su-month-end').value, 10) || 12,
-                    year_start: parseInt($('su-year-start').value, 10) || null,
-                    year_end: parseInt($('su-year-end').value, 10) || null,
-                })
+                body: JSON.stringify(body)
             });
             const data = await r.json();
             if (!data.success) { throw new Error(data.error || 'error'); }
@@ -419,9 +435,29 @@
     $('su-folder').addEventListener('change', onFolderPicked);
     $('su-run').addEventListener('click', runPipeline);
 
+    // ── exact period from the species dashboard ─────────────────────────────
+    // Month + year cannot say "3 Nov 2025 - 3 Nov 2026", so the dashboard sends
+    // the days themselves. While they hold, the month/year selectors are
+    // disabled; the reset button gives the ordinary window back.
+    const SEASON_SELECTS = ['su-month-start', 'su-month-end', 'su-year-start', 'su-year-end'];
+    function setExactPeriod(period) {
+        exactPeriod = period;
+        SEASON_SELECTS.forEach(id => { $(id).disabled = !!period; });
+        $('su-date-range').style.display = period ? '' : 'none';
+        if (period) {
+            $('su-date-range-text').textContent =
+                "{{ _('Період із детального аналізу:') }} " + period.from + " … " + period.to;
+        }
+    }
+    $('su-date-range-clear').addEventListener('click', () => setExactPeriod(null));
+
     // ── prefill from a deep link ────────────────────────────────────────────
-    // The co-occurrence map sends people here when a point has nothing left to
-    // verify: ?location_ids=&species=&year_start=&year_end=&month_start=&month_end=
+    // Two pages link here:
+    //  * the co-occurrence map, when a point has nothing left to verify:
+    //    ?location_ids=&species=&year_start=&year_end=&month_start=&month_end=&conf=
+    //  * the species dashboard (source=detailed), with the subset on screen:
+    //    ?location_ids=&species=&conf=&model_id=&date_from=&date_to=&source=detailed
+    // Every parameter is optional, so a link of either kind keeps working.
     // The chain is institution -> locations -> species (the species list is
     // server-side per location), so each step has to wait for the previous one;
     // hence the await rather than setting five fields in a row.
@@ -429,23 +465,39 @@
         const q = new URLSearchParams(window.location.search);
         const wanted = (q.get('location_ids') || '').split(',')
                         .map(v => parseInt(v, 10)).filter(v => !isNaN(v));
-        ['year_start', 'year_end', 'month_start', 'month_end', 'conf'].forEach(k => {
+        ['year_start', 'year_end', 'month_start', 'month_end', 'conf', 'conf_max'].forEach(k => {
             const v = q.get(k);
             const el = $('su-' + k.replace('_', '-'));
             if (v && el) el.value = v;
         });
+        const modelEl = $('su-model');
+        const modelId = q.get('model_id');
+        if (modelId && modelEl && modelEl.tagName === 'SELECT'
+                && modelEl.querySelector(`option[value="${CSS.escape(modelId)}"]`)) {
+            modelEl.value = modelId;
+        }
+        const dateFrom = q.get('date_from'), dateTo = q.get('date_to');
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateFrom || '') && /^\d{4}-\d{2}-\d{2}$/.test(dateTo || '')) {
+            setExactPeriod({ from: dateFrom, to: dateTo });
+        }
         if (!wanted.length) return;
 
-        // The institution select drives which locations are listed, so pick the
-        // institution of the requested location first.
-        const loc = LOCATIONS.find(l => wanted.includes(l.location_id));
-        if (loc && (loc.inst_ids || []).length) {
-            $('su-institution').value = String(loc.inst_ids[0]);
-        }
+        // The institution select drives which locations are listed, so pick an
+        // institution that holds every requested location. The dashboard can
+        // hand over locations of several institutions: then "all" is the only
+        // choice that does not hide some of them.
+        const wantedLocs = LOCATIONS.filter(l => wanted.includes(l.location_id));
+        const first = wantedLocs[0];
+        const commonInst = first && (first.inst_ids || []).find(
+            id => wantedLocs.every(l => (l.inst_ids || []).includes(id)));
+        $('su-institution').value = commonInst ? String(commonInst) : '';
         renderLocations();
         Array.from($('su-locations').options).forEach(o => {
             o.selected = wanted.includes(parseInt(o.value, 10));
         });
+        if (wantedLocs.length < wanted.length) {
+            log("{{ _('Локацій без детекцій або без доступу пропущено:') }} " + (wanted.length - wantedLocs.length));
+        }
         await onLocationsChanged();
 
         const species = q.get('species');
@@ -463,7 +515,9 @@
         }
         const banner = $('su-prefill-banner');
         if (banner) {
-            banner.textContent = "{{ _('Параметри підставлено з карти одночасних детекцій. Перевірте діапазони й натисніть «Підготувати вибірку».') }}";
+            banner.textContent = q.get('source') === 'detailed'
+                ? "{{ _('Параметри підставлено з детального аналізу виду. Перевірте їх, натисніть «Сформувати вибірку» і виберіть папку із записами.') }}"
+                : "{{ _('Параметри підставлено з карти одночасних детекцій. Перевірте діапазони й натисніть «Підготувати вибірку».') }}";
             banner.style.display = '';
         }
     }

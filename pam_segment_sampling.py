@@ -65,7 +65,7 @@ _CONF_COLUMN_RE = re.compile(r'^[a-z][a-z0-9_]*$')
 
 def build_sampling_query(n_strata, conf_column='confidence',
                          with_conf_max=False, month_mode=None,
-                         with_year_range=False):
+                         with_year_range=False, with_date_range=False):
     """Return the parameterised stratified-sampling SQL.
 
     Kept as a pure function (no DB, no I/O) so it is unit-testable. ``n_strata``
@@ -103,12 +103,19 @@ def build_sampling_query(n_strata, conf_column='confidence',
         ``datetime_start`` index still applies. The month filter cannot avoid
         ``EXTRACT`` — it is inherently non-contiguous across years — so pairing
         the two keeps the scan bounded by the years.
+    ``with_date_range``
+        restrict to calendar days ``:date_from … :date_to`` **inclusive** — the
+        contiguous period the species dashboard (``/pam/pam_detailed``) shows,
+        which month + year cannot express (Nov 2025 – Oct 2026 would also pull
+        Jan–Oct 2025). Same semantics as the dashboard's
+        ``DATE(r.datetime_start) BETWEEN …`` in the session time zone, but
+        written as half-open bounds so the index applies.
 
     Bind params expected by the returned SQL:
         :species_name, :location_ids (list), :conf_thr, :per_stratum,
         :seg_model_id  (the model to tag the sample with / dedup against),
-        plus :conf_max / :month_start, :month_end / :year_start, :year_end
-        for whichever optional filters were switched on.
+        plus :conf_max / :month_start, :month_end / :year_start, :year_end /
+        :date_from, :date_to for whichever optional filters were switched on.
     """
     n_strata = max(1, int(n_strata))
     if not _CONF_COLUMN_RE.match(conf_column or ''):
@@ -125,6 +132,9 @@ def build_sampling_query(n_strata, conf_column='confidence',
         extra.append("AND r.datetime_start >= make_date(:year_start, 1, 1)")
         extra.append("AND r.datetime_start <  make_date(:year_end, 1, 1)"
                      " + INTERVAL '1 year'")
+    if with_date_range:
+        extra.append("AND r.datetime_start >= CAST(:date_from AS date)")
+        extra.append("AND r.datetime_start <  CAST(:date_to AS date) + 1")
     if month_mode == 'range':
         extra.append("AND EXTRACT(MONTH FROM r.datetime_start)"
                      " BETWEEN :month_start AND :month_end")
@@ -179,7 +189,8 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
                           n_strata=10, sample_size=700, conn=None,
                           model_id=None, conf_column='confidence',
                           confidence_max=None, month_start=None, month_end=None,
-                          year_start=None, year_end=None):
+                          year_start=None, year_end=None,
+                          date_from=None, date_to=None):
     """Draw a confidence-stratified detection sample for one species + model.
 
     Mirrors ``produce_random_segments.R``: split the confidence range into
@@ -210,6 +221,11 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
         inclusive year bounds, both required together. Cheap to apply (index on
         ``datetime_start``), so it also keeps the month filter's ``EXTRACT``
         from scanning the whole table.
+    ``date_from`` / ``date_to``
+        inclusive calendar days (``date`` objects), both required together:
+        the exact period of the species dashboard, for sampling "what I am
+        looking at". Composes with the other filters like they do with each
+        other; the dashboard link sends it instead of months and years.
 
     Returns a list of plain dicts (JSON-serialisable) — one per sampled
     detection — carrying everything the browser needs to cut + label the clip.
@@ -239,6 +255,11 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
         params['year_start'] = int(year_start)
         params['year_end'] = int(year_end)
 
+    with_date_range = date_from is not None and date_to is not None
+    if with_date_range:
+        params['date_from'] = date_from
+        params['date_to'] = date_to
+
     month_mode = None
     if month_start is not None and month_end is not None:
         month_start, month_end = int(month_start), int(month_end)
@@ -257,6 +278,7 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
                 n_strata, conf_column=conf_column,
                 with_conf_max=with_conf_max, month_mode=month_mode,
                 with_year_range=with_year_range,
+                with_date_range=with_date_range,
             ), params
         ).mappings().fetchall()
     finally:

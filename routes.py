@@ -58,6 +58,17 @@ def _optional_float(value):
         return None
 
 
+def _optional_date(value):
+    """date from 'YYYY-MM-DD', or None when omitted / blank.
+
+    Unlike the numeric helpers, garbage raises ValueError: a mistyped date
+    silently dropped would widen the sample to the whole archive.
+    """
+    if value is None or value == '':
+        return None
+    return date.fromisoformat(str(value).strip())
+
+
 def _parse_ts_arg(raw):
     """An ISO-8601 timestamp from a query string, or None.
 
@@ -5283,6 +5294,21 @@ def api_sample_prepare(lang_code):
             return jsonify({'success': False,
                             'error': 'year_start must not be later than year_end'}), 400
 
+        # Exact calendar period, sent when the page was opened from the species
+        # dashboard (pam_detailed). Inclusive days, same as the dashboard.
+        try:
+            date_from = _optional_date(data.get('date_from'))
+            date_to = _optional_date(data.get('date_to'))
+        except ValueError:
+            return jsonify({'success': False,
+                            'error': 'date_from/date_to must be YYYY-MM-DD'}), 400
+        if (date_from is None) != (date_to is None):
+            return jsonify({'success': False,
+                            'error': 'date_from and date_to must be given together'}), 400
+        if date_from is not None and date_from > date_to:
+            return jsonify({'success': False,
+                            'error': 'date_from must not be later than date_to'}), 400
+
         conn = get_pam_db_connection()
         location_ids = _user_location_ids_allowed(conn, location_ids)
         if not location_ids:
@@ -5311,6 +5337,7 @@ def api_sample_prepare(lang_code):
             confidence_max=conf_max,
             month_start=month_start, month_end=month_end,
             year_start=year_start, year_end=year_end,
+            date_from=date_from, date_to=date_to,
         )
         return jsonify({'success': True, 'count': len(segments),
                         'model_id': model_id, 'segments': segments})

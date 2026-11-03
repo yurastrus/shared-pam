@@ -83,6 +83,12 @@
                     <a href="{{ url_for('pam.pam_overview', lang_code=g.lang_code) }}" class="btn">
                         {{ _('До загальної таблиці') }}
                     </a>
+                    {# Cutting segments is admin-only, same as the sample-upload page itself. #}
+                    {% if current_user.is_authenticated and current_user.has_role('admin') %}
+                    <button type="button" id="verify-subset-btn" class="btn btn-secondary" disabled title="{{ _('Застосуйте фільтри для активації') }}">
+                        {{ _('Нарізати сегменти для верифікації') }}
+                    </button>
+                    {% endif %}
                     {% if current_user.is_authenticated and current_user.has_role('manager', 'pam_identifier', 'roztochya_user', 'volunteer_user') %}
                     <button type="button" id="export-data-btn" class="btn btn-secondary" disabled title="{{ _('Застосуйте фільтри для активації') }}" style="margin-left: auto; background-color: #28a745; border-color: #28a745;">
                         <i class="fa fa-download"></i> {{ _('Експорт в Excel') }}
@@ -550,11 +556,54 @@
                 }).catch(() => summaryContainer.html(getErrorHtml('{{ _("Помилка статистики.") }}')));
         }
 
+        // --- Hand the subset on screen to the segment sampler (admin only) ---
+        // The map points are the locations the dashboard shows after every
+        // filter (institution, biotope, min detections), so they, not the
+        // location select, decide where the sample is drawn. The snapshot is
+        // the APPLIED filters: edits not yet applied are not what is on screen.
+        const verifySubsetBtn = $('#verify-subset-btn');
+        function updateVerifySubsetLink(apiParams, points) {
+            if (!verifySubsetBtn.length) return;
+            const ids = (points || []).map(p => p.location_id);
+            verifySubsetBtn.removeData('href');
+            if (apiParams.get('mode') === 'combined') {
+                verifySubsetBtn.prop('disabled', true)
+                    .attr('title', '{{ _("Для комбінованого режиму вибірки немає: оберіть одну модель.") }}');
+                return;
+            }
+            if (!ids.length) {
+                verifySubsetBtn.prop('disabled', true)
+                    .attr('title', '{{ _("На карті немає локацій для вибірки.") }}');
+                return;
+            }
+            const q = new URLSearchParams({
+                source: 'detailed',
+                species: apiParams.get('species'),
+                location_ids: ids.join(','),
+                conf: apiParams.get('confidence')
+            });
+            if (apiParams.get('mode') === 'model') q.set('model_id', apiParams.get('model_id'));
+            if (apiParams.get('start_date') && apiParams.get('end_date')) {
+                q.set('date_from', apiParams.get('start_date'));
+                q.set('date_to', apiParams.get('end_date'));
+            }
+            verifySubsetBtn.data('href', `{{ url_for('pam.sample_upload', lang_code=g.lang_code) }}?${q.toString()}`)
+                .prop('disabled', false)
+                .attr('title', '{{ _("Відкрити підготовку сегментів із цими фільтрами") }}');
+        }
+        verifySubsetBtn.on('click', () => {
+            const href = verifySubsetBtn.data('href');
+            if (href) window.open(href, '_blank', 'noopener');
+        });
+
         function updateMap() {
             markersLayer.clearLayers();
-            fetch(`/{{ g.lang_code }}/api/pam/get-unique-points?${getApiParams().toString()}`)
+            const mapParams = getApiParams();
+            updateVerifySubsetLink(mapParams, []);
+            fetch(`/{{ g.lang_code }}/api/pam/get-unique-points?${mapParams.toString()}`)
                 .then(r => r.ok ? r.json() : Promise.reject(r))
                 .then(points => {
+                    updateVerifySubsetLink(mapParams, points);
                     if (points && points.length > 0) {
                         points.forEach(point => {
                             const popupContent = `

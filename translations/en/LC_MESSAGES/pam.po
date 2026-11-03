@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-02 12:19+0200\n"
+"POT-Creation-Date: 2026-11-03 14:30+0200\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -657,7 +657,7 @@ msgstr "Protected landscapes"
 #: app/pam/templates/pam_overview.html:419
 #: app/pam/templates/pam_service_log.html:156
 #: app/pam/templates/pam_service_plan.html:140
-#: app/pam/templates/pam_species_detailed.html:458
+#: app/pam/templates/pam_species_detailed.html:464
 msgid "OSM"
 msgstr "OSM"
 
@@ -667,7 +667,7 @@ msgstr "OSM"
 #: app/pam/templates/pam_overview.html:419
 #: app/pam/templates/pam_service_log.html:156
 #: app/pam/templates/pam_service_plan.html:140
-#: app/pam/templates/pam_species_detailed.html:458
+#: app/pam/templates/pam_species_detailed.html:464
 msgid "Супутник"
 msgstr "Satellite"
 
@@ -686,7 +686,7 @@ msgstr "No locations in this selection."
 #: app/pam/templates/pam_data_export.html:92
 #: app/pam/templates/pam_evaluation_results.html:184
 #: app/pam/templates/pam_import.html:216
-#: app/pam/templates/pam_sample_upload.html:231
+#: app/pam/templates/pam_sample_upload.html:239
 #: app/pam/templates/pam_service_log.html:242
 #: app/pam/templates/pam_verification_interface.html:132
 #: app/pam/templates/pam_verification_interface.html:188
@@ -764,8 +764,8 @@ msgstr "Enter coordinates: click on the map or enter manually."
 #: app/pam/templates/manage_pam_locations.html:915
 #: app/pam/templates/manage_pam_locations.html:1005
 #: app/pam/templates/manage_pam_locations.html:1106
-#: app/pam/templates/pam_sample_upload.html:336
-#: app/pam/templates/pam_species_detailed.html:182
+#: app/pam/templates/pam_sample_upload.html:352
+#: app/pam/templates/pam_species_detailed.html:188
 msgid "Помилка:"
 msgstr "Error:"
 
@@ -998,62 +998,62 @@ msgstr ""
 " it acts as a union."
 
 #: app/pam/templates/pam_cooccurrence.html:71
-#: app/pam/templates/pam_sample_upload.html:57
+#: app/pam/templates/pam_sample_upload.html:58
 msgid "Січень"
 msgstr "January"
 
 #: app/pam/templates/pam_cooccurrence.html:71
-#: app/pam/templates/pam_sample_upload.html:57
+#: app/pam/templates/pam_sample_upload.html:58
 msgid "Лютий"
 msgstr "February"
 
 #: app/pam/templates/pam_cooccurrence.html:71
-#: app/pam/templates/pam_sample_upload.html:57
+#: app/pam/templates/pam_sample_upload.html:58
 msgid "Березень"
 msgstr "March"
 
 #: app/pam/templates/pam_cooccurrence.html:71
-#: app/pam/templates/pam_sample_upload.html:57
+#: app/pam/templates/pam_sample_upload.html:58
 msgid "Квітень"
 msgstr "April"
 
 #: app/pam/templates/pam_cooccurrence.html:72
-#: app/pam/templates/pam_sample_upload.html:58
+#: app/pam/templates/pam_sample_upload.html:59
 msgid "Травень"
 msgstr "May"
 
 #: app/pam/templates/pam_cooccurrence.html:72
-#: app/pam/templates/pam_sample_upload.html:58
+#: app/pam/templates/pam_sample_upload.html:59
 msgid "Червень"
 msgstr "June"
 
 #: app/pam/templates/pam_cooccurrence.html:72
-#: app/pam/templates/pam_sample_upload.html:58
+#: app/pam/templates/pam_sample_upload.html:59
 msgid "Липень"
 msgstr "July"
 
 #: app/pam/templates/pam_cooccurrence.html:72
-#: app/pam/templates/pam_sample_upload.html:58
+#: app/pam/templates/pam_sample_upload.html:59
 msgid "Серпень"
 msgstr "August"
 
 #: app/pam/templates/pam_cooccurrence.html:73
-#: app/pam/templates/pam_sample_upload.html:59
+#: app/pam/templates/pam_sample_upload.html:60
 msgid "Вересень"
 msgstr "September"
 
 #: app/pam/templates/pam_cooccurrence.html:73
-#: app/pam/templates/pam_sample_upload.html:59
+#: app/pam/templates/pam_sample_upload.html:60
 msgid "Жовтень"
 msgstr "October"
 
 #: app/pam/templates/pam_cooccurrence.html:73
-#: app/pam/templates/pam_sample_upload.html:59
+#: app/pam/templates/pam_sample_upload.html:60
 msgid "Листопад"
 msgstr "November"
 
 #: app/pam/templates/pam_cooccurrence.html:73
-#: app/pam/templates/pam_sample_upload.html:59
+#: app/pam/templates/pam_sample_upload.html:60
 msgid "Грудень"
 msgstr "December"
 
@@ -1828,7 +1828,7 @@ msgstr "Min. ver."
 #: app/pam/templates/pam_evaluation_results.html:53
 #: app/pam/templates/pam_evaluation_results.html:220
 #: app/pam/templates/pam_overview.html:449
-#: app/pam/templates/pam_sample_upload.html:47
+#: app/pam/templates/pam_sample_upload.html:48
 #: app/pam/templates/pam_verification_priorities.html:28
 #: app/pam/templates/pam_verification_segments.html:269
 #: app/pam/templates/pam_yearly_table.html:186
@@ -1932,7 +1932,7 @@ msgid "Модель:"
 msgstr "Model:"
 
 #: app/pam/templates/pam_evaluation_results.html:149
-#: app/pam/templates/pam_sample_upload.html:69
+#: app/pam/templates/pam_sample_upload.html:70
 msgid "еталон"
 msgstr "reference"
 
@@ -2617,7 +2617,7 @@ msgid "Виявлені види"
 msgstr "Detected species"
 
 #: app/pam/templates/pam_gap_analysis.html:236
-#: app/pam/templates/pam_sample_upload.html:39
+#: app/pam/templates/pam_sample_upload.html:40
 msgid "Локації"
 msgstr "Locations"
 
@@ -3252,7 +3252,7 @@ msgid "Аналіз багаторічних трендів"
 msgstr "Analysis of multiyear trends"
 
 #: app/pam/templates/pam_overview.html:100
-#: app/pam/templates/pam_species_detailed.html:97
+#: app/pam/templates/pam_species_detailed.html:103
 msgid "Загальна статистика"
 msgstr "Overall statistics"
 
@@ -3304,19 +3304,19 @@ msgstr "-- All genera --"
 
 #: app/pam/templates/pam_overview.html:184
 #: app/pam/templates/pam_overview.html:308
-#: app/pam/templates/pam_species_detailed.html:280
+#: app/pam/templates/pam_species_detailed.html:286
 msgid "-- Всі установи/проекти --"
 msgstr "-- All institutions/projects --"
 
 #: app/pam/templates/pam_overview.html:192
 #: app/pam/templates/pam_overview.html:318
-#: app/pam/templates/pam_species_detailed.html:285
+#: app/pam/templates/pam_species_detailed.html:291
 msgid "-- Всі біотопи --"
 msgstr "-- All habitats --"
 
 #: app/pam/templates/pam_overview.html:197
 #: app/pam/templates/pam_overview.html:319
-#: app/pam/templates/pam_species_detailed.html:286
+#: app/pam/templates/pam_species_detailed.html:292
 msgid "-- Всі локації --"
 msgstr "-- All locations --"
 
@@ -3333,12 +3333,12 @@ msgid "Помилка завантаження карти."
 msgstr "Map loading error."
 
 #: app/pam/templates/pam_overview.html:427
-#: app/pam/templates/pam_species_detailed.html:562
+#: app/pam/templates/pam_species_detailed.html:611
 msgid "Детекцій:"
 msgstr "Detections:"
 
 #: app/pam/templates/pam_overview.html:428
-#: app/pam/templates/pam_sample_upload.html:269
+#: app/pam/templates/pam_sample_upload.html:277
 msgid "Видів:"
 msgstr "Species:"
 
@@ -3355,8 +3355,8 @@ msgid "ЧКУ"
 msgstr "RDBU"
 
 #: app/pam/templates/pam_overview.html:451
-#: app/pam/templates/pam_species_detailed.html:545
-#: app/pam/templates/pam_species_detailed.html:633
+#: app/pam/templates/pam_species_detailed.html:551
+#: app/pam/templates/pam_species_detailed.html:682
 msgid "Детекції"
 msgstr "Detections"
 
@@ -3365,9 +3365,9 @@ msgid "Дані не знайдено. Спробуйте змінити філ�
 msgstr "No data found. Try changing the filters."
 
 #: app/pam/templates/pam_overview.html:509
-#: app/pam/templates/pam_species_detailed.html:591
-#: app/pam/templates/pam_species_detailed.html:607
-#: app/pam/templates/pam_species_detailed.html:614
+#: app/pam/templates/pam_species_detailed.html:640
+#: app/pam/templates/pam_species_detailed.html:656
+#: app/pam/templates/pam_species_detailed.html:663
 msgid "Помилка завантаження даних."
 msgstr "Error loading data."
 
@@ -3382,40 +3382,40 @@ msgstr ""
 " them for verification. Detections uploaded earlier are skipped "
 "automatically."
 
-#: app/pam/templates/pam_sample_upload.html:27
+#: app/pam/templates/pam_sample_upload.html:28
 msgid "Установа та локації"
 msgstr "Institution and locations"
 
-#: app/pam/templates/pam_sample_upload.html:30
+#: app/pam/templates/pam_sample_upload.html:31
 msgid "Установа"
 msgstr "Institution"
 
-#: app/pam/templates/pam_sample_upload.html:32
+#: app/pam/templates/pam_sample_upload.html:33
 msgid "Усі доступні"
 msgstr "All available"
 
-#: app/pam/templates/pam_sample_upload.html:39
+#: app/pam/templates/pam_sample_upload.html:40
 msgid "можна кілька"
 msgstr "multiple allowed"
 
-#: app/pam/templates/pam_sample_upload.html:49
+#: app/pam/templates/pam_sample_upload.html:50
 msgid "Пошук виду..."
 msgstr "Search species..."
 
-#: app/pam/templates/pam_sample_upload.html:51
-#: app/pam/templates/pam_sample_upload.html:234
+#: app/pam/templates/pam_sample_upload.html:52
+#: app/pam/templates/pam_sample_upload.html:242
 msgid "— Спершу виберіть локації —"
 msgstr "— Select locations first —"
 
-#: app/pam/templates/pam_sample_upload.html:61
+#: app/pam/templates/pam_sample_upload.html:62
 msgid "Параметри вибірки та нарізки"
 msgstr "Sampling and cutting parameters"
 
-#: app/pam/templates/pam_sample_upload.html:65
+#: app/pam/templates/pam_sample_upload.html:66
 msgid "Модель класифікатора"
 msgstr "Classifier model"
 
-#: app/pam/templates/pam_sample_upload.html:73
+#: app/pam/templates/pam_sample_upload.html:74
 msgid ""
 "Вибірка стратифікується за конфіденсом обраної моделі; сегменти "
 "позначаються нею."
@@ -3423,47 +3423,51 @@ msgstr ""
 "The sample is stratified by the chosen model's confidence; segments are "
 "tagged with it."
 
-#: app/pam/templates/pam_sample_upload.html:81
+#: app/pam/templates/pam_sample_upload.html:82
 msgid "Довжина сегмента (с)"
 msgstr "Segment length (s)"
 
-#: app/pam/templates/pam_sample_upload.html:89
+#: app/pam/templates/pam_sample_upload.html:90
 msgid "Зсув старту (с)"
 msgstr "Start offset (s)"
 
-#: app/pam/templates/pam_sample_upload.html:93
+#: app/pam/templates/pam_sample_upload.html:94
 msgid "Мін. конфіденс"
 msgstr "Min. confidence"
 
-#: app/pam/templates/pam_sample_upload.html:97
+#: app/pam/templates/pam_sample_upload.html:98
 msgid "Макс. конфіденс"
 msgstr "Max. confidence"
 
-#: app/pam/templates/pam_sample_upload.html:101
+#: app/pam/templates/pam_sample_upload.html:102
 msgid "К-сть страт"
 msgstr "Strata count"
 
-#: app/pam/templates/pam_sample_upload.html:107
+#: app/pam/templates/pam_sample_upload.html:108
 msgid "Розмір вибірки"
 msgstr "Sample size"
 
-#: app/pam/templates/pam_sample_upload.html:111
+#: app/pam/templates/pam_sample_upload.html:112
 msgid "Місяць від"
 msgstr "Month from"
 
-#: app/pam/templates/pam_sample_upload.html:119
+#: app/pam/templates/pam_sample_upload.html:120
 msgid "Місяць до"
 msgstr "Month to"
 
-#: app/pam/templates/pam_sample_upload.html:127
+#: app/pam/templates/pam_sample_upload.html:128
 msgid "Рік від"
 msgstr "Year from"
 
-#: app/pam/templates/pam_sample_upload.html:135
+#: app/pam/templates/pam_sample_upload.html:136
 msgid "Рік до"
 msgstr "Year to"
 
-#: app/pam/templates/pam_sample_upload.html:144
+#: app/pam/templates/pam_sample_upload.html:148
+msgid "Скинути й обрати місяці та роки"
+msgstr "Reset and choose months and years"
+
+#: app/pam/templates/pam_sample_upload.html:151
 msgid ""
 "Місяці не залежать від року. Період «лютий, квітень» дає всі записи за "
 "лютий, березень і квітень кожного з вибраних років. Якщо місяць «від» "
@@ -3475,107 +3479,123 @@ msgstr ""
 "is later than the \"to\" month (November and February, say), the window "
 "is read across New Year as a single season."
 
-#: app/pam/templates/pam_sample_upload.html:147
+#: app/pam/templates/pam_sample_upload.html:154
 msgid "Сформувати вибірку"
 msgstr "Build sample"
 
-#: app/pam/templates/pam_sample_upload.html:154
+#: app/pam/templates/pam_sample_upload.html:161
 msgid "Локальна папка із записами"
 msgstr "Local folder with recordings"
 
-#: app/pam/templates/pam_sample_upload.html:161
+#: app/pam/templates/pam_sample_upload.html:168
 msgid "Нарізати та завантажити"
 msgstr "Cut and upload"
 
-#: app/pam/templates/pam_sample_upload.html:162
+#: app/pam/templates/pam_sample_upload.html:169
 msgid "Старт"
 msgstr "Start"
 
-#: app/pam/templates/pam_sample_upload.html:167
+#: app/pam/templates/pam_sample_upload.html:174
 msgid "Знайдено файлів:"
 msgstr "Files found:"
 
-#: app/pam/templates/pam_sample_upload.html:168
-#: app/pam/templates/pam_sample_upload.html:403
+#: app/pam/templates/pam_sample_upload.html:175
+#: app/pam/templates/pam_sample_upload.html:419
 #: app/pam/templates/pam_segment_window.html:92
 #: app/pam/templates/pam_segment_window.html:277
 msgid "Завантажено:"
 msgstr "Uploaded:"
 
-#: app/pam/templates/pam_sample_upload.html:169
+#: app/pam/templates/pam_sample_upload.html:176
 #: app/pam/templates/pam_segment_window.html:93
 msgid "Дублікати:"
 msgstr "Duplicates:"
 
-#: app/pam/templates/pam_sample_upload.html:170
+#: app/pam/templates/pam_sample_upload.html:177
 msgid "Пропущено (нема файлу):"
 msgstr "Skipped (no file):"
 
-#: app/pam/templates/pam_sample_upload.html:171
+#: app/pam/templates/pam_sample_upload.html:178
 #: app/pam/templates/pam_segment_window.html:95
 msgid "Помилки:"
 msgstr "Errors:"
 
-#: app/pam/templates/pam_sample_upload.html:247
+#: app/pam/templates/pam_sample_upload.html:255
 msgid "Помилка завантаження видів"
 msgstr "Error loading species"
 
-#: app/pam/templates/pam_sample_upload.html:260
+#: app/pam/templates/pam_sample_upload.html:268
 msgid "— Виберіть вид —"
 msgstr "— Select species —"
 
-#: app/pam/templates/pam_sample_upload.html:290
+#: app/pam/templates/pam_sample_upload.html:298
 msgid "Макс. конфіденс менший за мін. конфіденс."
 msgstr "Max. confidence is lower than min. confidence."
 
-#: app/pam/templates/pam_sample_upload.html:295
+#: app/pam/templates/pam_sample_upload.html:303
 msgid "Рік «від» пізніший за рік «до»."
 msgstr "Year \"from\" is later than year \"to\"."
 
-#: app/pam/templates/pam_sample_upload.html:307
+#: app/pam/templates/pam_sample_upload.html:315
 msgid "Формування вибірки..."
 msgstr "Building sample..."
 
-#: app/pam/templates/pam_sample_upload.html:332
-#: app/pam/templates/pam_sample_upload.html:333
+#: app/pam/templates/pam_sample_upload.html:348
+#: app/pam/templates/pam_sample_upload.html:349
 msgid "Відібрано детекцій:"
 msgstr "Detections selected:"
 
-#: app/pam/templates/pam_sample_upload.html:346
+#: app/pam/templates/pam_sample_upload.html:362
 #: app/pam/templates/pam_segment_window.html:227
 msgid "Аудіофайлів у папці:"
 msgstr "Audio files in folder:"
 
-#: app/pam/templates/pam_sample_upload.html:399
+#: app/pam/templates/pam_sample_upload.html:415
 #: app/pam/templates/pam_segment_window.html:250
 msgid "Старт нарізки та завантаження..."
 msgstr "Starting cutting and upload..."
 
-#: app/pam/templates/pam_sample_upload.html:402
+#: app/pam/templates/pam_sample_upload.html:418
 #: app/pam/templates/pam_segment_window.html:276
 msgid "Готово."
 msgstr "Done."
 
-#: app/pam/templates/pam_sample_upload.html:404
+#: app/pam/templates/pam_sample_upload.html:420
 #: app/pam/templates/pam_segment_window.html:278
 msgid "дублікати:"
 msgstr "duplicates:"
 
-#: app/pam/templates/pam_sample_upload.html:405
+#: app/pam/templates/pam_sample_upload.html:421
 #: app/pam/templates/pam_segment_window.html:279
 msgid "без файлу:"
 msgstr "no file:"
 
-#: app/pam/templates/pam_sample_upload.html:406
+#: app/pam/templates/pam_sample_upload.html:422
 #: app/pam/templates/pam_segment_window.html:280
 msgid "помилки:"
 msgstr "errors:"
 
-#: app/pam/templates/pam_sample_upload.html:461
+#: app/pam/templates/pam_sample_upload.html:449
+msgid "Період із детального аналізу:"
+msgstr "Period from the species dashboard:"
+
+#: app/pam/templates/pam_sample_upload.html:499
+msgid "Локацій без детекцій або без доступу пропущено:"
+msgstr "Locations skipped (no detections or no access):"
+
+#: app/pam/templates/pam_sample_upload.html:513
 msgid "Вид не має детекцій на цій локації в цьому діапазоні:"
 msgstr "This species has no detections at that location in this range:"
 
-#: app/pam/templates/pam_sample_upload.html:466
+#: app/pam/templates/pam_sample_upload.html:519
+msgid ""
+"Параметри підставлено з детального аналізу виду. Перевірте їх, натисніть "
+"«Сформувати вибірку» і виберіть папку із записами."
+msgstr ""
+"Filters taken from the species dashboard. Check them, press “Build sample” "
+"and choose the folder with the recordings."
+
+#: app/pam/templates/pam_sample_upload.html:520
 msgid ""
 "Параметри підставлено з карти одночасних детекцій. Перевірте діапазони й "
 "натисніть «Підготувати вибірку»."
@@ -4033,7 +4053,7 @@ msgid "-- Пошук та вибір виду --"
 msgstr "-- Search and select species --"
 
 #: app/pam/templates/pam_species_dashboard.html:139
-#: app/pam/templates/pam_species_detailed.html:474
+#: app/pam/templates/pam_species_detailed.html:480
 #: app/pam/templates/pam_yearly_trends.html:102
 msgid "Будь ласка, виберіть вид."
 msgstr "Please select a species."
@@ -4116,7 +4136,7 @@ msgid "Гру"
 msgstr "Dec"
 
 #: app/pam/templates/pam_species_dashboard.html:212
-#: app/pam/templates/pam_species_detailed.html:755
+#: app/pam/templates/pam_species_detailed.html:804
 msgid "Кількість детекцій"
 msgstr "Detection count"
 
@@ -4147,7 +4167,7 @@ msgid "Спочатку виберіть вид."
 msgstr "Select species first."
 
 #: app/pam/templates/pam_species_detailed.html:81
-#: app/pam/templates/pam_species_detailed.html:436
+#: app/pam/templates/pam_species_detailed.html:442
 msgid "Поріг p≥0.95"
 msgstr "Threshold p≥0.95"
 
@@ -4155,188 +4175,205 @@ msgstr "Threshold p≥0.95"
 msgid "До загальної таблиці"
 msgstr "To general table"
 
-#: app/pam/templates/pam_species_detailed.html:87
+#: app/pam/templates/pam_species_detailed.html:88
+#: app/pam/templates/pam_species_detailed.html:93
 msgid "Застосуйте фільтри для активації"
 msgstr "Apply filters to activate"
 
-#: app/pam/templates/pam_species_detailed.html:88
+#: app/pam/templates/pam_species_detailed.html:89
+msgid "Нарізати сегменти для верифікації"
+msgstr "Cut segments for verification"
+
+#: app/pam/templates/pam_species_detailed.html:94
 msgid "Експорт в Excel"
 msgstr "Export Excel"
 
-#: app/pam/templates/pam_species_detailed.html:99
+#: app/pam/templates/pam_species_detailed.html:105
 msgid "Карта виявлень"
 msgstr "Map of detections"
 
-#: app/pam/templates/pam_species_detailed.html:103
+#: app/pam/templates/pam_species_detailed.html:109
 msgid "Візуалізація даних"
 msgstr "Data visualization"
 
-#: app/pam/templates/pam_species_detailed.html:109
-#: app/pam/templates/pam_species_detailed.html:789
+#: app/pam/templates/pam_species_detailed.html:115
+#: app/pam/templates/pam_species_detailed.html:838
 msgid "Верифіковано консенсусом"
 msgstr "Verified by consensus"
 
-#: app/pam/templates/pam_species_detailed.html:113
-#: app/pam/templates/pam_species_detailed.html:787
+#: app/pam/templates/pam_species_detailed.html:119
+#: app/pam/templates/pam_species_detailed.html:836
 msgid "Верифіковано людиною"
 msgstr "Verified by a single reviewer"
 
-#: app/pam/templates/pam_species_detailed.html:117
-#: app/pam/templates/pam_species_detailed.html:788
+#: app/pam/templates/pam_species_detailed.html:123
+#: app/pam/templates/pam_species_detailed.html:837
 msgid "Відхилено консенсусом"
 msgstr "Rejected by consensus"
 
-#: app/pam/templates/pam_species_detailed.html:121
-#: app/pam/templates/pam_species_detailed.html:786
+#: app/pam/templates/pam_species_detailed.html:127
+#: app/pam/templates/pam_species_detailed.html:835
 msgid "Відхилено людиною"
 msgstr "Rejected by a single reviewer"
 
-#: app/pam/templates/pam_species_detailed.html:125
+#: app/pam/templates/pam_species_detailed.html:131
 msgid "Лише автоматична ідентифікація"
 msgstr "Automatic identification only"
 
-#: app/pam/templates/pam_species_detailed.html:134
+#: app/pam/templates/pam_species_detailed.html:140
 msgid "Накласти погоду:"
 msgstr "Overlay weather:"
 
-#: app/pam/templates/pam_species_detailed.html:138
+#: app/pam/templates/pam_species_detailed.html:144
 msgid "Т cер."
 msgstr "T mean"
 
-#: app/pam/templates/pam_species_detailed.html:143
+#: app/pam/templates/pam_species_detailed.html:149
 msgid "Т мін"
 msgstr "T min"
 
-#: app/pam/templates/pam_species_detailed.html:148
+#: app/pam/templates/pam_species_detailed.html:154
 msgid "Т макс"
 msgstr "T max"
 
-#: app/pam/templates/pam_species_detailed.html:153
+#: app/pam/templates/pam_species_detailed.html:159
 msgid "Опади"
 msgstr "Precip."
 
-#: app/pam/templates/pam_species_detailed.html:158
+#: app/pam/templates/pam_species_detailed.html:164
 msgid "Вітер"
 msgstr "Wind"
 
-#: app/pam/templates/pam_species_detailed.html:163
+#: app/pam/templates/pam_species_detailed.html:169
 msgid "Вологість"
 msgstr "Humidity"
 
-#: app/pam/templates/pam_species_detailed.html:167
+#: app/pam/templates/pam_species_detailed.html:173
 msgid "Тиск"
 msgstr "Pressure"
 
-#: app/pam/templates/pam_species_detailed.html:179
+#: app/pam/templates/pam_species_detailed.html:185
 msgid "Будь ласка, виберіть вид, налаштуйте фільтри та натисніть \"Застосувати\"."
 msgstr "Please select a species, adjust the filters, and click \"Apply\"."
 
-#: app/pam/templates/pam_species_detailed.html:182
+#: app/pam/templates/pam_species_detailed.html:188
 msgid "Не вдалося завантажити список видів."
 msgstr "Failed to load the list of species."
 
-#: app/pam/templates/pam_species_detailed.html:277
+#: app/pam/templates/pam_species_detailed.html:283
 msgid "-- Будь ласка, виберіть --"
 msgstr "-- Please select --"
 
-#: app/pam/templates/pam_species_detailed.html:432
+#: app/pam/templates/pam_species_detailed.html:438
 msgid "Поріг"
 msgstr "Threshold"
 
-#: app/pam/templates/pam_species_detailed.html:546
+#: app/pam/templates/pam_species_detailed.html:552
 msgid "Локалітети"
 msgstr "Localities"
 
-#: app/pam/templates/pam_species_detailed.html:547
+#: app/pam/templates/pam_species_detailed.html:553
 msgid "Дні з детекціями"
 msgstr "Days with detections"
 
-#: app/pam/templates/pam_species_detailed.html:548
+#: app/pam/templates/pam_species_detailed.html:554
 msgid "Частка від усіх"
 msgstr "Share of all"
 
-#: app/pam/templates/pam_species_detailed.html:550
+#: app/pam/templates/pam_species_detailed.html:556
 msgid "Помилка статистики."
 msgstr "Statistics error."
 
-#: app/pam/templates/pam_species_detailed.html:621
+#: app/pam/templates/pam_species_detailed.html:571
+msgid "Для комбінованого режиму вибірки немає: оберіть одну модель."
+msgstr "No sample for the combined mode: choose one model."
+
+#: app/pam/templates/pam_species_detailed.html:576
+msgid "На карті немає локацій для вибірки."
+msgstr "No locations on the map to sample from."
+
+#: app/pam/templates/pam_species_detailed.html:592
+msgid "Відкрити підготовку сегментів із цими фільтрами"
+msgstr "Open segment preparation with these filters"
+
+#: app/pam/templates/pam_species_detailed.html:670
 #: app/pam/templates/pam_yearly_table.html:177
 msgid "Дані не знайдено."
 msgstr "Data not found."
 
-#: app/pam/templates/pam_species_detailed.html:649
+#: app/pam/templates/pam_species_detailed.html:698
 msgid "Темп. (°C)"
 msgstr "Temp. (°C)"
 
-#: app/pam/templates/pam_species_detailed.html:660
+#: app/pam/templates/pam_species_detailed.html:709
 msgid "Темп. мін. (°C)"
 msgstr "Temp. min (°C)"
 
-#: app/pam/templates/pam_species_detailed.html:672
+#: app/pam/templates/pam_species_detailed.html:721
 msgid "Темп. макс (°C)"
 msgstr "Temp. max (°C)"
 
-#: app/pam/templates/pam_species_detailed.html:683
+#: app/pam/templates/pam_species_detailed.html:732
 msgid "Опади (мм)"
 msgstr "Precipitation (mm)"
 
-#: app/pam/templates/pam_species_detailed.html:695
+#: app/pam/templates/pam_species_detailed.html:744
 msgid "Вітер макс. (км/год)"
 msgstr "Wind speed max (km/h)"
 
-#: app/pam/templates/pam_species_detailed.html:707
+#: app/pam/templates/pam_species_detailed.html:756
 #, python-format
 msgid "Вологість (%%)"
 msgstr "Humidity (%)"
 
-#: app/pam/templates/pam_species_detailed.html:720
+#: app/pam/templates/pam_species_detailed.html:769
 msgid "Тиск (гПа)"
 msgstr "Pressure (hPa)"
 
-#: app/pam/templates/pam_species_detailed.html:737
+#: app/pam/templates/pam_species_detailed.html:786
 msgid "Кількість детекцій за день"
 msgstr "Number of detections per day"
 
-#: app/pam/templates/pam_species_detailed.html:751
-#: app/pam/templates/pam_species_detailed.html:827
-#: app/pam/templates/pam_species_detailed.html:855
+#: app/pam/templates/pam_species_detailed.html:800
+#: app/pam/templates/pam_species_detailed.html:876
+#: app/pam/templates/pam_species_detailed.html:904
 msgid "Дата"
 msgstr "Date"
 
-#: app/pam/templates/pam_species_detailed.html:762
+#: app/pam/templates/pam_species_detailed.html:811
 msgid "Погодні показники"
 msgstr "Weather parameters"
 
-#: app/pam/templates/pam_species_detailed.html:785
+#: app/pam/templates/pam_species_detailed.html:834
 msgid "Не перевірено"
 msgstr "Not verified"
 
-#: app/pam/templates/pam_species_detailed.html:819
+#: app/pam/templates/pam_species_detailed.html:868
 msgid "Схід"
 msgstr "Sunrise"
 
-#: app/pam/templates/pam_species_detailed.html:820
+#: app/pam/templates/pam_species_detailed.html:869
 msgid "Захід"
 msgstr "Sunset"
 
-#: app/pam/templates/pam_species_detailed.html:824
+#: app/pam/templates/pam_species_detailed.html:873
 msgid "Добовий розподіл детекцій"
 msgstr "Daily distribution of detections"
 
-#: app/pam/templates/pam_species_detailed.html:826
+#: app/pam/templates/pam_species_detailed.html:875
 msgid "Час доби"
 msgstr "Time of day"
 
-#: app/pam/templates/pam_species_detailed.html:831
-#: app/pam/templates/pam_species_detailed.html:864
+#: app/pam/templates/pam_species_detailed.html:880
+#: app/pam/templates/pam_species_detailed.html:913
 msgid "Дані для цього графіка не знайдено."
 msgstr "No data found for this chart."
 
-#: app/pam/templates/pam_species_detailed.html:853
+#: app/pam/templates/pam_species_detailed.html:902
 msgid "Усі детекції та їх точність (confidence)"
 msgstr "All detections and their confidence"
 
-#: app/pam/templates/pam_species_detailed.html:854
+#: app/pam/templates/pam_species_detailed.html:903
 msgid "Рівень впевненості"
 msgstr "Confidence level"
 
