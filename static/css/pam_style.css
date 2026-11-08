@@ -3479,6 +3479,9 @@ body.dark-theme .gap-legend { color: #212529; }
 .gap-buffer { margin: 4px 0 6px; }
 .gap-controls .gap-location-scope { margin: 0 0 8px 18px; }
 .gap-location-scope:disabled { opacity: 0.55; }
+.gap-location-legend { position: absolute; width: 1px; height: 1px; padding: 0;
+                       margin: -1px; overflow: hidden; clip-path: inset(50%);
+                       white-space: nowrap; border: 0; }
 .gap-buffer input[type=range] { width: 100%; }
 body.dark-theme .gap-tool-hint,
 body.dark-theme .gap-tool-note { color: var(--text-secondary, #aaa); }
