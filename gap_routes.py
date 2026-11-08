@@ -45,7 +45,7 @@ GAP_KERNEL_DEFAULT_M = 1000
 # how far a recorder hears a singing bird, set by the user per species and habitat.
 GAP_BUFFER_MIN_M = 50
 GAP_BUFFER_MAX_M = 2000
-GAP_BUFFER_DEFAULT_M = 500
+GAP_BUFFER_DEFAULT_M = 250
 
 _gap_cache = {}
 _gap_cache_lock = threading.Lock()
