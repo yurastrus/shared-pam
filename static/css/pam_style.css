@@ -3477,6 +3477,8 @@ body.dark-theme .gap-legend { color: #212529; }
 .leaflet-tooltip.gap-ruler-label { font-weight: 600; background: #111; color: #fff; border: 0; }
 .leaflet-tooltip.gap-ruler-label::before { display: none; }
 .gap-buffer { margin: 4px 0 6px; }
+.gap-controls .gap-location-scope { margin: 0 0 8px 18px; }
+.gap-location-scope:disabled { opacity: 0.55; }
 .gap-buffer input[type=range] { width: 100%; }
 body.dark-theme .gap-tool-hint,
 body.dark-theme .gap-tool-note { color: var(--text-secondary, #aaa); }

@@ -38,6 +38,7 @@ from datetime import date, datetime
 from sqlalchemy import text
 
 from . import gap_metrics as gm
+from .service_forecast import PURPOSE_INSTALL, PURPOSE_REMOVED, PURPOSE_ROUTINE
 
 # Local day and clock hour of a recording. Night recordings straddle midnight;
 # with the default week unit that hardly matters.
@@ -152,18 +153,30 @@ def fetch_gap_data(conn, inst_condition, inst_params, start_date=None, end_date=
 
     data = GapData()
 
-    # 1. Locations in scope.
+    # 1. Locations in scope, with current presence from the service journal.
+    # "Other" visits do not establish/remove a deployment. This state is
+    # independent of the recording date filter used for the gap metrics.
     rows = conn.execute(text(f"""
-        SELECT l.location_id, l.location_name, l.location_name_en, l.lat, l.lon
+        SELECT l.location_id, l.location_name, l.location_name_en, l.lat, l.lon,
+               COALESCE((
+                   SELECT sv.visit_purpose_id <> :removed
+                   FROM service_visits sv
+                   WHERE sv.location_id = l.location_id
+                     AND sv.visit_purpose_id IN (:installed, :routine, :removed)
+                   ORDER BY sv.visit_datetime DESC, sv.id DESC
+                   LIMIT 1
+               ), FALSE) AS is_active
         FROM locations l
         WHERE {loc_where}
-    """), params).fetchall()
-    for lid, name, name_en, lat, lon in rows:
+    """), dict(params, installed=PURPOSE_INSTALL, routine=PURPOSE_ROUTINE,
+                 removed=PURPOSE_REMOVED)).fetchall()
+    for lid, name, name_en, lat, lon, is_active in rows:
         if lat is None or lon is None:
             continue
         x, y = gm.to_laea(lon, lat)
         data.locations[lid] = {'name': name, 'name_en': name_en or name,
-                               'lat': float(lat), 'lon': float(lon), 'x': x, 'y': y}
+                               'lat': float(lat), 'lon': float(lon), 'x': x, 'y': y,
+                               'is_active': bool(is_active)}
     if not data.locations:
         return data
 
@@ -586,6 +599,7 @@ def location_points(data, lang='uk'):
             continue
         diel = gm.diel_coverage(data.hour_minutes.get(lid, ()))
         out.append({'id': lid, 'name': _location_label(loc, lang), 'lat': loc['lat'], 'lon': loc['lon'],
+                    'is_active': loc.get('is_active', False),
                     'recorder_days': len(days),
                     'hours': round(sum(data.effort_minutes.get(lid, {}).values()) / 60, 1),
                     'diel_hours': diel['hours_covered'],

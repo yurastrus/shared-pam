@@ -120,6 +120,11 @@
             <fieldset>
                 <label><input type="checkbox" id="show-empty" checked> {{ _('Клітинки без реєстраторів') }}</label>
                 <label><input type="checkbox" id="show-locations"> {{ _('Локації реєстраторів') }}</label>
+                <fieldset id="location-scope" class="gap-location-scope" disabled>
+                    <legend class="sr-only">{{ _('Локації реєстраторів') }}</legend>
+                    <label><input type="radio" name="location-scope" value="all" checked> {{ _('Усі') }}</label>
+                    <label><input type="radio" name="location-scope" value="active"> {{ _('Лише активні') }}</label>
+                </fieldset>
                 <div class="gap-buffer" title="{{ _('Навколо реєстраторів, коли увімкнено їхні локації, і навколо запланованих точок.') }}">
                     <label for="buffer-range">{{ _('Буфер') }} <output id="buffer-value" for="buffer-range">{{ buffer_default }}</output> {{ _('м') }}</label>
                     <input type="range" id="buffer-range" min="{{ buffer_min }}" max="{{ buffer_max }}" step="10" value="{{ buffer_default }}">
@@ -487,7 +492,9 @@
         locLayer.clearLayers();
         locBuffers = [];
         if (!grid) return;
+        const activeOnly = document.querySelector('input[name="location-scope"]:checked').value === 'active';
         grid.locations.forEach((l) => {
+            if (activeOnly && !l.is_active) return;
             locBuffers.push(L.circle([l.lat, l.lon], {pane: 'locations', renderer: locRenderer,
                 radius: bufferRadius(), color: '#1565c0', weight: 1.2, dashArray: '6 5',
                 fill: false, interactive: false}).addTo(locLayer));
@@ -656,8 +663,10 @@
         tools.setBufferRadius(r);
     });
     $('show-locations').addEventListener('change', (e) => {
+        $('location-scope').disabled = !e.target.checked;
         if (e.target.checked) locLayer.addTo(map); else map.removeLayer(locLayer);
     });
+    $('location-scope').addEventListener('change', drawLocations);
     $('apply-btn').addEventListener('click', applyFilters);
 
     applyFilters();
