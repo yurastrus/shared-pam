@@ -301,16 +301,14 @@ $(document).ready(function () {
     $('#min-conf').on('input', function () { $('#min-conf-value').text(this.value); });
     $('#min-distance').on('input', function () { $('#min-distance-value').text(this.value); });
 
-    // Filter lists reuse the dashboard endpoint, so the pickers cascade the
-    // same way as on the other analytics pages. This is the only request the
-    // page makes on load; nothing is computed until "Розрахувати".
+    // Load filter lists within the same management scope as the analysis.
     function loadFilters() {
         const params = new URLSearchParams();
         const s = $('#start-date').val(), e = $('#end-date').val();
         if (s && e) { params.set('start_date', s); params.set('end_date', e); }
         const inst = effectiveInstitutionIds();
         if (inst.length) params.set('institution_id', inst.join(','));
-        fetch(`/${LANG}/api/pam/get-filters-data?` + params.toString())
+        fetch('{{ url_for("pam.api_cooccurrence_filters", lang_code=g.lang_code) }}?' + params.toString())
             .then(r => r.json())
             .then(d => {
                 if (d.error) return;

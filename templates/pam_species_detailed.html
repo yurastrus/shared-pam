@@ -539,9 +539,12 @@
         // location select, decide where the sample is drawn. The snapshot is
         // the APPLIED filters: edits not yet applied are not what is on screen.
         const verifySubsetBtn = $('#verify-subset-btn');
+        const sampleLocationIds = {{ sample_location_ids | tojson }};
+        const managedSampleLocations = sampleLocationIds === null ? null : new Set(sampleLocationIds);
         function updateVerifySubsetLink(apiParams, points) {
             if (!verifySubsetBtn.length) return;
-            const ids = (points || []).map(p => p.location_id);
+            const ids = (points || []).map(p => p.location_id)
+                .filter(id => managedSampleLocations === null || managedSampleLocations.has(Number(id)));
             verifySubsetBtn.removeData('href');
             if (apiParams.get('mode') === 'combined') {
                 verifySubsetBtn.prop('disabled', true)

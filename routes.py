@@ -315,9 +315,19 @@ def pam_detailed(lang_code):
         current_app.logger.error(f"Error loading species list: {e}")
         species_list = []
 
+    can_sample = pam_access.manages_any(current_user)
+    sample_location_ids = None
+    if can_sample and not pam_access.is_admin(current_user):
+        sample_location_ids = []
+        try:
+            with get_pam_db_connection() as conn:
+                sample_location_ids = _sample_managed_location_ids(conn)
+        except Exception:
+            current_app.logger.exception("Could not load PAM locations managed by the user")
+
     return render_template('pam_species_detailed.html', available_species=species_list,
                            models=get_models_list(),
-                           can_sample=pam_access.manages_any(current_user))
+                           can_sample=can_sample, sample_location_ids=sample_location_ids)
 
 @pam_bp.route('/<lang_code>/pam/pam_overview')
 def pam_overview(lang_code):
@@ -1231,13 +1241,15 @@ def api_get_unique_points(lang_code):
 @pam_bp.route('/<lang_code>/api/pam/get-filters-data')
 def api_get_pam_filters_data(lang_code):
     """API endpoint to fetch filter data: institutions, biotopes, and locations."""
+    return _pam_filters_data(lang_code)
+
+
+def _pam_filters_data(lang_code, *, managed=False):
     conn = None
     try:
         conn = get_pam_db_connection()
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        selected_inst_id = _dashboard_institution_filter()
-
         params = {}
         date_filter = ""
         if start_date and end_date:
@@ -1246,15 +1258,25 @@ def api_get_pam_filters_data(lang_code):
             params['end_date'] = end_date
 
         # Base access rights.
-        user_inst_ids = pam_access.allowed_institution_ids(current_user)
-        is_admin = current_user.is_authenticated and current_user.has_role('admin')
-        base_inst_condition, base_inst_params = get_institution_filter(user_inst_ids, is_admin)
+        institution_condition = ""
+        if managed:
+            selected_inst_id = _parse_id_list(request.args.get('institution_id'))
+            base_inst_condition, base_inst_params = _cooc_access()
+            selected_condition, selected_params = _cooc_access(selected_inst_id)
+            if not pam_access.is_admin(current_user):
+                institution_condition = "AND i.id = ANY(:managed_filter_ids)"
+                params['managed_filter_ids'] = pam_access.manage_institution_ids(current_user)
+        else:
+            selected_inst_id = _dashboard_institution_filter()
+            user_inst_ids = pam_access.allowed_institution_ids(current_user)
+            is_admin = pam_access.is_admin(current_user)
+            base_inst_condition, base_inst_params = get_institution_filter(user_inst_ids, is_admin)
+            selected_condition, selected_params = get_institution_filter(
+                user_inst_ids, is_admin, selected_inst_id=selected_inst_id
+            )
+        # The base and selected scope may bind different institution lists.
         params.update(base_inst_params)
-
-        selected_condition, selected_params = get_institution_filter(
-            user_inst_ids, is_admin, selected_inst_id=selected_inst_id
-        )
-        params.update(selected_params)
+        scoped_params = {**params, **selected_params}
 
         # 1. Fetch institutions (cascade: depends only on dates and access rights).
         # Show only institutions that have recordings in the selected period.
@@ -1265,6 +1287,7 @@ def api_get_pam_filters_data(lang_code):
             JOIN locations l ON li.location_id = l.location_id
             JOIN recordings r ON l.location_id = r.location_id
             WHERE {base_inst_condition}
+            {institution_condition}
             {date_filter}
             ORDER BY i.name_uk
         """
@@ -1288,7 +1311,7 @@ def api_get_pam_filters_data(lang_code):
             {date_filter}
             ORDER BY b.name_ua
         """
-        biotopes_result = conn.execute(text(biotopes_query), params).mappings().fetchall()
+        biotopes_result = conn.execute(text(biotopes_query), scoped_params).mappings().fetchall()
         biotopes = [{'id': row['id'], 'text': row['name_ua'] if lang_code == 'uk' else row['name_en']} for row in biotopes_result]
 
         # 3. Fetch locations (depend on dates, access rights, and selected institution).
@@ -1301,7 +1324,7 @@ def api_get_pam_filters_data(lang_code):
             {date_filter}
             ORDER BY l.location_name
         """
-        locations_result = conn.execute(text(locations_query), params).mappings().fetchall()
+        locations_result = conn.execute(text(locations_query), scoped_params).mappings().fetchall()
         locations = []
         for row in locations_result:
             display_name = row['location_name']
@@ -5041,7 +5064,7 @@ def _pam_upload_dir():
     return upload_dir
 
 
-def _sample_manager_required(view):
+def _pam_manager_required(view):
     """Allow admins and managers with a PAM institution to manage."""
     from functools import wraps
 
@@ -5055,7 +5078,7 @@ def _sample_manager_required(view):
     return wrapped
 
 
-def _sample_managed_location_ids(conn, location_ids):
+def _sample_managed_location_ids(conn, location_ids=None):
     """Keep locations linked to an institution the user manages in PAM."""
     if current_user.has_role('admin'):
         return list(location_ids)
@@ -5064,24 +5087,27 @@ def _sample_managed_location_ids(conn, location_ids):
         return []
     rows = conn.execute(text("""
         SELECT DISTINCT location_id FROM location_institutions
-        WHERE location_id = ANY(:locs) AND institution_id = ANY(:insts)
-    """), {'locs': list(location_ids), 'insts': user_inst_ids}).fetchall()
+        WHERE institution_id = ANY(:insts)
+          AND (:all_locations OR location_id = ANY(:locs))
+    """), {'locs': location_ids or [], 'all_locations': location_ids is None,
+           'insts': user_inst_ids}).fetchall()
     return [r.location_id for r in rows]
 
 
-def _sample_species_allowed(conn, scientific_name):
+def _sample_species_allowed(conn, scientific_name, *, species_id=None):
     if pam_access.is_admin(current_user):
         return True
     return conn.execute(text("""
         SELECT 1 FROM species
-        WHERE scientific_name = :name
+        WHERE (lower(scientific_name) = lower(:name) OR species_id = :species_id)
           AND (required_role IS NULL OR required_role = ANY(:roles))
-    """), {'name': scientific_name, 'roles': [role.name for role in current_user.roles]}
+    """), {'name': scientific_name, 'species_id': species_id,
+           'roles': [role.name for role in current_user.roles]}
     ).fetchone() is not None
 
 
 @pam_bp.route('/<lang_code>/pam/verification/sample-upload')
-@_sample_manager_required
+@_pam_manager_required
 def sample_upload(lang_code):
     """Automated sample-upload page: cascade + local folder + client-side cut."""
     g.lang_code = lang_code
@@ -5157,7 +5183,7 @@ def sample_upload(lang_code):
 
 
 @pam_bp.route('/<lang_code>/api/pam/sample/species')
-@_sample_manager_required
+@_pam_manager_required
 def api_sample_species(lang_code):
     """Species that have detections at the given locations (cascade step)."""
     conn = None
@@ -5221,7 +5247,7 @@ def api_sample_species(lang_code):
 # ──────────────────────────────────────────────────────────────────────────────
 
 @pam_bp.route('/<lang_code>/pam/verification/segment-window')
-@_sample_manager_required
+@_pam_manager_required
 def segment_window(lang_code):
     """One-screen cutter for the detections of a single time window."""
     from .pam_segment_sampling import ALLOWED_SEGMENT_DURATIONS
@@ -5236,7 +5262,7 @@ def segment_window(lang_code):
 
 
 @pam_bp.route('/<lang_code>/api/pam/sample/plan-window', methods=['POST'])
-@_sample_manager_required
+@_pam_manager_required
 def api_sample_plan_window(lang_code):
     """The cutting plan for every not-yet-cut detection inside one window."""
     from .pam_segment_sampling import plan_window_segments, MAX_WINDOW_SEGMENTS
@@ -5301,7 +5327,7 @@ def api_sample_plan_window(lang_code):
             conn.close()
 
 @pam_bp.route('/<lang_code>/api/pam/sample/prepare', methods=['POST'])
-@_sample_manager_required
+@_pam_manager_required
 def api_sample_prepare(lang_code):
     """Draw a confidence-stratified detection sample for a species + locations.
 
@@ -5456,7 +5482,7 @@ def _validate_managed_sample_upload(conn, meta):
 
 
 @pam_bp.route('/<lang_code>/api/pam/sample/upload-segment', methods=['POST'])
-@_sample_manager_required
+@_pam_manager_required
 def api_sample_upload_segment(lang_code):
     """Receive one client-cut WAV clip + metadata; FLAC-encode and register it.
 
@@ -5526,20 +5552,25 @@ def api_sample_upload_segment(lang_code):
 # ──────────────────────────────────────────────────────────────────────────────
 # SIMULTANEOUS DETECTIONS (co-occurrence): a lower bound on calling individuals
 #
-# Admin-only for now, and every endpoint computes on request: opening the page
+# Every endpoint computes on request: opening the page
 # runs nothing but the cheap filter lists, exactly like the other PAM analytics
 # pages. See app/pam/cooccurrence.py for what the numbers mean.
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _cooc_access(selected_inst_ids=None):
-    """Access condition + params for the location query, host rules included."""
-    user_inst_ids = pam_access.allowed_institution_ids(current_user)
-    is_admin = current_user.is_authenticated and current_user.has_role('admin')
-    return get_institution_filter(user_inst_ids, is_admin, selected_inst_ids or None)
+    """Limit location queries to institutions the manager manages in PAM."""
+    if pam_access.is_admin(current_user):
+        return get_institution_filter(is_admin=True, selected_inst_id=selected_inst_ids)
+    managed_ids = set(pam_access.manage_institution_ids(current_user))
+    if selected_inst_ids:
+        managed_ids.intersection_update(selected_inst_ids)
+    if not managed_ids:
+        return 'FALSE', {}
+    return get_institution_filter(is_admin=True, selected_inst_id=sorted(managed_ids))
 
 
 def _cooc_ecoregions(lang_code):
-    """``{ecoregion_uk: localised name}`` for institutions visible in PAM.
+    """``{ecoregion_uk: localised name}`` for institutions in scope.
 
     Ecoregions ("Розточчя", "Карпати", "Полісся") are not a pam_db concept:
     they are `institutions.ecoregion_uk` in the HOST database, exactly as the
@@ -5550,7 +5581,7 @@ def _cooc_ecoregions(lang_code):
     if current_user.is_authenticated and current_user.has_role('admin'):
         institutions = Institution.query.all()
     else:
-        institutions = pam_access.allowed_institutions(current_user)
+        institutions = pam_access.manage_institutions(current_user)
     out = {}
     for inst in institutions:
         if not inst.ecoregion_uk:
@@ -5670,8 +5701,7 @@ def _cooc_params(src):
 
 
 @pam_bp.route('/<lang_code>/pam/cooccurrence')
-@login_required
-@role_required('admin')
+@_pam_manager_required
 def pam_cooccurrence(lang_code):
     """Render the simultaneous-detections page. Computes nothing on load."""
     from .utils import get_available_species
@@ -5714,9 +5744,9 @@ def pam_cooccurrence(lang_code):
         ecoregions=_cooc_ecoregions(lang_code),
         season_decades=cooc.season_decades(),
         # Which popup action each visitor gets. Verification is open to any
-        # verifier; the co-occurrence page itself is restricted to admins.
+        # verifier; the cutting links use the same managed location scope.
         can_verify=current_user.is_authenticated and current_user.has_role('pam_verifier'),
-        can_sample=current_user.is_authenticated and current_user.has_role('admin'),
+        can_sample=pam_access.manages_any(current_user),
         period_start=period_start,
         period_end=period_end,
         default_start=default_start,
@@ -5736,7 +5766,23 @@ def pam_cooccurrence(lang_code):
     )
 
 
+@pam_bp.route('/<lang_code>/api/pam/cooccurrence/filters')
+@_pam_manager_required
+def api_cooccurrence_filters(lang_code):
+    return _pam_filters_data(lang_code, managed=True)
+
+
+def _cooc_species_allowed(conn, token):
+    token = str(token).strip() if token is not None else ''
+    if not token:
+        return True  # The analysis reports the missing species as a validation error.
+    if token.isdigit():
+        return _sample_species_allowed(conn, None, species_id=int(token))
+    return _sample_species_allowed(conn, token)
+
+
 @pam_bp.route('/<lang_code>/api/pam/cooccurrence/run', methods=['POST'])
+@_pam_manager_required
 def api_cooccurrence_run(lang_code):
     """Window table + spacing rule + histogram + per-window map detail."""
     from . import cooccurrence as cooc
@@ -5750,6 +5796,8 @@ def api_cooccurrence_run(lang_code):
                        if current_user.is_authenticated
                        and current_user.has_role('pam_verifier') else None)
         conn = get_pam_db_connection()
+        if not _cooc_species_allowed(conn, p['species']):
+            return jsonify({'error': 'Access denied to this species'}), 403
         result = cooc.run(
             conn,
             species=p['species'], start=p['start'], end=p['end'],
@@ -5776,6 +5824,7 @@ def api_cooccurrence_run(lang_code):
 
 
 @pam_bp.route('/<lang_code>/api/pam/cooccurrence/sweep', methods=['POST'])
+@_pam_manager_required
 def api_cooccurrence_sweep(lang_code):
     """Window-width sweep + the co-detection network for the map."""
     from . import cooccurrence as cooc
@@ -5785,6 +5834,8 @@ def api_cooccurrence_sweep(lang_code):
         p = _cooc_params(request.get_json(silent=True) or {})
         cond, params = _cooc_access(_cooc_institution_ids(p))
         conn = get_pam_db_connection()
+        if not _cooc_species_allowed(conn, p['species']):
+            return jsonify({'error': 'Access denied to this species'}), 403
         result = cooc.run_sweep(
             conn,
             species=p['species'], start=p['start'], end=p['end'],
@@ -5808,6 +5859,7 @@ def api_cooccurrence_sweep(lang_code):
 
 
 @pam_bp.route('/<lang_code>/api/pam/cooccurrence/export')
+@_pam_manager_required
 def api_cooccurrence_export(lang_code):
     """The same two tables the CLI prototype writes, as a ZIP of CSVs.
 
@@ -5826,6 +5878,8 @@ def api_cooccurrence_export(lang_code):
                        if current_user.is_authenticated
                        and current_user.has_role('pam_verifier') else None)
         conn = get_pam_db_connection()
+        if not _cooc_species_allowed(conn, p['species']):
+            return jsonify({'error': 'Access denied to this species'}), 403
         result = cooc.run(
             conn,
             species=p['species'], start=p['start'], end=p['end'],

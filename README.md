@@ -225,12 +225,12 @@ cannot produce a high count.
 | --- | --- |
 | `cooccurrence.py` | the whole numeric core: window SQL, projection, spacing rule, width sweep. Flask-free apart from taking an open SQLAlchemy connection, so it is unit-testable without an app context |
 | `templates/pam_cooccurrence.html` | the page: filter panel, KPI tiles, histogram, two-mode Leaflet map, sweep panels |
-| `routes.py` | `GET /<lang>/pam/cooccurrence` (login + admin), plus `POST .../run`, `POST .../sweep`, `GET .../export` under `/api/pam/cooccurrence/` |
+| `routes.py` | `GET /<lang>/pam/cooccurrence`, plus `GET .../filters`, `POST .../run`, `POST .../sweep`, `GET .../export` under `/api/pam/cooccurrence/`. Admins have full access. PAM managers are limited to locations linked to institutions they manage. |
 
 ### Nothing computes on page load
 
 Opening the page runs only the cheap lookups (species list, period bounds, and
-the shared `/api/pam/get-filters-data` cascade). The analysis starts on
+the `/api/pam/cooccurrence/filters` cascade). The analysis starts on
 **Розрахувати**; the width sweep is a second button, because it costs more and
 is not always wanted. Same shape as the other PAM analytics pages.
 
@@ -246,8 +246,8 @@ Species and period, plus five narrowing controls:
   **union**, not an intersection. Each `<option>` also carries
   `data-institutions`, so the biotope/location cascade narrows client-side the
   same way the query will.
-* **Institution / biotope / location** — the shared
-  `/api/pam/get-filters-data` cascade, as on the other analytics pages.
+* **Institution / biotope / location** — the cascade is scoped to the same
+  institutions as the analysis.
 * **Season window**, picked in **decades** (ten-day thirds of a month), which
   is the unit field seasons are named in: "April, first decade" to "May, second
   decade" rather than two bare dates. `season_decades()` builds the 36 rows;
@@ -387,7 +387,7 @@ actually needs:
 * **Верифікувати (N)** — for any `pam_verifier`, when the point still has
   segments this person could vote on. Links to
   `/pam/verification/verify?species_id=&location_ids=&from_ts=&to_ts=&scope_label=`.
-* **Нарізати саме ці детекції** — admin only, shown when nothing is left to
+* **Нарізати саме ці детекції** — shown to admins and PAM managers when nothing is left to
   verify (usually because no segments were ever cut for those detections).
   Links to the targeted cutter, `/pam/verification/segment-window`, with the
   exact window (see below).
