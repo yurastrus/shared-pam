@@ -83,8 +83,7 @@
                     <a href="{{ url_for('pam.pam_overview', lang_code=g.lang_code) }}" class="btn">
                         {{ _('До загальної таблиці') }}
                     </a>
-                    {# Cutting segments is admin-only, same as the sample-upload page itself. #}
-                    {% if current_user.is_authenticated and current_user.has_role('admin') %}
+                    {% if can_sample %}
                     <button type="button" id="verify-subset-btn" class="btn btn-secondary" disabled title="{{ _('Застосуйте фільтри для активації') }}">
                         {{ _('Нарізати сегменти для верифікації') }}
                     </button>

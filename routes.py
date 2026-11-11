@@ -5,6 +5,7 @@ import traceback
 from sqlalchemy import text
 import os
 import math
+import re
 import threading
 import pandas as pd
 from .pam_upload_utils import process_zip_archive, get_upload_statistics
@@ -12,6 +13,7 @@ from .pam_import_utils import IMPORTERS, PAMImportProcessor
 from .pam_segment_sampling import (
     run_stratified_sample, save_and_register_segment,
     get_earliest_recording_year, ALLOWED_SEGMENT_DURATIONS,
+    build_segment_filename, _location_token, EARLIEST_YEAR_FLOOR,
 )
 from app.utils.decorators import role_required
 from . import pam_bp
@@ -314,7 +316,8 @@ def pam_detailed(lang_code):
         species_list = []
 
     return render_template('pam_species_detailed.html', available_species=species_list,
-                           models=get_models_list())
+                           models=get_models_list(),
+                           can_sample=pam_access.manages_any(current_user))
 
 @pam_bp.route('/<lang_code>/pam/pam_overview')
 def pam_overview(lang_code):
@@ -5020,7 +5023,7 @@ def api_pam_import(lang_code):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# AUTOMATED SAMPLE UPLOAD (admin) — confidence-stratified segment sampling.
+# AUTOMATED SAMPLE UPLOAD — confidence-stratified segment sampling.
 # Parallel to /pam/verification/upload (ZIP). The server draws a stratified
 # detection sample; the browser cuts the windows from the operator's LOCAL
 # recordings and streams them back; each is FLAC-encoded and registered with an
@@ -5038,11 +5041,25 @@ def _pam_upload_dir():
     return upload_dir
 
 
-def _user_location_ids_allowed(conn, location_ids):
-    """Filter location_ids to those the current user may access (admins: all)."""
+def _sample_manager_required(view):
+    """Allow admins and managers with a PAM institution to manage."""
+    from functools import wraps
+
+    @wraps(view)
+    @login_required
+    @role_required('manager')
+    def wrapped(*args, **kwargs):
+        if not pam_access.manages_any(current_user):
+            abort(403)
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def _sample_managed_location_ids(conn, location_ids):
+    """Keep locations linked to an institution the user manages in PAM."""
     if current_user.has_role('admin'):
         return list(location_ids)
-    user_inst_ids = pam_access.allowed_institution_ids(current_user)
+    user_inst_ids = pam_access.manage_institution_ids(current_user)
     if not user_inst_ids:
         return []
     rows = conn.execute(text("""
@@ -5052,16 +5069,31 @@ def _user_location_ids_allowed(conn, location_ids):
     return [r.location_id for r in rows]
 
 
+def _sample_species_allowed(conn, scientific_name):
+    if pam_access.is_admin(current_user):
+        return True
+    return conn.execute(text("""
+        SELECT 1 FROM species
+        WHERE scientific_name = :name
+          AND (required_role IS NULL OR required_role = ANY(:roles))
+    """), {'name': scientific_name, 'roles': [role.name for role in current_user.roles]}
+    ).fetchone() is not None
+
+
 @pam_bp.route('/<lang_code>/pam/verification/sample-upload')
-@login_required
-@role_required('admin')
+@_sample_manager_required
 def sample_upload(lang_code):
     """Automated sample-upload page: cascade + local folder + client-side cut."""
     g.lang_code = lang_code
     conn = None
     try:
         conn = get_pam_db_connection()
-        all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
+        is_admin = pam_access.is_admin(current_user)
+        managed_ids = pam_access.manage_institution_ids(current_user)
+        institution_query = Institution.query.order_by(Institution.name_uk)
+        if not is_admin:
+            institution_query = institution_query.filter(Institution.id.in_(managed_ids))
+        all_inst_objects = institution_query.all()
         if lang_code == 'uk':
             inst_names_map = {i.id: i.name_uk for i in all_inst_objects}
         else:
@@ -5072,13 +5104,14 @@ def sample_upload(lang_code):
             SELECT l.location_id, l.location_name, l.location_name_en, li.institution_id
             FROM locations l
             LEFT JOIN location_institutions li ON l.location_id = li.location_id
-            WHERE EXISTS (
+            WHERE (:is_admin OR li.institution_id = ANY(:managed_ids))
+              AND EXISTS (
                 SELECT 1 FROM recordings r
                 WHERE r.location_id = l.location_id
                   AND EXISTS (SELECT 1 FROM detections d WHERE d.recording_id = r.recording_id)
             )
             ORDER BY l.location_name
-        """)).fetchall()
+        """), {'is_admin': is_admin, 'managed_ids': managed_ids}).fetchall()
 
         locations_dict = {}
         for row in raw_rows:
@@ -5093,11 +5126,16 @@ def sample_upload(lang_code):
 
         models = get_models_list()
         reference_id = get_reference_model_id(conn)
-        # Year selector spans the whole archive by default. The floor is cached
-        # in-process (see get_earliest_recording_year), so this costs nothing
-        # per render.
-        earliest_year = get_earliest_recording_year(conn)
         current_year = datetime.now().year
+        earliest_year = current_year
+        if is_admin:
+            earliest_year = get_earliest_recording_year(conn)
+        elif locations_dict:
+            earliest = conn.execute(text("""
+                SELECT MIN(datetime_start) FROM recordings WHERE location_id = ANY(:ids)
+            """), {'ids': list(locations_dict)}).scalar()
+            if earliest:
+                earliest_year = max(EARLIEST_YEAR_FLOOR, min(earliest.year, current_year))
         return render_template(
             'pam_sample_upload.html',
             institutions=institutions,
@@ -5119,8 +5157,7 @@ def sample_upload(lang_code):
 
 
 @pam_bp.route('/<lang_code>/api/pam/sample/species')
-@login_required
-@role_required('admin')
+@_sample_manager_required
 def api_sample_species(lang_code):
     """Species that have detections at the given locations (cascade step)."""
     conn = None
@@ -5131,7 +5168,7 @@ def api_sample_species(lang_code):
             return jsonify({'species': []})
 
         conn = get_pam_db_connection()
-        location_ids = _user_location_ids_allowed(conn, location_ids)
+        location_ids = _sample_managed_location_ids(conn, location_ids)
         if not location_ids:
             return jsonify({'species': []})
 
@@ -5142,8 +5179,12 @@ def api_sample_species(lang_code):
             JOIN recordings r ON d.recording_id = r.recording_id
             JOIN species s ON d.species_id = s.species_id
             WHERE r.location_id = ANY(:locs)
+              AND (:is_admin OR s.required_role IS NULL OR s.required_role = ANY(:roles))
             ORDER BY s.scientific_name
-        """), {'locs': location_ids}).mappings().fetchall()
+        """), {
+            'locs': location_ids, 'is_admin': pam_access.is_admin(current_user),
+            'roles': [role.name for role in current_user.roles],
+        }).mappings().fetchall()
 
         species = []
         for row in rows:
@@ -5180,8 +5221,7 @@ def api_sample_species(lang_code):
 # ──────────────────────────────────────────────────────────────────────────────
 
 @pam_bp.route('/<lang_code>/pam/verification/segment-window')
-@login_required
-@role_required('admin')
+@_sample_manager_required
 def segment_window(lang_code):
     """One-screen cutter for the detections of a single time window."""
     from .pam_segment_sampling import ALLOWED_SEGMENT_DURATIONS
@@ -5196,8 +5236,7 @@ def segment_window(lang_code):
 
 
 @pam_bp.route('/<lang_code>/api/pam/sample/plan-window', methods=['POST'])
-@login_required
-@role_required('admin')
+@_sample_manager_required
 def api_sample_plan_window(lang_code):
     """The cutting plan for every not-yet-cut detection inside one window."""
     from .pam_segment_sampling import plan_window_segments, MAX_WINDOW_SEGMENTS
@@ -5225,10 +5264,8 @@ def api_sample_plan_window(lang_code):
 
         conn = get_pam_db_connection()
 
-        # Same access rule as the sampler: an admin-only page today, but the
-        # helper keeps the two consistent if that ever widens.
-        allowed = _user_location_ids_allowed(conn, location_ids)
-        if not allowed:
+        allowed = _sample_managed_location_ids(conn, location_ids)
+        if not allowed or not _sample_species_allowed(conn, species_name):
             return jsonify({'success': False, 'error': 'Access denied'}), 403
 
         # Model, and the column holding its score (migration 0006) -- the same
@@ -5264,8 +5301,7 @@ def api_sample_plan_window(lang_code):
             conn.close()
 
 @pam_bp.route('/<lang_code>/api/pam/sample/prepare', methods=['POST'])
-@login_required
-@role_required('admin')
+@_sample_manager_required
 def api_sample_prepare(lang_code):
     """Draw a confidence-stratified detection sample for a species + locations.
 
@@ -5335,9 +5371,11 @@ def api_sample_prepare(lang_code):
                             'error': 'date_from must not be later than date_to'}), 400
 
         conn = get_pam_db_connection()
-        location_ids = _user_location_ids_allowed(conn, location_ids)
+        location_ids = _sample_managed_location_ids(conn, location_ids)
         if not location_ids:
             return jsonify({'success': False, 'error': 'Access denied to these locations'}), 403
+        if not _sample_species_allowed(conn, species_name):
+            return jsonify({'success': False, 'error': 'Access denied to this species'}), 403
 
         # Resolve which model to sample for (default: BirdNET 2.4 reference, so
         # behaviour is unchanged when the client sends no model_id).
@@ -5374,9 +5412,51 @@ def api_sample_prepare(lang_code):
             conn.close()
 
 
+def _validate_managed_sample_upload(conn, meta):
+    """Bind manager uploads to the source detection and its managed location."""
+    from .utils import get_model_conf_columns
+
+    conf_column = get_model_conf_columns(conn).get(meta['model_id'], 'confidence')
+    source = conn.execute(text(f"""
+        SELECT r.location_id, r.filename, r.datetime_start, l.location_name,
+               s.scientific_name, d.start_s, d.{conf_column} AS confidence
+        FROM detections d
+        JOIN recordings r ON r.recording_id = d.recording_id
+        JOIN locations l ON l.location_id = r.location_id
+        JOIN species s ON s.species_id = d.species_id
+        WHERE d.detection_id = :detection_id AND d.recording_id = :recording_id
+          AND d.species_id = :species_id
+          AND (s.required_role IS NULL OR s.required_role = ANY(:roles))
+    """), {
+        'detection_id': meta['detection_id'], 'recording_id': meta['recording_id'],
+        'species_id': meta['species_id'], 'roles': [role.name for role in current_user.roles],
+    }).fetchone()
+    if source is None or not _user_can_edit_pam_location(conn, source.location_id):
+        return 'Access denied to this detection', 403
+
+    part = re.search(r'_part([1-9][0-9]{0,8})\.flac\Z', meta['segment_filename'])
+    if part is None or source.confidence is None:
+        return 'Invalid segment filename or model', 400
+    filename = build_segment_filename(
+        source.confidence, source.filename, source.start_s, int(part[1]),
+        location_name=source.location_name, datetime_start=source.datetime_start,
+    )
+    if meta['segment_filename'] != filename:
+        return 'Invalid segment filename', 400
+
+    recorded_at = source.datetime_start
+    meta.update(
+        species_name=source.scientific_name,
+        confidence=source.confidence,
+        location_name=_location_token(source.filename, source.location_name),
+        recorded_date=recorded_at.date() if recorded_at else None,
+        recorded_time=recorded_at.time() if recorded_at else None,
+    )
+    return None
+
+
 @pam_bp.route('/<lang_code>/api/pam/sample/upload-segment', methods=['POST'])
-@login_required
-@role_required('admin')
+@_sample_manager_required
 def api_sample_upload_segment(lang_code):
     """Receive one client-cut WAV clip + metadata; FLAC-encode and register it.
 
@@ -5412,13 +5492,22 @@ def api_sample_upload_segment(lang_code):
         if not meta['species_id'] or not meta['detection_id'] or not meta['segment_filename']:
             return jsonify({'success': False, 'error': 'Missing required metadata'}), 400
 
+        is_admin = pam_access.is_admin(current_user)
+        conn = get_pam_db_connection()
+        if not is_admin:
+            with conn.begin():
+                error = _validate_managed_sample_upload(conn, meta)
+            if error:
+                message, status_code = error
+                return jsonify({'success': False, 'error': message}), status_code
+
         wav_bytes = clip.read()
         if not wav_bytes:
             return jsonify({'success': False, 'error': 'Empty segment'}), 400
 
-        upload_dir = _pam_upload_dir()
-        conn = get_pam_db_connection()
-        status, seg_id = save_and_register_segment(wav_bytes, meta, upload_dir, conn)
+        status, seg_id = save_and_register_segment(
+            wav_bytes, meta, _pam_upload_dir(), conn, isolate_file=not is_admin,
+        )
 
         if status == 'saved':
             return jsonify({'success': True, 'status': 'saved', 'segment_id': seg_id})
@@ -5625,7 +5714,7 @@ def pam_cooccurrence(lang_code):
         ecoregions=_cooc_ecoregions(lang_code),
         season_decades=cooc.season_decades(),
         # Which popup action each visitor gets. Verification is open to any
-        # verifier; cutting new segments is admin-only, same as its own page.
+        # verifier; the co-occurrence page itself is restricted to admins.
         can_verify=current_user.is_authenticated and current_user.has_role('pam_verifier'),
         can_sample=current_user.is_authenticated and current_user.has_role('admin'),
         period_start=period_start,

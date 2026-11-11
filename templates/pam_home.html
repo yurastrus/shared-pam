@@ -109,7 +109,7 @@
             </a>
             {% endif %}
 
-            {% if is_admin %}
+            {% if is_manager %}
             <a class="hub-card" href="{{ url_for('pam.sample_upload', lang_code=g.lang_code) }}">
                 <span class="hub-card__icon">✂️</span>
                 <span class="hub-card__title">{{ _('Автоматична підготовка сегментів') }}</span>

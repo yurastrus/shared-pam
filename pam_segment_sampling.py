@@ -469,9 +469,7 @@ def plan_window_segments(species_name, location_ids, from_ts, to_ts,
 def get_earliest_recording_year(conn=None, refresh=False):
     """Earliest year present in ``recordings.datetime_start`` (cached).
 
-    Used only to seed the year selector on the sample-upload page, so it is
-    deliberately global rather than per-institution: the page is admin-only, and
-    a per-user floor would defeat the cache for no gain.
+    The sample-upload page uses this global floor for its year selector.
 
     The value is cached in-process for ``EARLIEST_YEAR_TTL_SECONDS`` — a MIN()
     over every recording is not worth paying on each page render, and the answer
@@ -637,7 +635,7 @@ def register_sampled_segment(conn, *, species_id, detection_id, recording_id,
     return row[0] if row else None
 
 
-def save_and_register_segment(wav_bytes, meta, upload_directory, conn):
+def save_and_register_segment(wav_bytes, meta, upload_directory, conn, *, isolate_file=False):
     """Encode a WAV clip to FLAC on disk and register it. Returns (status, id).
 
     status ∈ {'saved', 'duplicate', 'error'}. On 'duplicate' the just-written
@@ -648,10 +646,21 @@ def save_and_register_segment(wav_bytes, meta, upload_directory, conn):
     flac_name = meta['segment_filename']
     if not flac_name.lower().endswith('.flac'):
         flac_name = os.path.splitext(flac_name)[0] + '.flac'
-    final_path = os.path.join(upload_directory, species_dir, flac_name)
-
+    directory = os.path.join(upload_directory, species_dir)
+    isolated_directory = None
+    final_path = None
     wrote_file = False
+
     try:
+        if isolate_file:
+            # Two uploads can carry the same canonical name. Give this attempt
+            # its own path so neither encoding nor cleanup can touch another clip.
+            from tempfile import mkdtemp
+
+            os.makedirs(directory, exist_ok=True)
+            isolated_directory = mkdtemp(dir=directory)
+            directory = isolated_directory
+        final_path = os.path.join(directory, flac_name)
         convert_wav_bytes_to_flac(wav_bytes, final_path)
         wrote_file = True
         with conn.begin():
@@ -671,13 +680,20 @@ def save_and_register_segment(wav_bytes, meta, upload_directory, conn):
         if seg_id is None:
             _quiet_remove(final_path)
             return 'duplicate', None
+        isolated_directory = None
         return 'saved', seg_id
     except Exception as e:
         current_app.logger.error(
             f"Error saving sampled segment {flac_name}: {e}")
-        if wrote_file:
+        if isolated_directory is not None or wrote_file:
             _quiet_remove(final_path)
         return 'error', None
+    finally:
+        if isolated_directory is not None:
+            try:
+                os.rmdir(isolated_directory)
+            except OSError:
+                pass
 
 
 def _safe_species_dirname(species_name):

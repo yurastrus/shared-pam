@@ -404,7 +404,11 @@ predicate is `verifiable_expr()`, and the host's segment access baseline is
 on who may see what. With no verifier asking, the whole expression collapses to
 a literal `0`.
 
-Both target pages had to learn to read those parameters:
+The cutters and their APIs also accept PAM managers. Their location scope is
+limited to institutions where they hold PAM management rights. Uploads are
+checked against the detection's source recording and location.
+
+Both target pages accept those parameters:
 
 * `/api/verification/next-segment` gained `location_ids`, `from_ts`, `to_ts`,
   applied through `segments.detection_id` → `detections` → `recordings`.
