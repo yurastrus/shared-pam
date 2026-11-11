@@ -34,8 +34,8 @@
                 
                 <!-- Row 2: Institutions, projects, biotopes and locations -->
                 <div class="filter-group">
-                    <label for="institution-select">{{ _('Установа/проект:') }}</label>
-                    <select id="institution-select" class="form-control" multiple></select>
+                    <label for="institution-select">{{ _('Установи / екорегіони') }}</label>
+                    <select id="institution-select" class="form-control" data-ecoregion-label="{{ _('Екорегіони') }}" multiple></select>
                 </div>
                 <div class="filter-group">
                     <label for="biotopes-select">{{ _('Біотопи:') }}</label>
@@ -197,6 +197,7 @@
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
+    <script src="{{ url_for('pam.serve_pam_static', lang_code=g.lang_code, filename='js/dashboard_scope.js') }}"></script>
     <script>
     $(document).ready(function() {
         // --- UI variable initialisation ---
@@ -253,6 +254,7 @@
         // must not undo the confidence that came in the URL; a species the user
         // picks by hand clears this flag.
         let keepUrlConfidence = urlParams.has('confidence');
+        let filterRequest = 0;
 
         (function setupInitialValues() {
             const today = new Date();
@@ -305,19 +307,7 @@
                 }
             }
 
-            // Institutions first (their options arrive with the filter data), then
-            // reload locations/biotopes for them, then the rest.
-            updateDynamicFilters(() => {
-                const institutions = urlParams.get('institution_id');
-                if (institutions) {
-                    // 'change.select2' updates the widget without firing our own
-                    // change handler, which would reload the lists a second time.
-                    institutionSelect.val(institutions.split(',')).trigger('change.select2');
-                    updateDynamicFilters(restoreRest);
-                } else {
-                    restoreRest();
-                }
-            });
+            updateDynamicFilters(restoreRest, window.pamDashboardScope.readParams(urlParams));
 
             loadAllThresholds();
         })();
@@ -365,30 +355,23 @@
             }
         });
         
-        function updateDynamicFilters(callback) {
-            const currentInst = institutionSelect.val(); // array when multiple is set.
-            
+        function updateDynamicFilters(callback, currentInst = institutionSelect.val()) {
+            const requestId = ++filterRequest;
             const params = new URLSearchParams({ 
                 start_date: startDateInput.val(), 
                 end_date: endDateInput.val() 
             });
             
-            // Pass all selected institutions as a comma-separated string.
-            if (currentInst && currentInst.length > 0) {
-                const instArray = Array.isArray(currentInst) ? currentInst : [currentInst];
-                params.append('institution_id', instArray.join(','));
-            }
+            window.pamDashboardScope.appendParams(params, currentInst);
 
             fetch(`/{{ g.lang_code }}/api/pam/get-filters-data?${params.toString()}`)
                 .then(response => response.ok ? response.json() : Promise.reject(response))
                 .then(data => {
+                    if (requestId !== filterRequest) return;
                     const currentLocs = locationsSelect.val();
                     const currentBios = biotopesSelect.val();
 
-                    // Update institution list (preserve selection if still valid).
-                    // Do not redraw if we triggered the change ourselves (would reset the select).
-                    // For simplicity, we redraw — Select2 restores the value if the id matches.
-                    updateSelectOptions(institutionSelect, data.institutions, currentInst);
+                    window.pamDashboardScope.refresh(institutionSelect, data.institutions, data.ecoregions, currentInst);
 
                     // Update dependent lists.
                     updateSelectOptions(biotopesSelect, data.biotopes, currentBios);
@@ -511,12 +494,7 @@
             if (startDateInput.val()) params.append('start_date', startDateInput.val());
             if (endDateInput.val()) params.append('end_date', endDateInput.val());
             
-            // Append institution.
-            const instVal = institutionSelect.val();
-                if (instVal && instVal.length > 0) {
-                    const instArray = Array.isArray(instVal) ? instVal : [instVal];
-                    params.append('institution_id', instArray.join(','));
-                }
+            window.pamDashboardScope.appendParams(params, institutionSelect.val());
 
             const selectedLocations = locationsSelect.val();
             if (selectedLocations && selectedLocations.length > 0) params.append('locations', selectedLocations.join(','));

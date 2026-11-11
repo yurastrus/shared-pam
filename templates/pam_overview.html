@@ -40,8 +40,8 @@
             </div>
             <!-- Row 3: Biotopes and locations -->
             <div class="filter-group">
-                <label for="institution-select">{{ _('Установа/проект:') }}</label>
-                <select id="institution-select" class="form-control" multiple></select>
+                <label for="institution-select">{{ _('Установи / екорегіони') }}</label>
+                <select id="institution-select" class="form-control" data-ecoregion-label="{{ _('Екорегіони') }}" multiple></select>
             </div>
             <div class="filter-group">
                 <label for="biotopes-select">{{ _('Біотопи:') }}</label>
@@ -136,6 +136,7 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     
+    <script src="{{ url_for('pam.serve_pam_static', lang_code=g.lang_code, filename='js/dashboard_scope.js') }}"></script>
     <script>
         $(document).ready(function() {
             // --- Variable initialisation ---
@@ -161,6 +162,7 @@
             const mapContent = $('#map-content');
 
             let map = null;
+            let filterRequest = 0;
 
             // --- Page initialisation ---
             (function setupInitialValues() {
@@ -234,6 +236,7 @@
                 const startDate = startDateInput.val();
                 const endDate = endDateInput.val();
                 if (!startDate || !endDate) return;
+                const requestId = ++filterRequest;
 
                 // Collect current values.
                 const currentValues = {
@@ -258,14 +261,12 @@
                     genus: currentValues.genus || ''
                 });
 
-                // Add institutions (comma-joined if multiple selected).
-                if (currentValues.institution && currentValues.institution.length > 0) {
-                    params.append('institution_id', currentValues.institution.join(','));
-                }
+                window.pamDashboardScope.appendParams(params, currentValues.institution);
 
                 fetch(`/{{ g.lang_code }}/api/pam/get-trends-filters?${params.toString()}`)
-                    .then(response => response.json())
+                    .then(response => response.ok ? response.json() : Promise.reject(response))
                     .then(data => {
+                        if (requestId !== filterRequest) return;
                         
                         const refreshSelect = (el, items, placeholder, currentVal) => {
                             // 1. Build new options.
@@ -305,7 +306,7 @@
                         };
 
                         if (data.institutions) {
-                            refreshSelect(institutionSelect, data.institutions, '{{ _("-- Всі установи/проекти --") }}', currentValues.institution);
+                            window.pamDashboardScope.refresh(institutionSelect, data.institutions, data.ecoregions, currentValues.institution);
                         }
 
                         // Update taxonomy.
@@ -330,10 +331,7 @@
                 });
                 
                 // Handle multiple selection.
-                const institutions = institutionSelect.val();
-                if (institutions && institutions.length > 0) {
-                    params.append('institution_id', institutions.join(','));
-                }
+                window.pamDashboardScope.appendParams(params, institutionSelect.val());
 
                 // Geo-filters.
                 const locs = locationsSelect.val();

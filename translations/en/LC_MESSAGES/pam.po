@@ -5093,3 +5093,12 @@ msgstr "RAI (detections per hour)"
 #~ msgid "Немає записів для прогнозу"
 #~ msgstr "No records for forecast"
 
+#: app/pam/templates/pam_overview.html:43
+#: app/pam/templates/pam_species_detailed.html:37
+msgid "Установи / екорегіони"
+msgstr "Institutions / ecoregions"
+
+#: app/pam/templates/pam_overview.html:44
+#: app/pam/templates/pam_species_detailed.html:38
+msgid "Екорегіони"
+msgstr "Ecoregions"

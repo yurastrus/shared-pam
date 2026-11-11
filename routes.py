@@ -33,6 +33,40 @@ def _parse_id_list(raw):
     return [int(x) for x in str(raw).split(',') if x.strip().lstrip('-').isdigit()]
 
 
+def _dashboard_institution_filter():
+    """Resolve the dashboard selection to the existing PAM institution filter."""
+    institution_ids = request.args.get('institution_id', '')
+    regions = request.args.getlist('ecoregion')
+    if not regions:
+        return institution_ids
+
+    ids = set(_parse_id_list(institution_ids))
+    ids.update(inst.id for inst in Institution.query.filter(
+        Institution.ecoregion_uk.in_(regions)
+    ))
+    # An explicitly selected region with no matching institutions must yield no data.
+    return sorted(ids) or [-1]
+
+
+def _dashboard_ecoregions(institution_ids, lang_code):
+    """List regions represented by institutions with visible PAM recordings."""
+    if not institution_ids:
+        return []
+    regions = {}
+    for inst in Institution.query.filter(
+        Institution.id.in_(institution_ids), Institution.ecoregion_uk.isnot(None)
+    ).order_by(Institution.id):
+        key = inst.ecoregion_uk
+        if key:
+            regions.setdefault(key, None)
+            if lang_code == 'en' and inst.ecoregion_en:
+                regions[key] = inst.ecoregion_en
+    return sorted(
+        ({'id': key, 'text': name or key} for key, name in regions.items()),
+        key=lambda region: region['text'],
+    )
+
+
 def _optional_int(value):
     """int(value), or None when the client omitted / blanked the field.
 
@@ -939,7 +973,7 @@ def api_get_plot_data(lang_code):
         end_date = request.args.get('end_date')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
         biotope_ids = [int(id) for id in biotope_ids_str.split(',') if id.isdigit()] or None
         
@@ -989,7 +1023,7 @@ def api_get_barchart_data(lang_code):
         species_name = request.args.get('species')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -1037,7 +1071,7 @@ def api_get_time_scatter_data(lang_code):
         species_name = request.args.get('species')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -1089,7 +1123,7 @@ def api_get_species_summary(lang_code):
         species_name = request.args.get('species')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         location_id = request.args.get('location_id')
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
@@ -1145,7 +1179,7 @@ def api_get_unique_points(lang_code):
         species_name = request.args.get('species')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -1199,7 +1233,7 @@ def api_get_pam_filters_data(lang_code):
         conn = get_pam_db_connection()
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        selected_inst_id = request.args.get('institution_id', '')
+        selected_inst_id = _dashboard_institution_filter()
 
         params = {}
         date_filter = ""
@@ -1214,20 +1248,10 @@ def api_get_pam_filters_data(lang_code):
         base_inst_condition, base_inst_params = get_institution_filter(user_inst_ids, is_admin)
         params.update(base_inst_params)
 
-        # Additional condition when the user selected a specific institution.
-        selected_inst_filter = ""
-        inst_ids = []
-        if selected_inst_id:
-            inst_ids = [int(i) for i in selected_inst_id.split(',') if i.strip().isdigit()]
-            if inst_ids:
-                selected_inst_filter = """
-                    AND EXISTS (
-                        SELECT 1 FROM location_institutions li_sel 
-                        WHERE li_sel.location_id = l.location_id 
-                        AND li_sel.institution_id = ANY(:selected_inst_ids)
-                    )
-                """
-        params['selected_inst_ids'] = inst_ids
+        selected_condition, selected_params = get_institution_filter(
+            user_inst_ids, is_admin, selected_inst_id=selected_inst_id
+        )
+        params.update(selected_params)
 
         # 1. Fetch institutions (cascade: depends only on dates and access rights).
         # Show only institutions that have recordings in the selected period.
@@ -1257,9 +1281,8 @@ def api_get_pam_filters_data(lang_code):
             JOIN location_biotopes lb ON b.id = lb.biotope_id
             JOIN locations l ON lb.location_id = l.location_id
             JOIN recordings r ON l.location_id = r.location_id
-            WHERE {base_inst_condition} 
+            WHERE {selected_condition}
             {date_filter}
-            {selected_inst_filter}
             ORDER BY b.name_ua
         """
         biotopes_result = conn.execute(text(biotopes_query), params).mappings().fetchall()
@@ -1271,9 +1294,8 @@ def api_get_pam_filters_data(lang_code):
             FROM locations l
             JOIN recordings r ON l.location_id = r.location_id
             WHERE EXISTS (SELECT 1 FROM detections WHERE recording_id = r.recording_id)
-            AND {base_inst_condition}
+            AND {selected_condition}
             {date_filter}
-            {selected_inst_filter}
             ORDER BY l.location_name
         """
         locations_result = conn.execute(text(locations_query), params).mappings().fetchall()
@@ -1286,6 +1308,7 @@ def api_get_pam_filters_data(lang_code):
 
         return jsonify({
             'institutions': institutions,
+            'ecoregions': _dashboard_ecoregions([row['id'] for row in inst_result], lang_code),
             'biotopes': biotopes,
             'locations': locations
         })
@@ -1312,7 +1335,7 @@ def api_get_species_ranking(lang_code):
             'family': request.args.get('family'),
             'genus': request.args.get('genus')
         }
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -1358,7 +1381,7 @@ def api_get_overview_stats(lang_code):
     try:
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -1411,7 +1434,7 @@ def api_get_locations_map(lang_code):
     try:
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
@@ -3655,7 +3678,7 @@ def api_get_trends_filters(lang_code):
         conn = get_pam_db_connection()
         
         # 1. Collect parameters.
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         
         p = {
             'start_year': request.args.get('start_year', type=int),
@@ -3708,7 +3731,8 @@ def api_get_trends_filters(lang_code):
         
         response_data = {
             'years': all_years,
-            'institutions': institutions
+            'institutions': institutions,
+            'ecoregions': _dashboard_ecoregions([row['id'] for row in inst_result], lang_code),
         }
 
         # --- Prepare conditions for cascading filters. ---
@@ -4435,7 +4459,7 @@ def api_get_weather_overlay(lang_code):
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         species_name = request.args.get('species')
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         
@@ -4458,7 +4482,6 @@ def api_get_weather_overlay(lang_code):
             user_inst_ids = pam_access.allowed_institution_ids(current_user)
             is_admin = current_user.is_authenticated and current_user.has_role('admin')
             inst_condition, inst_params = get_institution_filter(user_inst_ids, is_admin, selected_inst_id=institution_id)
-            params.update(inst_params)
 
             # 3. Attempt 1: find the centroid of actual detections.
             conditions = [
@@ -4472,7 +4495,8 @@ def api_get_weather_overlay(lang_code):
                 'species': species_name,
                 'confidence': confidence,
                 'start_date': start_date,
-                'end_date': end_date
+                'end_date': end_date,
+                **inst_params,
             }
             
             joins = """
@@ -4516,8 +4540,9 @@ def api_get_weather_overlay(lang_code):
                 loc_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()]
                 if loc_ids:
                     res_loc = conn.execute(text(
-                        "SELECT AVG(lat), AVG(lon) FROM locations WHERE location_id = ANY(:ids)"
-                    ), {'ids': loc_ids}).fetchone()
+                        f"SELECT AVG(l.lat), AVG(l.lon) FROM locations l "
+                        f"WHERE l.location_id = ANY(:ids) AND {inst_condition}"
+                    ), {'ids': loc_ids, **inst_params}).fetchone()
                     
                     if res_loc and res_loc[0]:
                         target_lat = float(res_loc[0])
@@ -4583,7 +4608,7 @@ def export_detailed_data(lang_code):
         species_name = request.args.get('species')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
-        institution_id = request.args.get('institution_id', '')
+        institution_id = _dashboard_institution_filter()
         location_ids_str = request.args.get('locations', '')
         biotope_ids_str = request.args.get('biotopes', '')
         location_ids = [int(id) for id in location_ids_str.split(',') if id.isdigit()] or None
