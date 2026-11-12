@@ -490,7 +490,9 @@ resuming an interrupted build. The small root catalog
 
 Subsequent samples look up files directly by name in the folders for their
 location IDs. When files are missing, the operator can upload the matches or
-search the entire archive to update the catalog and relevant markers. Source audio stays on the user's device
+search the archive to update the catalog and relevant markers. That search
+probes missing filenames directly in marked leaf folders and enumerates
+unmarked folders and branches of the tree. Source audio stays on the user's device
 until the existing cutter uploads the selected clips. The mode requires a
 browser that supports the local directory picker and write access to the
 archive. Unchecking the index option uses the regular folder input.

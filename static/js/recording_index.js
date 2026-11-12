@@ -9,6 +9,10 @@
         return error.name === 'NotFoundError' || error.name === 'TypeMismatchError';
     }
 
+    function rejectedName(error) {
+        return error.name === 'TypeError' && error.message.includes('Name is not allowed');
+    }
+
     async function readMetadata(dir, name, valid) {
         try {
             const handle = await dir.getFileHandle(name);
@@ -57,10 +61,40 @@
         let count = 0;
         let lastUpdate = performance.now();
 
+        async function updateLocations(dir, saved, names, leaf) {
+            let locations = saved?.locations || [];
+            if (names.length) {
+                const resolved = await lookup(names);
+                // Different managers may only resolve their own locations.
+                const byId = new Map(locations.map(location => [location.location_id, location]));
+                for (const location of Object.values(resolved)) byId.set(location.location_id, location);
+                locations = [...byId.values()].sort((a, b) => a.location_id - b.location_id);
+            }
+            if (!saved || saved.leaf !== leaf || JSON.stringify(locations) !== JSON.stringify(saved.locations)) {
+                await writeMetadata(dir, MARKER, { locations, leaf });
+            }
+            return locations;
+        }
+
         async function walk(dir, path) {
             const saved = await readMetadata(dir, MARKER, data => validLocations(data.locations));
-            if (!missing && saved?.leaf === true) {
-                folders.push({ path, locations: saved.locations });
+            if (saved?.leaf === true) {
+                const known = new Set(saved.locations.map(location => location.location_id));
+                const names = [];
+                const wanted = Array.from(missing?.values() || []).filter(recording =>
+                    recording.locationIds.some(id => !known.has(id)));
+                for (let i = 0; i < wanted.length; i += 16) {
+                    await Promise.all(wanted.slice(i, i + 16).map(async ({ filename }) => {
+                        try {
+                            const handle = await dir.getFileHandle(filename);
+                            names.push(handle.name);
+                        } catch (error) {
+                            if (!absent(error) && !rejectedName(error)) throw error;
+                        }
+                    }));
+                }
+                const locations = await updateLocations(dir, saved, names, true);
+                folders.push({ path, locations });
                 return;
             }
             const names = [];
@@ -72,7 +106,7 @@
                 } else if (global.PamSegmentCutter.AUDIO_EXT.test(entry.name)) {
                     hasAudio = true;
                     const wanted = missing?.get(entry.name.toLowerCase());
-                    if (!saved || wanted?.some(id => !saved.locations.some(loc => loc.location_id === id))) {
+                    if (!saved || wanted?.locationIds.some(id => !saved.locations.some(loc => loc.location_id === id))) {
                         names.push(entry.name);
                     }
                     count++;
@@ -84,19 +118,7 @@
                 }
             }
             if (hasAudio) {
-                let locations = saved?.locations;
-                if (names.length) {
-                    const resolved = await lookup(names);
-                    const byId = new Map();
-                    // Different managers may only resolve their own locations.
-                    for (const location of locations || []) byId.set(location.location_id, location);
-                    for (const location of Object.values(resolved)) byId.set(location.location_id, location);
-                    locations = [...byId.values()].sort((a, b) => a.location_id - b.location_id);
-                }
-                const leaf = children.length === 0;
-                if (!saved || saved.leaf !== leaf || JSON.stringify(locations) !== JSON.stringify(saved.locations)) {
-                    await writeMetadata(dir, MARKER, { locations, leaf });
-                }
+                const locations = await updateLocations(dir, saved, names, children.length === 0);
                 folders.push({ path, locations });
             }
             for (const child of children) await walk(child, [...path, child.name]);
@@ -146,7 +168,7 @@
                         }
                         found = file;
                     } catch (error) {
-                        if (error.name === 'TypeError' && error.message.includes('Name is not allowed')) {
+                        if (rejectedName(error)) {
                             missingCount++;
                             return;
                         }
@@ -157,8 +179,8 @@
                     files.set(id, found);
                 } else {
                     const name = filename.toLowerCase();
-                    if (!missing.has(name)) missing.set(name, []);
-                    missing.get(name).push(segment.location_id);
+                    if (!missing.has(name)) missing.set(name, { filename, locationIds: [] });
+                    missing.get(name).locationIds.push(segment.location_id);
                     missingCount++;
                 }
             }));
