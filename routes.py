@@ -643,7 +643,8 @@ def verification_priorities(lang_code):
     taxonomy columns (class → order → family → genus → species) plus per-species
     counts: total segments, total detections, verified segments (>=1
     verification) and segments that reached consensus (>=2 verifications). Sorted
-    least-verified first so the highest-priority species surface at the top.
+    least-verified first. Among species with zero verified segments, Red Data
+    Book species come first, with detection counts descending within each group.
 
     Row colours follow the number of verified segments, from red at zero to
     green at VERIFIED_THRESHOLD and above.
@@ -655,7 +656,6 @@ def verification_priorities(lang_code):
     """
     g.lang_code = lang_code
     VERIFIED_THRESHOLD = 250  # verified-segment count for the green (done) flag
-    CUT_SEGMENT_THRESHOLD = 50
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -669,6 +669,7 @@ def verification_priorities(lang_code):
                 s.order_rank AS order_name,
                 s.family     AS family_name,
                 s.genus      AS genus_name,
+                s.redbook2021,
                 COALESCE(seg.total_segments, 0)     AS total_segments,
                 COALESCE(seg.verified_segments, 0)  AS verified_segments,
                 COALESCE(seg.consensus_segments, 0) AS consensus_segments,
@@ -688,7 +689,6 @@ def verification_priorities(lang_code):
                 GROUP BY species_id
             ) d ON d.species_id = s.species_id
             WHERE seg.species_id IS NOT NULL OR d.species_id IS NOT NULL
-            ORDER BY consensus_segments ASC, verified_segments ASC, total_segments DESC
         """)).fetchall()
 
         # For a verifier, find which species still have segments THEY can verify
@@ -715,10 +715,7 @@ def verification_priorities(lang_code):
 
         is_admin = pam_access.is_admin(current_user)
         managed_ids = [] if is_admin else pam_access.manage_institution_ids(current_user)
-        cut_candidate_ids = [
-            r.species_id for r in rows
-            if r.total_segments < CUT_SEGMENT_THRESHOLD and r.detection_count
-        ]
+        cut_candidate_ids = [r.species_id for r in rows if r.detection_count]
         cuttable_ids = set(cut_candidate_ids) if is_admin else set()
         if managed_ids and cut_candidate_ids:
             cuttable_ids = set(conn.execute(text("""
@@ -759,25 +756,18 @@ def verification_priorities(lang_code):
                 'total_segments': int(r.total_segments or 0),
                 'detection_count': int(r.detection_count or 0),
                 'verified_segments': int(r.verified_segments or 0),
+                'is_redbook': r.redbook2021 is not None,
                 'consensus_segments': int(r.consensus_segments or 0),
                 'pending_for_user': pending_by_species.get(r.species_id, 0),
                 'can_cut_segments': r.species_id in cuttable_ids,
             })
 
-        # Default order: status first (actionable species that HAVE segments but
-        # are still under-verified come first; then detection-only species with
-        # no segments yet; then fully-verified ones last), then by ascending
-        # segment count, then by taxonomy (class → order → family → genus).
-        def _status_rank(row):
-            if row['total_segments'] == 0:
-                return 1  # red: detections only, nothing to verify yet
-            if row['verified_segments'] < VERIFIED_THRESHOLD:
-                return 0  # orange: has segments, still needs verification
-            return 2      # green: enough verified
         species_rows.sort(key=lambda r: (
-            _status_rank(r),
-            r['total_segments'],
+            r['verified_segments'],
+            r['verified_segments'] == 0 and not r['is_redbook'],
+            -r['detection_count'] if r['verified_segments'] == 0 else 0,
             r['class_name'], r['order_name'], r['family_name'], r['genus_name'],
+            r['scientific_name'],
         ))
 
         return render_template('pam_verification_priorities.html',
