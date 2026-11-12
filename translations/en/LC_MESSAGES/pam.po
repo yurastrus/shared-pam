@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-12 10:20+0200\n"
+"POT-Creation-Date: 2026-11-12 15:31+0200\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -48,6 +48,10 @@ msgstr "not evaluated"
 msgid "недостатньо відомий"
 msgstr "data deficient"
 
+#: app/pam/routes.py:1903 app/pam/routes.py:1943
+msgid "Не вдалося відкрити відповідь для виправлення."
+msgstr "Could not reopen this answer for correction."
+
 #: app/pam/species_admin.py:32 app/pam/templates/pam_species_admin_list.html:37
 msgid "Латинська назва"
 msgstr "Scientific name"
@@ -69,22 +73,22 @@ msgid "Тип"
 msgstr "Phylum"
 
 #: app/pam/species_admin.py:37 app/pam/templates/pam_species_admin_list.html:40
-#: app/pam/templates/pam_verification_priorities.html:24
+#: app/pam/templates/pam_verification_priorities.html:26
 msgid "Клас"
 msgstr "Class"
 
 #: app/pam/species_admin.py:38 app/pam/templates/pam_species_admin_list.html:41
-#: app/pam/templates/pam_verification_priorities.html:25
+#: app/pam/templates/pam_verification_priorities.html:27
 msgid "Ряд"
 msgstr "Order"
 
 #: app/pam/species_admin.py:39 app/pam/templates/pam_species_admin_list.html:42
-#: app/pam/templates/pam_verification_priorities.html:26
+#: app/pam/templates/pam_verification_priorities.html:28
 msgid "Родина"
 msgstr "Family"
 
 #: app/pam/species_admin.py:40
-#: app/pam/templates/pam_verification_priorities.html:27
+#: app/pam/templates/pam_verification_priorities.html:29
 msgid "Рід"
 msgstr "Genus"
 
@@ -689,7 +693,7 @@ msgstr "No locations in this selection."
 #: app/pam/templates/pam_sample_upload.html:239
 #: app/pam/templates/pam_service_log.html:242
 #: app/pam/templates/pam_verification_interface.html:132
-#: app/pam/templates/pam_verification_interface.html:188
+#: app/pam/templates/pam_verification_interface.html:194
 #: app/pam/templates/pam_verification_segments.html:107
 msgid "Завантаження..."
 msgstr "Loading..."
@@ -1247,7 +1251,7 @@ msgstr "Locations"
 
 #: app/pam/templates/pam_cooccurrence.html:221
 #: app/pam/templates/pam_overview.html:377
-#: app/pam/templates/pam_verification_priorities.html:30
+#: app/pam/templates/pam_verification_priorities.html:32
 msgid "Детекцій"
 msgstr "Detections"
 
@@ -1828,7 +1832,7 @@ msgstr "Min. ver."
 #: app/pam/templates/pam_evaluation_results.html:220
 #: app/pam/templates/pam_overview.html:447
 #: app/pam/templates/pam_sample_upload.html:48
-#: app/pam/templates/pam_verification_priorities.html:28
+#: app/pam/templates/pam_verification_priorities.html:30
 #: app/pam/templates/pam_verification_segments.html:269
 #: app/pam/templates/pam_yearly_table.html:186
 msgid "Вид"
@@ -4399,8 +4403,8 @@ msgid "Таксономічний клас:"
 msgstr "Taxonomic class:"
 
 #: app/pam/templates/pam_verification_interface.html:26
-#: app/pam/templates/pam_verification_interface.html:231
-#: app/pam/templates/pam_verification_interface.html:301
+#: app/pam/templates/pam_verification_interface.html:242
+#: app/pam/templates/pam_verification_interface.html:312
 msgid "-- Усі класи --"
 msgstr "-- All classes --"
 
@@ -4409,14 +4413,14 @@ msgid "Вид для верифікації аудіосегментів BirdNET
 msgstr "Species for BirdNET Audio Segment Verification"
 
 #: app/pam/templates/pam_verification_interface.html:35
-#: app/pam/templates/pam_verification_interface.html:238
-#: app/pam/templates/pam_verification_interface.html:302
+#: app/pam/templates/pam_verification_interface.html:249
+#: app/pam/templates/pam_verification_interface.html:313
 msgid "-- Всі види --"
 msgstr "-- All species --"
 
 #: app/pam/templates/pam_verification_interface.html:44
-#: app/pam/templates/pam_verification_interface.html:244
-#: app/pam/templates/pam_verification_interface.html:303
+#: app/pam/templates/pam_verification_interface.html:255
+#: app/pam/templates/pam_verification_interface.html:314
 msgid "-- Усі установи --"
 msgstr "-- All institutions --"
 
@@ -4496,11 +4500,17 @@ msgstr "Skip"
 msgid "Не знаю"
 msgstr "Don't know"
 
-#: app/pam/templates/pam_verification_interface.html:181
+#: app/pam/templates/pam_verification_interface.html:172
+#: app/pam/templates/pam_verification_interface.html:173
+#: app/pam/templates/pam_verification_interface.html:187
+msgid "Повернутися до попередньої відповіді"
+msgstr "Return to the previous answer"
+
+#: app/pam/templates/pam_verification_interface.html:184
 msgid "Сегменти для верифікації відсутні"
 msgstr "No segments available for verification"
 
-#: app/pam/templates/pam_verification_interface.html:182
+#: app/pam/templates/pam_verification_interface.html:185
 msgid ""
 "Немає сегментів для верифікації за вибраними критеріями, або ви вже "
 "верифікували всі доступні сегменти."
@@ -4508,27 +4518,31 @@ msgstr ""
 "There are no segments for verification that match the selected criteria, "
 "or you have already verified all available segments."
 
-#: app/pam/templates/pam_verification_interface.html:343
+#: app/pam/templates/pam_verification_interface.html:354
 msgid "Черга звужена до одного вікна"
 msgstr "The queue is narrowed to one window"
 
-#: app/pam/templates/pam_verification_interface.html:346
+#: app/pam/templates/pam_verification_interface.html:357
 msgid "верифікувати всі сегменти"
 msgstr "verify all segments"
 
-#: app/pam/templates/pam_verification_interface.html:602
+#: app/pam/templates/pam_verification_interface.html:397
+msgid "Виправлення попередньої відповіді. Виберіть правильний варіант."
+msgstr "Editing your previous answer. Choose the correct option."
+
+#: app/pam/templates/pam_verification_interface.html:647
 msgid "Помилка завантаження сегменту"
 msgstr "Error loading segment."
 
-#: app/pam/templates/pam_verification_interface.html:639
+#: app/pam/templates/pam_verification_interface.html:685
 msgid "© Записи належать"
 msgstr "© Recordings belong to"
 
-#: app/pam/templates/pam_verification_interface.html:639
+#: app/pam/templates/pam_verification_interface.html:685
 msgid "Копіювання і поширення заборонене."
 msgstr "Copying and redistribution are prohibited."
 
-#: app/pam/templates/pam_verification_interface.html:640
+#: app/pam/templates/pam_verification_interface.html:686
 msgid ""
 "© Записи належать установі, яка веде спостереження. Копіювання і "
 "поширення заборонене."
@@ -4536,90 +4550,78 @@ msgstr ""
 "© Recordings belong to the institution running the survey. Copying and "
 "redistribution are prohibited."
 
-#: app/pam/templates/pam_verification_interface.html:676
+#: app/pam/templates/pam_verification_interface.html:723
 msgid "Немає активного сегменту для верифікації"
 msgstr "No active segment for verification"
 
-#: app/pam/templates/pam_verification_interface.html:695
+#: app/pam/templates/pam_verification_interface.html:744
 msgid "Верифікацію збережено! (Підтверджено)"
 msgstr "Verification saved! (Confirmed)"
 
-#: app/pam/templates/pam_verification_interface.html:696
+#: app/pam/templates/pam_verification_interface.html:745
 msgid "Верифікацію збережено! (Відхилено)"
 msgstr "Verification saved! (Rejected)"
 
-#: app/pam/templates/pam_verification_interface.html:697
+#: app/pam/templates/pam_verification_interface.html:746
 msgid "Позначено «не знаю» — більше не показуватиметься вам"
 msgstr "Marked \"don't know\" — you won't see it again"
 
-#: app/pam/templates/pam_verification_interface.html:698
+#: app/pam/templates/pam_verification_interface.html:747
 msgid "Сегмент пропущено"
 msgstr "(Segment skipped)"
 
-#: app/pam/templates/pam_verification_interface.html:702
+#: app/pam/templates/pam_verification_interface.html:751
 msgid "Сегмент відхилено (3+ «не знаю») і більше не показуватиметься"
 msgstr "Segment discarded (3+ \"don't know\") and will no longer be shown"
 
-#: app/pam/templates/pam_verification_interface.html:709
+#: app/pam/templates/pam_verification_interface.html:761
 msgid "Помилка збереження"
 msgstr "Save error:"
 
-#: app/pam/templates/pam_verification_interface.html:710
+#: app/pam/templates/pam_verification_interface.html:762
 msgid "Помилка: "
 msgstr "Error: "
 
-#: app/pam/templates/pam_verification_priorities.html:9
+#: app/pam/templates/pam_verification_priorities.html:6
+msgid "Верифіковано"
+msgstr "Verified"
+
+#: app/pam/templates/pam_verification_priorities.html:10
 msgid "Пріоритети верифікації видів"
 msgstr "Species verification priorities"
 
-#: app/pam/templates/pam_verification_priorities.html:10
+#: app/pam/templates/pam_verification_priorities.html:11
 msgid ""
 "Які види варто верифікувати в першу чергу. Клікніть на заголовок колонки,"
 " щоб відсортувати."
 msgstr "Which species to verify first. Click a column header to sort."
 
-#: app/pam/templates/pam_verification_priorities.html:12
-msgid "є детекції, але сегментів ще не завантажено"
-msgstr "detections exist, but no segments uploaded yet"
-
-#: app/pam/templates/pam_verification_priorities.html:13
-msgid "є сегменти, але верифіковано менше, ніж поріг"
-msgstr "segments exist, but fewer verified than the threshold"
-
-#: app/pam/templates/pam_verification_priorities.html:14
-msgid "верифіковано достатньо"
-msgstr "enough verified"
-
-#: app/pam/templates/pam_verification_priorities.html:23
+#: app/pam/templates/pam_verification_priorities.html:25
 msgid "Порядок за пріоритетом (початкове сортування)"
 msgstr "Priority order (initial sorting)"
 
-#: app/pam/templates/pam_verification_priorities.html:29
+#: app/pam/templates/pam_verification_priorities.html:31
 #: app/pam/templates/pam_verification_segments.html:64
 msgid "Сегментів"
 msgstr "Segments"
 
-#: app/pam/templates/pam_verification_priorities.html:31
-msgid "Верифіковано"
-msgstr "Verified"
-
-#: app/pam/templates/pam_verification_priorities.html:32
+#: app/pam/templates/pam_verification_priorities.html:34
 msgid "Консенсус"
 msgstr "Consensus"
 
-#: app/pam/templates/pam_verification_priorities.html:33
+#: app/pam/templates/pam_verification_priorities.html:35
 msgid "Дія"
 msgstr "Action"
 
-#: app/pam/templates/pam_verification_priorities.html:63
+#: app/pam/templates/pam_verification_priorities.html:59
 msgid "Верифікувати"
 msgstr "Verify"
 
-#: app/pam/templates/pam_verification_priorities.html:68
+#: app/pam/templates/pam_verification_priorities.html:65
 msgid "Нарізати сегменти"
 msgstr "Cut segments"
 
-#: app/pam/templates/pam_verification_priorities.html:79
+#: app/pam/templates/pam_verification_priorities.html:76
 msgid "Немає видів із завантаженими сегментами для верифікації."
 msgstr "No species with uploaded segments to verify."
 
@@ -5104,16 +5106,11 @@ msgstr "RAI (detections per hour)"
 #~ msgid "Немає записів для прогнозу"
 #~ msgstr "No records for forecast"
 
-#: app/pam/routes.py:1905 app/pam/routes.py:1945
-msgid "Не вдалося відкрити відповідь для виправлення."
-msgstr "Could not reopen this answer for correction."
+#~ msgid "є детекції, але сегментів ще не завантажено"
+#~ msgstr "detections exist, but no segments uploaded yet"
 
-#: app/pam/templates/pam_verification_interface.html:172
-#: app/pam/templates/pam_verification_interface.html:173
-#: app/pam/templates/pam_verification_interface.html:187
-msgid "Повернутися до попередньої відповіді"
-msgstr "Return to the previous answer"
+#~ msgid "є сегменти, але верифіковано менше, ніж поріг"
+#~ msgstr "segments exist, but fewer verified than the threshold"
 
-#: app/pam/templates/pam_verification_interface.html:397
-msgid "Виправлення попередньої відповіді. Виберіть правильний варіант."
-msgstr "Editing your previous answer. Choose the correct option."
+#~ msgid "верифіковано достатньо"
+#~ msgstr "enough verified"

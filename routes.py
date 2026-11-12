@@ -645,10 +645,8 @@ def verification_priorities(lang_code):
     verification) and segments that reached consensus (>=2 verifications). Sorted
     least-verified first so the highest-priority species surface at the top.
 
-    Colour flag (computed in the template):
-      * red    — detections exist but NO segments have been uploaded yet;
-      * orange — segments exist but fewer than VERIFIED_THRESHOLD are verified;
-      * green  — VERIFIED_THRESHOLD or more segments verified.
+    Row colours follow the number of verified segments, from red at zero to
+    green at VERIFIED_THRESHOLD and above.
 
     For a user with the ``pam_verifier`` role, each species that still has
     segments this user personally can verify (pending, not yet voted on, inside

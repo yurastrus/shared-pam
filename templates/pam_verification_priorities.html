@@ -3,15 +3,17 @@
 {% block title %}{{ _('Пріоритети верифікації') }} - {{ _('yurastrus | персональний сайт') }}{% endblock %}
 
 {% block pam_content %}
+{% set verified_label = _('Верифіковано') %}
 <div class="container-fluid mt-4">
     <div class="priorities-container">
         <div class="page-header mb-4">
             <h1>{{ _('Пріоритети верифікації видів') }}</h1>
             <p class="lead">{{ _('Які види варто верифікувати в першу чергу. Клікніть на заголовок колонки, щоб відсортувати.') }}</p>
             <div class="priority-legend">
-                <span class="legend-item"><span class="legend-swatch swatch-none"></span>{{ _('є детекції, але сегментів ще не завантажено') }}</span>
-                <span class="legend-item"><span class="legend-swatch swatch-low"></span>{{ _('є сегменти, але верифіковано менше, ніж поріг') }} ({{ verified_threshold }})</span>
-                <span class="legend-item"><span class="legend-swatch swatch-ok"></span>{{ _('верифіковано достатньо') }}</span>
+                <span>{{ verified_label }}</span>
+                <span>0</span>
+                <span class="legend-gradient" aria-hidden="true"></span>
+                <span>{{ verified_threshold }}+</span>
             </div>
         </div>
 
@@ -28,21 +30,15 @@
                         <th data-type="text">{{ _('Вид') }}</th>
                         <th data-type="num">{{ _('Сегментів') }}</th>
                         <th data-type="num">{{ _('Детекцій') }}</th>
-                        <th data-type="num">{{ _('Верифіковано') }}</th>
+                        <th data-type="num">{{ verified_label }}</th>
                         <th data-type="num">{{ _('Консенсус') }}</th>
                         {% if show_actions %}<th data-type="text">{{ _('Дія') }}</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in species_rows %}
-                    {% if row.total_segments == 0 %}
-                        {% set priority_class = 'priority-none' %}
-                    {% elif row.verified_segments < verified_threshold %}
-                        {% set priority_class = 'priority-low' %}
-                    {% else %}
-                        {% set priority_class = 'priority-ok' %}
-                    {% endif %}
-                    <tr class="{{ priority_class }}">
+                    {% set progress = ([row.verified_segments, verified_threshold] | min) / verified_threshold %}
+                    <tr style="--priority-hue: {{ (progress * 132) | round(2) }}">
                         <td class="order-cell" data-sort="{{ loop.index }}">{{ loop.index }}</td>
                         <td>{{ row.class_name }}</td>
                         <td>{{ row.order_name }}</td>
