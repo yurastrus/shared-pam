@@ -23,6 +23,7 @@ The generated filename keeps the canonical
 verification UI and the legacy filename-based linker keep working unchanged.
 """
 import io
+import ntpath
 import os
 import re
 import math
@@ -308,7 +309,7 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
             'recording_id': int(row['recording_id']),
             'species_id': int(row['species_id']),
             'model_id': int(model_id) if model_id is not None else None,
-            'recording_filename': rec_filename,
+            'recording_filename': ntpath.basename(rec_filename or ''),
             'location_id': row.get('location_id'),
             'segment_filename': seg_filename,
             'location_name': _location_token(rec_filename, row['location_name']),
@@ -453,7 +454,7 @@ def plan_window_segments(species_name, location_ids, from_ts, to_ts,
             'recording_id': int(row['recording_id']),
             'species_id': int(row['species_id']),
             'model_id': int(model_id) if model_id is not None else None,
-            'recording_filename': rec_filename,
+            'recording_filename': ntpath.basename(rec_filename or ''),
             'segment_filename': build_segment_filename(
                 conf, rec_filename, start_s, part_counter[stem],
                 location_name=row['location_name'],
@@ -519,7 +520,7 @@ def reset_earliest_year_cache():
 
 def _recording_stem(rec_filename):
     """Recording filename without its audio extension."""
-    base = os.path.basename(rec_filename or '')
+    base = ntpath.basename(rec_filename or '')
     stem, _ext = os.path.splitext(base)
     return stem
 

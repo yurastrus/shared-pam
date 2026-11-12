@@ -5388,10 +5388,19 @@ def api_sample_recording_locations(lang_code):
         admin = pam_access.is_admin(current_user)
         managed = [] if admin else _sample_managed_location_ids(conn)
         rows = conn.execute(text("""
-            WITH matches AS (
+            WITH candidates AS (
+                SELECT filename, location_id FROM recordings WHERE filename = ANY(:names)
+                UNION ALL
+                SELECT legacy.filename, r.location_id
+                FROM recordings r
+                CROSS JOIN LATERAL (
+                    SELECT regexp_replace(replace(r.filename, chr(92), '/'), '^.*/', '') AS filename
+                ) legacy
+                WHERE (strpos(r.filename, '/') > 0 OR strpos(r.filename, chr(92)) > 0)
+                  AND legacy.filename = ANY(:names)
+            ), matches AS (
                 SELECT filename, min(location_id) AS location_id
-                FROM recordings
-                WHERE filename = ANY(:names)
+                FROM candidates
                 GROUP BY filename
                 HAVING count(DISTINCT location_id) = 1
             )

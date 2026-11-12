@@ -45,7 +45,11 @@
     }
 
     function key(segment) {
-        return segment.location_id + ':' + segment.recording_filename.toLowerCase();
+        return segment.location_id + ':' + basename(segment.recording_filename).toLowerCase();
+    }
+
+    function basename(filename) {
+        return filename.split(/[\\/]/).at(-1);
     }
 
     async function rebuild(root, lookup, missing, onProgress) {
@@ -61,17 +65,15 @@
             }
             const names = [];
             const children = [];
-            let refresh = false;
             let hasAudio = false;
             for await (const entry of dir.values()) {
                 if (entry.kind === 'directory') {
                     children.push(entry);
                 } else if (global.PamSegmentCutter.AUDIO_EXT.test(entry.name)) {
                     hasAudio = true;
-                    if (!saved) names.push(entry.name);
                     const wanted = missing?.get(entry.name.toLowerCase());
-                    if (saved && wanted?.some(id => !saved.locations.some(loc => loc.location_id === id))) {
-                        refresh = true;
+                    if (!saved || wanted?.some(id => !saved.locations.some(loc => loc.location_id === id))) {
+                        names.push(entry.name);
                     }
                     count++;
                 }
@@ -83,14 +85,7 @@
             }
             if (hasAudio) {
                 let locations = saved?.locations;
-                if (!saved || refresh) {
-                    if (refresh) {
-                        for await (const entry of dir.values()) {
-                            if (entry.kind === 'file' && global.PamSegmentCutter.AUDIO_EXT.test(entry.name)) {
-                                names.push(entry.name);
-                            }
-                        }
-                    }
+                if (names.length) {
                     const resolved = await lookup(names);
                     const byId = new Map();
                     // Different managers may only resolve their own locations.
@@ -139,10 +134,11 @@
         for (let i = 0; i < wanted.length; i += 16) {
             await Promise.all(wanted.slice(i, i + 16).map(async ([id, segment]) => {
                 let found = null;
+                const filename = basename(segment.recording_filename);
                 for (const path of byLocation.get(segment.location_id) || []) {
                     try {
                         const dir = await directory(path);
-                        const handle = await dir.getFileHandle(segment.recording_filename);
+                        const handle = await dir.getFileHandle(filename);
                         const file = await handle.getFile();
                         if (found) {
                             ambiguous++;
@@ -150,13 +146,17 @@
                         }
                         found = file;
                     } catch (error) {
+                        if (error.name === 'TypeError' && error.message.includes('Name is not allowed')) {
+                            missingCount++;
+                            return;
+                        }
                         if (!absent(error)) throw error;
                     }
                 }
                 if (found) {
                     files.set(id, found);
                 } else {
-                    const name = segment.recording_filename.toLowerCase();
+                    const name = filename.toLowerCase();
                     if (!missing.has(name)) missing.set(name, []);
                     missing.get(name).push(segment.location_id);
                     missingCount++;
@@ -169,7 +169,7 @@
     async function find(root, plan, lookup, onProgress) {
         const saved = await readMetadata(root, CATALOG, validCatalog);
         const cached = saved ? await match(root, saved.folders, plan) : null;
-        if (cached && !cached.missingCount) return cached;
+        if (cached && !cached.missing.size) return cached;
         const folders = await rebuild(root, lookup, cached?.missing, onProgress);
         return match(root, folders, plan);
     }
