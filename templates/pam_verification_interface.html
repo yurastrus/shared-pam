@@ -156,18 +156,21 @@
 
                     <!-- Verification buttons -->
                     <div class="verification-buttons">
-                        <button id="verify-yes" class="btn btn-success">
+                        <button id="verify-yes" class="btn btn-success" data-verdict="1">
                             <i class="fas fa-check"></i> {{ _('ТАК - правильно') }}
                         </button>
-                        <button id="verify-no" class="btn btn-danger">
+                        <button id="verify-no" class="btn btn-danger" data-verdict="0">
                             <i class="fas fa-times"></i> {{ _('НІ - неправильно') }}
                         </button>
                         <button id="verify-skip" class="btn btn-secondary">
                             <i class="fas fa-forward"></i> {{ _('Пропустити') }}
                         </button>
-                        <button id="verify-unknown" class="btn btn-warning">
+                        <button id="verify-unknown" class="btn btn-warning" data-verdict="2">
                             <i class="fas fa-question"></i> {{ _('Не знаю') }}
                         </button>
+                        <button type="button" class="btn btn-secondary verify-back" disabled
+                                title="{{ _('Повернутися до попередньої відповіді') }} (Shift+←)"
+                                aria-label="{{ _('Повернутися до попередньої відповіді') }}">&lt;</button>
                     </div>
 
                     <!-- Verification result message -->
@@ -180,6 +183,9 @@
         <div id="no-segment-message" class="no-segment-message" style="display: none;">
             <h4>{{ _('Сегменти для верифікації відсутні') }}</h4>
             <p>{{ _('Немає сегментів для верифікації за вибраними критеріями, або ви вже верифікували всі доступні сегменти.') }}</p>
+            <button type="button" class="btn btn-secondary verify-back" disabled>
+                {{ _('Повернутися до попередньої відповіді') }}
+            </button>
         </div>
 
         <!-- Loading spinner -->
@@ -202,6 +208,9 @@
 <script>
 $(document).ready(function() {
     let currentSegment = null;
+    let previousSubmission = null;
+    let editingSubmission = false;
+    let busy = false;
 
     // --- Spectrogram padding config (matched to matplotlib axes). ---
     const SPECTROGRAM_PADDING_LEFT_PERCENT = 12.0;
@@ -216,6 +225,8 @@ $(document).ready(function() {
     const speciesFilter = $('#species-filter');
     const institutionFilter = $('#institution-filter');
     const verificationMessage = $('#verification-message');
+    const backButtons = $('.verify-back');
+    const verdictButtons = $('[data-verdict]');
     const playbackLine = $('#playback-line');
     const spectrogramWrapper = document.querySelector('.spectrogram-wrapper');
 
@@ -351,12 +362,42 @@ $(document).ready(function() {
     loadNextSegment();
 
     // --- Event handlers ---
-    loadSegmentBtn.on('click', loadNextSegment);
+    loadSegmentBtn.on('click', () => loadNextSegment());
 
     $('#verify-yes').on('click', () => submitVerification(1));
     $('#verify-no').on('click', () => submitVerification(0));
     $('#verify-unknown').on('click', () => submitVerification(2)); // "don't know"
-    $('#verify-skip').on('click', () => loadNextSegment()); // submitVerification(null)
+    $('#verify-skip').on('click', () => loadNextSegment());
+    backButtons.on('click', reopenPreviousSubmission);
+    $(document).on('keydown', function(e) {
+        if (e.shiftKey && e.key === 'ArrowLeft' && !e.repeat &&
+            !$(e.target).closest('input, select, textarea, [contenteditable], audio').length &&
+            reopenPreviousSubmission()) {
+            e.preventDefault();
+        }
+    });
+
+    function setBusy(value) {
+        busy = value;
+        loadSegmentBtn.add(verdictButtons).add('#verify-skip').prop('disabled', busy);
+        backButtons.prop('disabled', busy || !previousSubmission || editingSubmission);
+    }
+
+    function reopenPreviousSubmission() {
+        if (busy || !previousSubmission || editingSubmission) return false;
+        editingSubmission = true;
+        currentSegment = previousSubmission.segment;
+        verdictButtons.each(function() {
+            const selected = Number(this.dataset.verdict) === previousSubmission.result;
+            $(this).toggleClass('active', selected).attr('aria-pressed', String(selected));
+        });
+        displaySegment(currentSegment);
+        noSegmentMessage.hide();
+        verificationInterface.show();
+        showVerificationMessage({{ _('Виправлення попередньої відповіді. Виберіть правильний варіант.') | tojson }}, 'success');
+        setBusy(false);
+        return true;
+    }
 
     // --- Loop / autoplay toggle -----------------------------------------
     // When checked, the segment plays on repeat (native loop) and each freshly
@@ -557,6 +598,10 @@ $(document).ready(function() {
      * Load the next segment from the server and refresh stats.
      */
     function loadNextSegment() {
+        if (busy) return;
+        editingSubmission = false;
+        verdictButtons.removeClass('active').removeAttr('aria-pressed');
+        setBusy(true);
         // Preserve scroll position: showLoading() hides the whole interface and
         // the page collapses, which throws the scroll to the top. On mobile this
         // meant scrolling back down after every ТАК/НІ/Пропустити. Capture now
@@ -602,7 +647,8 @@ $(document).ready(function() {
                     const error = xhr.responseJSON ? xhr.responseJSON.error : '{{ _("Помилка завантаження сегменту") }}';
                     alert(error);
                 }
-            }
+            },
+            complete: () => setBusy(false)
         });
     }
     
@@ -672,18 +718,20 @@ $(document).ready(function() {
      * @param {number|null} result - 1 (yes), 0 (no), 2 (don't know), null (skip).
      */
     function submitVerification(result) {
+        if (busy) return;
         if (!currentSegment) {
             showVerificationMessage('{{ _("Немає активного сегменту для верифікації") }}', 'error');
             return;
         }
         
-        $('.verification-buttons .btn').prop('disabled', true);
+        setBusy(true);
         
         const data = {
             segment_id: currentSegment.segment_id,
             verification_result: result,
             csrf_token: '{{ csrf_token() }}'
         };
+        if (editingSubmission) data.correction_token = previousSubmission.token;
         
         $.ajax({
             url: '{{ url_for("pam.api_submit_verification", lang_code=g.lang_code) }}',
@@ -691,6 +739,7 @@ $(document).ready(function() {
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': data.csrf_token },
             data: JSON.stringify(data),
             success: function(response) {
+                previousSubmission = {segment: currentSegment, result, token: response.correction_token};
                 let messageText = {
                     1: '{{ _("Верифікацію збережено! (Підтверджено)") }}',
                     0: '{{ _("Верифікацію збережено! (Відхилено)") }}',
@@ -703,14 +752,15 @@ $(document).ready(function() {
                 }
                 showVerificationMessage(msg, 'success');
 
-                setTimeout(loadNextSegment, 1500);
+                setTimeout(function() {
+                    setBusy(false);
+                    loadNextSegment();
+                }, 1500);
             },
             error: function(xhr) {
                 const error = xhr.responseJSON ? xhr.responseJSON.error : '{{ _("Помилка збереження") }}';
                 showVerificationMessage('{{ _("Помилка: ") }}' + error, 'error');
-            },
-            complete: function() {
-                $('.verification-buttons .btn').prop('disabled', false);
+                setBusy(false);
             }
         });
     }

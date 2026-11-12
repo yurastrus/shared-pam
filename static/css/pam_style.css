@@ -952,6 +952,13 @@ main .container:not(.maplistcontainer) {
     font-size: 14px;
     padding: 10px 16px;
 }
+.verification-container .verification-buttons .verify-back {
+    min-width: 0;
+}
+.verification-container .verification-buttons [aria-pressed="true"] {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}
 .verification-container .btn-success {
     background-color: var(--color-success);
     border-color: var(--color-success);
@@ -3036,6 +3043,9 @@ select.select2-hidden-accessible { width: 1px !important; }
         gap: 4px;
         padding: 10px 8px;
         line-height: 1.2;
+    }
+    .verification-container .verification-buttons .verify-back {
+        grid-column: 1 / -1;
     }
 
     /* Pagination: tighter buttons + smaller gap so more page numbers fit a row

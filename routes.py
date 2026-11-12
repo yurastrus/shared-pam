@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 from flask import render_template, request, jsonify, current_app, g, flash, redirect, url_for, send_from_directory, abort, Response, send_file
 from flask_login import login_required, current_user
+from itsdangerous import BadData, URLSafeTimedSerializer
 import traceback
 from sqlalchemy import text
 import os
@@ -17,6 +18,7 @@ from .pam_segment_sampling import (
 )
 from app.utils.decorators import role_required
 from . import pam_bp
+from .domain import _
 from . import access as pam_access
 from . import service_forecast
 from .utils import get_pam_db_connection, get_pam_engine, generate_spectrogram_image, get_occurrence_data, get_institution_filter, get_models_list, get_reference_model_id
@@ -1875,6 +1877,7 @@ def api_submit_verification(lang_code):
             
         segment_id = data.get('segment_id')
         verification_result = data.get('verification_result')  # 1=yes, 0=no, 2=unknown, None=skip
+        correction_token = data.get('correction_token')
 
         current_app.logger.info(f"Received verification: segment_id={segment_id}, result={verification_result}")
 
@@ -1887,18 +1890,33 @@ def api_submit_verification(lang_code):
                 'error': 'Результат верифікації має бути 0, 1, 2 або null'
             }), 400
         
+        signer = URLSafeTimedSerializer(current_app.secret_key, salt='pam-verification-correction')
+        correction_scope = [current_user.id, segment_id]
+        correcting = correction_token is not None
+        if correcting:
+            try:
+                valid_correction = (
+                    isinstance(correction_token, str)
+                    and signer.loads(correction_token, max_age=15 * 60) == correction_scope
+                )
+            except BadData:
+                valid_correction = False
+            if not valid_correction:
+                return jsonify({'success': False, 'error': _('Не вдалося відкрити відповідь для виправлення.')}), 409
+
         conn = get_pam_db_connection()
-        
-        # Check the segment exists.
+
+        # Serialize votes and status changes for the same segment.
         segment_check = conn.execute(
-            text("SELECT id, status FROM segments WHERE id = :segment_id"),
+            text("SELECT id, status FROM segments WHERE id = :segment_id FOR UPDATE"),
             {"segment_id": segment_id}
         ).fetchone()
         
         if not segment_check:
             return jsonify({'success': False, 'error': 'Сегмент не знайдено'}), 404
             
-        if segment_check[1] != 'pending':
+        status = segment_check[1]
+        if status != 'pending' and not (correcting and status in ('completed', 'discarded')):
             return jsonify({
                 'success': False,
                 'error': 'Сегмент вже не потребує верифікації'
@@ -1923,6 +1941,15 @@ def api_submit_verification(lang_code):
             "user_id": current_user.id
         }).fetchone()
         
+        if correcting and not existing:
+            return jsonify({'success': False, 'error': _('Не вдалося відкрити відповідь для виправлення.')}), 409
+
+        if correcting and status == 'discarded':
+            # The vote trigger preserves discarded status. Reopen it so the
+            # trigger and the unknown-vote rule can evaluate the corrected votes.
+            conn.execute(text("UPDATE segments SET status = 'pending' WHERE id = :segment_id"),
+                         {"segment_id": segment_id})
+
         if existing:
             # Update existing verification.
             conn.execute(text("""
@@ -1955,7 +1982,7 @@ def api_submit_verification(lang_code):
         # consensus, so this is the only place discard can happen.
         UNKNOWN_DISCARD_THRESHOLD = 3
         discarded = False
-        if verification_result == 2:
+        if verification_result == 2 or correcting:
             counts = conn.execute(text("""
                 SELECT COUNT(*) FILTER (WHERE verification_result = 2)        AS unknown_votes,
                        COUNT(*) FILTER (WHERE verification_result IN (0, 1))  AS meaningful_votes
@@ -1971,6 +1998,7 @@ def api_submit_verification(lang_code):
                 current_app.logger.info(
                     f"Segment {segment_id} discarded: {counts.unknown_votes} unknown votes, no yes/no")
 
+        next_correction_token = signer.dumps(correction_scope)
         conn.commit()
 
         current_app.logger.info(
@@ -1981,7 +2009,8 @@ def api_submit_verification(lang_code):
             'success': True,
             'message': 'Верифікацію збережено успішно',
             'action': action,
-            'discarded': discarded
+            'discarded': discarded,
+            'correction_token': next_correction_token
         })
         
     except Exception as e:

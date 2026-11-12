@@ -5103,3 +5103,17 @@ msgstr "RAI (detections per hour)"
 
 #~ msgid "Немає записів для прогнозу"
 #~ msgstr "No records for forecast"
+
+#: app/pam/routes.py:1905 app/pam/routes.py:1945
+msgid "Не вдалося відкрити відповідь для виправлення."
+msgstr "Could not reopen this answer for correction."
+
+#: app/pam/templates/pam_verification_interface.html:172
+#: app/pam/templates/pam_verification_interface.html:173
+#: app/pam/templates/pam_verification_interface.html:187
+msgid "Повернутися до попередньої відповіді"
+msgstr "Return to the previous answer"
+
+#: app/pam/templates/pam_verification_interface.html:397
+msgid "Виправлення попередньої відповіді. Виберіть правильний варіант."
+msgstr "Editing your previous answer. Choose the correct option."
