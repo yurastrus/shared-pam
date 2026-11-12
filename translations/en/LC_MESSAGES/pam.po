@@ -5013,14 +5013,19 @@ msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:169
 msgid ""
-"Наступні вибірки відкриватимуть потрібні файли в папках відповідних "
-"локацій. Якщо файл перемістили або додали до іншої папки, сторінка "
-"розширить пошук і оновить індекс. Зніміть галочку для звичайного вибору "
-"папки."
+"Наступні вибірки шукають файли в папках відповідних локацій. Якщо файлів "
+"бракує, можна завантажити знайдені сегменти або запустити пошук у всьому "
+"архіві, щоб знайти переміщені записи й оновити індекс. Зніміть галочку "
+"для звичайного вибору папки."
 msgstr ""
-"Later samples open the required files in the folders for their locations. If "
-"a file has moved or was added to a different folder, the page broadens the "
-"search and updates the index. Uncheck the box to use the regular folder picker."
+"Later samples look for files in the folders for their locations. If some "
+"files are missing, you can upload the segments already found or search the "
+"entire archive to find moved recordings and update the index. Uncheck the "
+"box to use the regular folder picker."
+
+#: app/pam/templates/pam_sample_upload.html:174
+msgid "Шукати в усьому архіві"
+msgstr "Search the entire archive"
 
 #: app/pam/templates/pam_sample_upload.html:171
 #: app/pam/templates/pam_sample_upload.html:172

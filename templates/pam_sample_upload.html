@@ -166,11 +166,12 @@
         <details class="su-help mb-2">
             <summary>{{ _('Як працює локальний індекс?') }}</summary>
             <p class="mb-1">{{ _('Після формування вибірки виберіть кореневу папку архіву й дозвольте браузеру запис у неї. Перший пошук звірить імена аудіофайлів із PAM і збереже location.json у папках із записами. Якщо процес перерветься, виберіть ту саму папку, щоб продовжити.') }}</p>
-            <p class="mb-0">{{ _('Наступні вибірки відкриватимуть потрібні файли в папках відповідних локацій. Якщо файл перемістили або додали до іншої папки, сторінка розширить пошук і оновить індекс. Зніміть галочку для звичайного вибору папки.') }}</p>
+            <p class="mb-0">{{ _('Наступні вибірки шукають файли в папках відповідних локацій. Якщо файлів бракує, можна завантажити знайдені сегменти або запустити пошук у всьому архіві, щоб знайти переміщені записи й оновити індекс. Зніміть галочку для звичайного вибору папки.') }}</p>
         </details>
         <button type="button" class="btn btn-sm btn-outline-secondary" id="su-index-folder" hidden>{{ _('Вибрати папку') }}</button>
         <input type="file" id="su-folder" webkitdirectory directory multiple class="form-control form-control-sm" aria-label="{{ _('Вибрати папку') }}">
         <div class="su-help mt-1" id="su-folder-info" role="status"></div>
+        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="su-search-archive" hidden>{{ _('Шукати в усьому архіві') }}</button>
     </div>
 
     <!-- STEP 5: run -->
@@ -193,7 +194,7 @@
 
 {# Browser-side WAV cutting + upload pool, shared with pam_segment_window.html. #}
 <script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=2"></script>
-<script src="{{ url_for('pam.serve_pam_static', filename='js/recording_index.js', lang_code=g.lang_code) }}?v=2"></script>
+<script src="{{ url_for('pam.serve_pam_static', filename='js/recording_index.js', lang_code=g.lang_code) }}?v=3"></script>
 <script>
 "use strict";
 (function () {
@@ -394,15 +395,17 @@
         $('su-index-folder').hidden = !enabled;
         $('su-folder').classList.toggle('d-none', enabled);
         $('su-folder').value = '';
+        $('su-search-archive').hidden = true;
         archiveRoot = null;
         fileMap = new Map();
         $('su-folder-info').textContent = PamRecordingIndex.supported ? '' : indexLabels.unsupported;
         refreshRunButton();
     }
 
-    async function matchIndexedFolder() {
-        fileMap = new Map();
+    async function matchIndexedFolder(searchArchive = false) {
+        if (!searchArchive) fileMap = new Map();
         const info = $('su-folder-info');
+        $('su-search-archive').hidden = true;
         if (!plannedSegments.length) {
             info.textContent = archiveRoot.name + ' · ' + indexLabels.prepareFirst;
             return;
@@ -411,8 +414,9 @@
         try {
             const matches = await PamRecordingIndex.find(archiveRoot, plannedSegments, lookupLocations, count => {
                 info.textContent = indexLabels.scanning + ' ' + count.toLocaleString();
-            });
+            }, { searchArchive });
             fileMap = matches.files;
+            $('su-search-archive').hidden = !matches.missing.size;
             info.textContent = [
                 archiveRoot.name,
                 indexLabels.found + ' ' + fileMap.size,
@@ -421,6 +425,7 @@
             ].join(' · ');
         } catch (error) {
             info.textContent = indexLabels.error + ' ' + error.message;
+            $('su-search-archive').hidden = !searchArchive;
         }
     }
 
@@ -457,6 +462,7 @@
         $('su-prepare').disabled = busy || !$('su-species').value;
         $('su-folder').disabled = busy;
         $('su-index-folder').disabled = busy;
+        $('su-search-archive').disabled = busy;
         $('su-use-index').disabled = busy || !PamRecordingIndex.supported;
         refreshRunButton();
     }
@@ -534,6 +540,14 @@
     $('su-prepare').addEventListener('click', prepareSample);
     $('su-folder').addEventListener('change', onFolderPicked);
     $('su-index-folder').addEventListener('click', pickIndexedFolder);
+    $('su-search-archive').addEventListener('click', async () => {
+        setBusy(true);
+        try {
+            await matchIndexedFolder(true);
+        } finally {
+            setBusy(false);
+        }
+    });
     $('su-use-index').addEventListener('change', updateFolderMode);
     $('su-run').addEventListener('click', runPipeline);
     $('su-use-index').checked = PamRecordingIndex.supported;

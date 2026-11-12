@@ -166,10 +166,10 @@
         return { files, missing, missingCount, ambiguous };
     }
 
-    async function find(root, plan, lookup, onProgress) {
+    async function find(root, plan, lookup, onProgress, searchArchive) {
         const saved = await readMetadata(root, CATALOG, validCatalog);
         const cached = saved ? await match(root, saved.folders, plan) : null;
-        if (cached && !cached.missing.size) return cached;
+        if (cached && (!searchArchive || !cached.missing.size)) return cached;
         const folders = await rebuild(root, lookup, cached?.missing, onProgress);
         return match(root, folders, plan);
     }
@@ -177,10 +177,11 @@
     global.PamRecordingIndex = {
         supported: typeof global.showDirectoryPicker === 'function',
         key,
-        find(root, plan, lookup, onProgress) {
+        find(root, plan, lookup, onProgress, { searchArchive = false } = {}) {
+            const run = () => find(root, plan, lookup, onProgress, searchArchive);
             return navigator.locks
-                ? navigator.locks.request('pam-location-folders', () => find(root, plan, lookup, onProgress))
-                : find(root, plan, lookup, onProgress);
+                ? navigator.locks.request('pam-location-folders', run)
+                : run();
         }
     };
 })(window);
