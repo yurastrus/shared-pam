@@ -655,6 +655,7 @@ def verification_priorities(lang_code):
     """
     g.lang_code = lang_code
     VERIFIED_THRESHOLD = 250  # verified-segment count for the green (done) flag
+    CUT_SEGMENT_THRESHOLD = 50
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -714,11 +715,12 @@ def verification_priorities(lang_code):
 
         is_admin = pam_access.is_admin(current_user)
         managed_ids = [] if is_admin else pam_access.manage_institution_ids(current_user)
-        detection_only_ids = [
-            r.species_id for r in rows if not r.total_segments and r.detection_count
+        cut_candidate_ids = [
+            r.species_id for r in rows
+            if r.total_segments < CUT_SEGMENT_THRESHOLD and r.detection_count
         ]
-        cuttable_ids = set(detection_only_ids) if is_admin else set()
-        if managed_ids and detection_only_ids:
+        cuttable_ids = set(cut_candidate_ids) if is_admin else set()
+        if managed_ids and cut_candidate_ids:
             cuttable_ids = set(conn.execute(text("""
                 SELECT s.species_id
                 FROM species s
@@ -733,7 +735,7 @@ def verification_priorities(lang_code):
                         AND li.institution_id = ANY(:managed_ids)
                   )
             """), {
-                'species_ids': detection_only_ids,
+                'species_ids': cut_candidate_ids,
                 'managed_ids': managed_ids,
                 'roles': [role.name for role in current_user.roles],
             }).scalars().all())
