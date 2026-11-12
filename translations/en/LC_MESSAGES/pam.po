@@ -4991,6 +4991,74 @@ msgstr "Relative activity index (RAI)"
 msgid "RAI (детекцій на годину)"
 msgstr "RAI (detections per hour)"
 
+#: app/pam/templates/pam_sample_upload.html:164
+msgid "Використати або побудувати локальний індекс"
+msgstr "Use or build a local index"
+
+#: app/pam/templates/pam_sample_upload.html:167
+msgid "Як працює локальний індекс?"
+msgstr "How does the local index work?"
+
+#: app/pam/templates/pam_sample_upload.html:168
+msgid ""
+"Після формування вибірки виберіть кореневу папку архіву й дозвольте "
+"браузеру запис у неї. Перший пошук звірить імена аудіофайлів із PAM і "
+"збереже location.json у папках із записами. Якщо процес перерветься, "
+"виберіть ту саму папку, щоб продовжити."
+msgstr ""
+"After preparing the sample, select the archive root and grant the browser "
+"write access. The first search matches audio filenames against PAM and saves "
+"location.json in folders containing recordings. If the process is interrupted, "
+"select the same folder to resume."
+
+#: app/pam/templates/pam_sample_upload.html:169
+msgid ""
+"Наступні вибірки відкриватимуть потрібні файли в папках відповідних "
+"локацій. Якщо файл перемістили або додали до іншої папки, сторінка "
+"розширить пошук і оновить індекс. Зніміть галочку для звичайного вибору "
+"папки."
+msgstr ""
+"Later samples open the required files in the folders for their locations. If "
+"a file has moved or was added to a different folder, the page broadens the "
+"search and updates the index. Uncheck the box to use the regular folder picker."
+
+#: app/pam/templates/pam_sample_upload.html:171
+#: app/pam/templates/pam_sample_upload.html:172
+msgid "Вибрати папку"
+msgstr "Select folder"
+
+#: app/pam/templates/pam_sample_upload.html:382
+msgid "Локальний індекс недоступний у цьому браузері."
+msgstr "The local index is unavailable in this browser."
+
+#: app/pam/templates/pam_sample_upload.html:383
+msgid "Пошук записів у локальному індексі…"
+msgstr "Looking up recordings in the local index…"
+
+#: app/pam/templates/pam_sample_upload.html:384
+msgid "Переглянуто аудіофайлів:"
+msgstr "Audio files scanned:"
+
+#: app/pam/templates/pam_sample_upload.html:385
+msgid "Знайдено записів:"
+msgstr "Recordings found:"
+
+#: app/pam/templates/pam_sample_upload.html:386
+msgid "Відсутні записи:"
+msgstr "Recordings missing:"
+
+#: app/pam/templates/pam_sample_upload.html:387
+msgid "Неоднозначні назви записів:"
+msgstr "Ambiguous recording names:"
+
+#: app/pam/templates/pam_sample_upload.html:388
+msgid "Сформуйте вибірку, щоб знайти потрібні записи."
+msgstr "Prepare the sample to find its recordings."
+
+#: app/pam/templates/pam_sample_upload.html:389
+msgid "Помилка локального індексу:"
+msgstr "Local index error:"
+
 #~ msgid "Алгоритм класифікації"
 #~ msgstr ""
 

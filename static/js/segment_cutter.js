@@ -150,7 +150,9 @@ async function cutByDecode(file, startSec, durSec) {
     // owns both the counters and the wording of its log.
     //   'saved' | 'duplicate' | 'nofile' | 'error'
     async function uploadOne(seg, opts) {
-        const file = opts.fileMap.get((seg.recording_filename || '').toLowerCase());
+        const file = opts.fileForSegment
+            ? opts.fileForSegment(seg)
+            : opts.fileMap.get((seg.recording_filename || '').toLowerCase());
         if (!file) return { status: 'nofile' };
         try {
             const blob = await cut(file, seg, opts.duration, opts.shift);

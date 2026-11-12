@@ -152,6 +152,7 @@ def build_sampling_query(n_strata, conf_column='confidence',
                    d.species_id,
                    r.filename       AS rec_filename,
                    r.datetime_start,
+                   r.location_id,
                    l.location_name,
                    d.start_s,
                    d.end_s,
@@ -178,7 +179,7 @@ def build_sampling_query(n_strata, conf_column='confidence',
             FROM candidates
         )
         SELECT detection_id, recording_id, species_id, rec_filename,
-               datetime_start, location_name, start_s, end_s, confidence
+               datetime_start, location_id, location_name, start_s, end_s, confidence
         FROM ranked
         WHERE rn <= :per_stratum
         ORDER BY confidence
@@ -308,6 +309,7 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
             'species_id': int(row['species_id']),
             'model_id': int(model_id) if model_id is not None else None,
             'recording_filename': rec_filename,
+            'location_id': row.get('location_id'),
             'segment_filename': seg_filename,
             'location_name': _location_token(rec_filename, row['location_name']),
             'start_s': float(start_s) if start_s is not None else None,

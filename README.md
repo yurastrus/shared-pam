@@ -478,6 +478,23 @@ own labels and counts its own stats through `onResult`. A test asserts the
 sampler template no longer defines `encodeWav` / `cutWavByBytes`, so the two
 cannot drift back apart.
 
+### Local folders for the sample uploader
+
+The sample uploader can resolve exact recording filenames through a folder
+catalog. On the first run, the browser sends basenames in batches to the PAM
+recording-locations endpoint and atomically saves a `location.json` marker in
+each folder containing audio. Mixed folders list every resolved location.
+Finished leaf folders, including those with zero matches, can be skipped when
+resuming an interrupted build. The small root catalog
+`.pam-location-folders-v1.json` is saved after the traversal completes.
+
+Subsequent samples look up files directly by name in the folders for their
+location IDs. A missing file triggers a new directory traversal and updates
+the catalog and relevant markers. Source audio stays on the user's device
+until the existing cutter uploads the selected clips. The mode requires a
+browser that supports the local directory picker and write access to the
+archive. Unchecking the index option uses the regular folder input.
+
 ### Export
 
 `GET /api/pam/cooccurrence/export` returns a ZIP with the same two tables the

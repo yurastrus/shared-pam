@@ -5372,6 +5372,44 @@ def api_sample_plan_window(lang_code):
         if conn:
             conn.close()
 
+@pam_bp.route('/<lang_code>/api/pam/sample/recording-locations', methods=['POST'])
+@_pam_manager_required
+def api_sample_recording_locations(lang_code):
+    """Resolve local basenames to an unambiguous PAM location in bounded batches."""
+    body = request.get_json(silent=True)
+    names = body.get('filenames') if isinstance(body, dict) else None
+    if not isinstance(names, list) or not 1 <= len(names) <= 1000 or any(
+            not isinstance(name, str) or not 1 <= len(name) <= 255
+            or any(char in name for char in ('/', '\\', '\x00')) for name in names):
+        return jsonify({'error': 'Invalid filenames'}), 400
+
+    conn = get_pam_db_connection()
+    try:
+        admin = pam_access.is_admin(current_user)
+        managed = [] if admin else _sample_managed_location_ids(conn)
+        rows = conn.execute(text("""
+            WITH matches AS (
+                SELECT filename, min(location_id) AS location_id
+                FROM recordings
+                WHERE filename = ANY(:names)
+                GROUP BY filename
+                HAVING count(DISTINCT location_id) = 1
+            )
+            SELECT m.filename, l.location_id, l.lat, l.lon
+            FROM matches m JOIN locations l ON l.location_id = m.location_id
+            WHERE (:admin OR l.location_id = ANY(:managed))
+        """), {'names': list(set(names)), 'admin': admin, 'managed': managed}).mappings()
+        return jsonify({'locations': {
+            row['filename']: {
+                'location_id': row['location_id'],
+                'lat': float(row['lat']) if row['lat'] is not None else None,
+                'lon': float(row['lon']) if row['lon'] is not None else None,
+            } for row in rows
+        }})
+    finally:
+        conn.close()
+
+
 @pam_bp.route('/<lang_code>/api/pam/sample/prepare', methods=['POST'])
 @_pam_manager_required
 def api_sample_prepare(lang_code):

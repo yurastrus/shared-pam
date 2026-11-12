@@ -159,8 +159,18 @@
     <!-- STEP 4: local folder -->
     <div class="su-card">
         <div class="su-title"><span class="su-step-num">4</span>{{ _('Локальна папка із записами') }}</div>
-        <input type="file" id="su-folder" webkitdirectory directory multiple class="form-control form-control-sm">
-        <div class="su-help mt-1" id="su-folder-info"></div>
+        <div class="form-check mb-2">
+            <input type="checkbox" class="form-check-input" id="su-use-index" checked>
+            <label class="form-check-label" for="su-use-index">{{ _('Використати або побудувати локальний індекс') }}</label>
+        </div>
+        <details class="su-help mb-2">
+            <summary>{{ _('Як працює локальний індекс?') }}</summary>
+            <p class="mb-1">{{ _('Після формування вибірки виберіть кореневу папку архіву й дозвольте браузеру запис у неї. Перший пошук звірить імена аудіофайлів із PAM і збереже location.json у папках із записами. Якщо процес перерветься, виберіть ту саму папку, щоб продовжити.') }}</p>
+            <p class="mb-0">{{ _('Наступні вибірки відкриватимуть потрібні файли в папках відповідних локацій. Якщо файл перемістили або додали до іншої папки, сторінка розширить пошук і оновить індекс. Зніміть галочку для звичайного вибору папки.') }}</p>
+        </details>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="su-index-folder" hidden>{{ _('Вибрати папку') }}</button>
+        <input type="file" id="su-folder" webkitdirectory directory multiple class="form-control form-control-sm" aria-label="{{ _('Вибрати папку') }}">
+        <div class="su-help mt-1" id="su-folder-info" role="status"></div>
     </div>
 
     <!-- STEP 5: run -->
@@ -182,7 +192,8 @@
 </div>
 
 {# Browser-side WAV cutting + upload pool, shared with pam_segment_window.html. #}
-<script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=1"></script>
+<script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=2"></script>
+<script src="{{ url_for('pam.serve_pam_static', filename='js/recording_index.js', lang_code=g.lang_code) }}?v=1"></script>
 <script>
 "use strict";
 (function () {
@@ -193,12 +204,15 @@
     const URL_SPECIES  = "{{ url_for('pam.api_sample_species',  lang_code=g.lang_code) }}";
     const URL_PREPARE  = "{{ url_for('pam.api_sample_prepare',  lang_code=g.lang_code) }}";
     const URL_UPLOAD   = "{{ url_for('pam.api_sample_upload_segment', lang_code=g.lang_code) }}";
+    const URL_RECORDING_LOCATIONS = {{ url_for('pam.api_sample_recording_locations', lang_code=g.lang_code) | tojson }};
     const CONCURRENCY  = 4;               // parallel uploads, mirrors fast-upload
 
     // ── state ─────────────────────────────────────────────────────────────
     let plannedSegments = [];             // from /prepare
     let exactPeriod = null;               // {from, to} from the species dashboard
     let fileMap = new Map();              // basename(lower) -> File
+    let archiveRoot = null;
+    let busy = false;
 
     const $ = (id) => document.getElementById(id);
     function log(msg) {
@@ -275,7 +289,7 @@
         spSel.disabled = speciesList.length === 0;
         $('su-species-count').textContent =
             "{{ _('Видів:') }} " + filtered.length + " / " + speciesList.length;
-        $('su-prepare').disabled = !spSel.value;
+        $('su-prepare').disabled = busy || !spSel.value;
     }
 
     // ── STEP 3: prepare stratified sample ───────────────────────────────────
@@ -306,12 +320,13 @@
     }
 
     async function prepareSample() {
+        if (busy) return;
         const species = $('su-species').value;
         const ids = selectedLocationIds();
         if (!species || !ids.length) { return; }
         const problem = validateParams();
         if (problem) { $('su-prepare-info').textContent = problem; return; }
-        $('su-prepare').disabled = true;
+        setBusy(true);
         $('su-prepare-info').textContent = "{{ _('Формування вибірки...') }}";
         const body = {
             species_name: species,
@@ -347,11 +362,11 @@
             $('su-prepare-info').textContent =
                 "{{ _('Відібрано детекцій:') }} " + plannedSegments.length;
             log("{{ _('Відібрано детекцій:') }} " + plannedSegments.length);
-            refreshRunButton();
+            if (archiveRoot) await matchIndexedFolder();
         } catch (e) {
             $('su-prepare-info').textContent = "{{ _('Помилка:') }} " + e.message;
         } finally {
-            $('su-prepare').disabled = false;
+            setBusy(false);
         }
     }
 
@@ -363,8 +378,91 @@
         refreshRunButton();
     }
 
+    const indexLabels = {
+        unsupported: {{ _('Локальний індекс недоступний у цьому браузері.') | tojson }},
+        checking: {{ _('Пошук записів у локальному індексі…') | tojson }},
+        scanning: {{ _('Переглянуто аудіофайлів:') | tojson }},
+        found: {{ _('Знайдено записів:') | tojson }},
+        missing: {{ _('Відсутні записи:') | tojson }},
+        ambiguous: {{ _('Неоднозначні назви записів:') | tojson }},
+        prepareFirst: {{ _('Сформуйте вибірку, щоб знайти потрібні записи.') | tojson }},
+        error: {{ _('Помилка локального індексу:') | tojson }}
+    };
+
+    function updateFolderMode() {
+        const enabled = $('su-use-index').checked;
+        $('su-index-folder').hidden = !enabled;
+        $('su-folder').classList.toggle('d-none', enabled);
+        $('su-folder').value = '';
+        archiveRoot = null;
+        fileMap = new Map();
+        $('su-folder-info').textContent = PamRecordingIndex.supported ? '' : indexLabels.unsupported;
+        refreshRunButton();
+    }
+
+    async function matchIndexedFolder() {
+        fileMap = new Map();
+        const info = $('su-folder-info');
+        if (!plannedSegments.length) {
+            info.textContent = archiveRoot.name + ' · ' + indexLabels.prepareFirst;
+            return;
+        }
+        info.textContent = indexLabels.checking;
+        try {
+            const matches = await PamRecordingIndex.find(archiveRoot, plannedSegments, lookupLocations, count => {
+                info.textContent = indexLabels.scanning + ' ' + count.toLocaleString();
+            });
+            fileMap = matches.files;
+            info.textContent = [
+                archiveRoot.name,
+                indexLabels.found + ' ' + fileMap.size,
+                indexLabels.missing + ' ' + matches.missingCount,
+                indexLabels.ambiguous + ' ' + matches.ambiguous
+            ].join(' · ');
+        } catch (error) {
+            info.textContent = indexLabels.error + ' ' + error.message;
+        }
+    }
+
+    async function lookupLocations(filenames) {
+        const locations = Object.create(null);
+        for (let i = 0; i < filenames.length; i += 1000) {
+            const response = await fetch(URL_RECORDING_LOCATIONS, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({ filenames: filenames.slice(i, i + 1000) })
+            });
+            if (!response.ok) throw new Error(response.status);
+            Object.assign(locations, (await response.json()).locations);
+        }
+        return locations;
+    }
+
+    async function pickIndexedFolder() {
+        setBusy(true);
+        try {
+            archiveRoot = await window.showDirectoryPicker({ id: 'pam-recordings', mode: 'readwrite' });
+            await matchIndexedFolder();
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                $('su-folder-info').textContent = indexLabels.error + ' ' + error.message;
+            }
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    function setBusy(value) {
+        busy = value;
+        $('su-prepare').disabled = busy || !$('su-species').value;
+        $('su-folder').disabled = busy;
+        $('su-index-folder').disabled = busy;
+        $('su-use-index').disabled = busy || !PamRecordingIndex.supported;
+        refreshRunButton();
+    }
+
     function refreshRunButton() {
-        $('su-run').disabled = !(plannedSegments.length && fileMap.size);
+        $('su-run').disabled = busy || !(plannedSegments.length && fileMap.size);
     }
 
     // ── STEP 5: run pipeline (cut → upload) with a small concurrency pool ────
@@ -385,6 +483,7 @@
         return {
             plan: plannedSegments,
             fileMap: fileMap,
+            fileForSegment: archiveRoot ? seg => fileMap.get(PamRecordingIndex.key(seg)) : null,
             uploadUrl: URL_UPLOAD,
             csrf: CSRF,
             duration: parseFloat($('su-duration').value) || 5,
@@ -408,20 +507,21 @@
     }
 
     async function runPipeline() {
-        $('su-run').disabled = true;
-        $('su-prepare').disabled = true;
+        setBusy(true);
         Object.keys(stats).forEach(k => stats[k] = 0);
         refreshStats();
         log("{{ _('Старт нарізки та завантаження...') }}");
 
-        await PamSegmentCutter.run(cutterOptions());
+        try {
+            await PamSegmentCutter.run(cutterOptions());
+        } finally {
+            setBusy(false);
+        }
         log("{{ _('Готово.') }} " +
             "{{ _('Завантажено:') }} " + stats.saved +
             ", {{ _('дублікати:') }} " + stats.dup +
             ", {{ _('без файлу:') }} " + stats.nofile +
             ", {{ _('помилки:') }} " + stats.err);
-        $('su-run').disabled = false;
-        $('su-prepare').disabled = false;
     }
 
     // ── wire up ─────────────────────────────────────────────────────────────
@@ -429,11 +529,16 @@
     $('su-locations').addEventListener('change', onLocationsChanged);
     $('su-species-search').addEventListener('input', renderSpecies);
     $('su-species').addEventListener('change', () => {
-        $('su-prepare').disabled = !$('su-species').value;
+        $('su-prepare').disabled = busy || !$('su-species').value;
     });
     $('su-prepare').addEventListener('click', prepareSample);
     $('su-folder').addEventListener('change', onFolderPicked);
+    $('su-index-folder').addEventListener('click', pickIndexedFolder);
+    $('su-use-index').addEventListener('change', updateFolderMode);
     $('su-run').addEventListener('click', runPipeline);
+    $('su-use-index').checked = PamRecordingIndex.supported;
+    updateFolderMode();
+    setBusy(false);
 
     // ── exact period from the species dashboard ─────────────────────────────
     // Month + year cannot say "3 Nov 2025 - 3 Nov 2026", so the dashboard sends
