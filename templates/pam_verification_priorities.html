@@ -45,7 +45,9 @@
                         <td>{{ row.family_name }}</td>
                         <td>{{ row.genus_name }}</td>
                         <td class="species-cell">
-                            {% if row.common_name %}<span class="species-common">{{ row.common_name }}</span> {% endif %}<span class="species-sci"><em>{{ row.scientific_name }}</em></span>
+                            <span{% if row.is_redbook %} class="sp-redbook"{% endif %}>
+                                {% if row.common_name %}<span class="species-common">{{ row.common_name }}</span> {% endif %}<span class="species-sci"><em>{{ row.scientific_name }}</em></span>
+                            </span>
                         </td>
                         <td data-sort="{{ row.total_segments }}">{{ row.total_segments }}</td>
                         <td data-sort="{{ row.detection_count }}">{{ row.detection_count }}</td>

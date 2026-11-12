@@ -2819,6 +2819,7 @@ main .container:not(.maplistcontainer) {
     background-color: hsl(var(--priority-hue) 62% 49% / 0.25);
 }
 .priorities-table .species-common { font-weight: 600; }
+body.dark-theme .priorities-table .sp-redbook { color: #ff8b96; }
 /* Keep the verify column off the numeric right-align rule and always fully
    visible (never clipped by the table edge). */
 .priorities-table th:last-child,
