@@ -30,7 +30,7 @@
                         <th data-type="num">{{ _('Детекцій') }}</th>
                         <th data-type="num">{{ _('Верифіковано') }}</th>
                         <th data-type="num">{{ _('Консенсус') }}</th>
-                        {% if is_verifier %}<th data-type="text">{{ _('Дія') }}</th>{% endif %}
+                        {% if show_actions %}<th data-type="text">{{ _('Дія') }}</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -55,12 +55,17 @@
                         <td data-sort="{{ row.detection_count }}">{{ row.detection_count }}</td>
                         <td data-sort="{{ row.verified_segments }}">{{ row.verified_segments }}</td>
                         <td data-sort="{{ row.consensus_segments }}">{{ row.consensus_segments }}</td>
-                        {% if is_verifier %}
+                        {% if show_actions %}
                         <td class="action-cell">
                             {% if row.pending_for_user > 0 %}
                             <a class="btn btn-sm btn-primary verify-link"
                                href="{{ url_for('pam.verification_interface', lang_code=g.lang_code, species_id=row.species_id) }}">
                                 {{ _('Верифікувати') }} ({{ row.pending_for_user }})
+                            </a>
+                            {% elif row.can_cut_segments %}
+                            <a class="btn btn-sm btn-primary"
+                               href="{{ url_for('pam.sample_upload', lang_code=g.lang_code, source='priorities', species=row.scientific_name) }}">
+                                {{ _('Нарізати сегменти') }}
                             </a>
                             {% endif %}
                         </td>

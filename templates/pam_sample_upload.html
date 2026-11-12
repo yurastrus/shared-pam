@@ -452,19 +452,24 @@
     $('su-date-range-clear').addEventListener('click', () => setExactPeriod(null));
 
     // ── prefill from a deep link ────────────────────────────────────────────
-    // Two pages link here:
+    // Supported links:
     //  * the co-occurrence map, when a point has nothing left to verify:
     //    ?location_ids=&species=&year_start=&year_end=&month_start=&month_end=&conf=
     //  * the species dashboard (source=detailed), with the subset on screen:
     //    ?location_ids=&species=&conf=&model_id=&date_from=&date_to=&source=detailed
-    // Every parameter is optional, so a link of either kind keeps working.
+    //  * verification priorities (source=priorities), with all allowed locations
+    //    and the form's default period, confidence bounds and sample size.
     // The chain is institution -> locations -> species (the species list is
     // server-side per location), so each step has to wait for the previous one;
     // hence the await rather than setting five fields in a row.
     async function applyPrefill() {
         const q = new URLSearchParams(window.location.search);
-        const wanted = (q.get('location_ids') || '').split(',')
-                        .map(v => parseInt(v, 10)).filter(v => !isNaN(v));
+        const source = q.get('source');
+        const fromPriorities = source === 'priorities';
+        const wanted = fromPriorities
+            ? LOCATIONS.map(l => l.location_id)
+            : (q.get('location_ids') || '').split(',')
+                .map(v => parseInt(v, 10)).filter(v => !isNaN(v));
         ['year_start', 'year_end', 'month_start', 'month_end', 'conf', 'conf_max'].forEach(k => {
             const v = q.get(k);
             const el = $('su-' + k.replace('_', '-'));
@@ -514,8 +519,8 @@
             }
         }
         const banner = $('su-prefill-banner');
-        if (banner) {
-            banner.textContent = q.get('source') === 'detailed'
+        if (banner && !fromPriorities) {
+            banner.textContent = source === 'detailed'
                 ? "{{ _('Параметри підставлено з детального аналізу виду. Перевірте їх, натисніть «Сформувати вибірку» і виберіть папку із записами.') }}"
                 : "{{ _('Параметри підставлено з карти одночасних детекцій. Перевірте діапазони й натисніть «Підготувати вибірку».') }}";
             banner.style.display = '';

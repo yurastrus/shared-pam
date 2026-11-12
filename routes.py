@@ -712,6 +712,32 @@ def verification_priorities(lang_code):
             """), params).fetchall()
             pending_by_species = {pr.species_id: int(pr.remaining or 0) for pr in pending_rows}
 
+        is_admin = pam_access.is_admin(current_user)
+        managed_ids = [] if is_admin else pam_access.manage_institution_ids(current_user)
+        detection_only_ids = [
+            r.species_id for r in rows if not r.total_segments and r.detection_count
+        ]
+        cuttable_ids = set(detection_only_ids) if is_admin else set()
+        if managed_ids and detection_only_ids:
+            cuttable_ids = set(conn.execute(text("""
+                SELECT s.species_id
+                FROM species s
+                WHERE s.species_id = ANY(:species_ids)
+                  AND (s.required_role IS NULL OR s.required_role = ANY(:roles))
+                  AND EXISTS (
+                      SELECT 1
+                      FROM detections d
+                      JOIN recordings r ON r.recording_id = d.recording_id
+                      JOIN location_institutions li ON li.location_id = r.location_id
+                      WHERE d.species_id = s.species_id
+                        AND li.institution_id = ANY(:managed_ids)
+                  )
+            """), {
+                'species_ids': detection_only_ids,
+                'managed_ids': managed_ids,
+                'roles': [role.name for role in current_user.roles],
+            }).scalars().all())
+
         species_rows = []
         for r in rows:
             if lang_code == 'en' and r.common_name_en:
@@ -733,6 +759,7 @@ def verification_priorities(lang_code):
                 'verified_segments': int(r.verified_segments or 0),
                 'consensus_segments': int(r.consensus_segments or 0),
                 'pending_for_user': pending_by_species.get(r.species_id, 0),
+                'can_cut_segments': r.species_id in cuttable_ids,
             })
 
         # Default order: status first (actionable species that HAVE segments but
@@ -754,7 +781,7 @@ def verification_priorities(lang_code):
         return render_template('pam_verification_priorities.html',
                                species_rows=species_rows,
                                verified_threshold=VERIFIED_THRESHOLD,
-                               is_verifier=is_verifier)
+                               show_actions=is_verifier or bool(cuttable_ids))
     except Exception as e:
         current_app.logger.error(f"Error loading verification priorities: {e}")
         current_app.logger.error(traceback.format_exc())
