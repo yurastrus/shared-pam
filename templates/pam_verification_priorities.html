@@ -64,7 +64,7 @@
                             </a>
                             {% endif %}
                             {% if row.can_cut_segments %}
-                            <a class="btn btn-sm btn-primary"
+                            <a class="btn btn-sm btn-success"
                                href="{{ url_for('pam.sample_upload', lang_code=g.lang_code, source='priorities', species=row.scientific_name) }}">
                                 {{ _('Нарізати сегменти') }}
                             </a>
