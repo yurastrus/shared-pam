@@ -2813,14 +2813,17 @@ def manage_pam_locations(lang_code):
         conn = get_pam_db_connection()
         is_admin = current_user.has_role('admin')
 
-        # 1. Fetch ALL institutions from the main DB. The page lists what the
-        # user can see (verifiers use it read-only); only institutions they
-        # manage are offered in the edit form (since 2026-10-27).
+        # 1. Fetch institutions from the main DB. A manager sees only the
+        # institutions they manage (since 2026-11-13); a plain verifier sees
+        # what they can see, read-only. Only managed institutions are offered
+        # in the edit form (since 2026-10-27).
+        managed_ids = set(pam_access.manage_institution_ids(current_user))
         if is_admin:
             all_inst_objects = Institution.query.order_by(Institution.name_uk).all()
+        elif current_user.has_role('manager'):
+            all_inst_objects = pam_access.manage_institutions(current_user)
         else:
             all_inst_objects = pam_access.allowed_institutions(current_user)
-        managed_ids = set(pam_access.manage_institution_ids(current_user))
         
         # Institution bilingual names: build a name map for the current language.
         if lang_code == 'uk':
@@ -2873,9 +2876,9 @@ def manage_pam_locations(lang_code):
         for lid, loc in locations_dict.items():
             loc['biotope_ids'] = loc_biotope_map.get(lid, [])
 
-        # 4. Filter to what the user can see; mark what they may edit (a
+        # 4. Filter to the page's institutions; mark what they may edit (a
         # location of an institution they manage, since 2026-10-27).
-        user_inst_ids = pam_access.allowed_institution_ids(current_user)
+        user_inst_ids = _location_page_institution_ids(current_user)
         if is_admin:
             final_locations = list(locations_dict.values())
         else:
@@ -4110,7 +4113,7 @@ def api_get_pam_locations_with_status(lang_code):
     g.lang_code = lang_code
 
     is_admin = current_user.has_role('admin')
-    user_inst_ids = pam_access.allowed_institution_ids(current_user)
+    user_inst_ids = _location_page_institution_ids(current_user)
     selected_inst_id = request.args.get('institution_id', '')
     selected_loc_id = request.args.get('location_id', '')
 
@@ -4242,10 +4245,10 @@ def api_get_pam_service_history(lang_code, location_id):
     conn = None
     try:
         conn = get_pam_db_connection()
-        # Access check: admin or a user whose institution is linked to the
-        # location. Read-only, so seeing the location is enough.
+        # Access check: admin or a user whose page institutions include the
+        # location (managed ones for a manager, visible ones for a verifier).
         if not current_user.has_role('admin'):
-            user_inst_ids = pam_access.allowed_institution_ids(current_user)
+            user_inst_ids = _location_page_institution_ids(current_user)
             if not user_inst_ids:
                 return jsonify({'error': 'Доступ заборонено'}), 403
             has_access = conn.execute(text("""
@@ -4364,6 +4367,19 @@ def _parse_service_visit(data):
         'is_operational': True if is_operational_str == 'true' else False if is_operational_str == 'false' else None,
         'comments': (data.get('comments') or '').strip() or None,
     }
+
+
+def _location_page_institution_ids(user):
+    """Institutions whose recorders ``user`` sees on manage-locations.
+
+    A holder of the ``manager`` role sees only the institutions they manage
+    (since 2026-11-13: a manager must not see recorders of parks they only
+    verify for). A plain verifier keeps the read-only view of what they can
+    see. Admins are handled by the callers (they see everything).
+    """
+    if user.has_role('manager'):
+        return pam_access.manage_institution_ids(user)
+    return pam_access.allowed_institution_ids(user)
 
 
 def _user_can_edit_pam_location(conn, location_id):

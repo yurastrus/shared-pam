@@ -592,6 +592,11 @@ import ask `access.manage_institution_ids` / `_user_can_edit_pam_location`, not
 `allowed_institution_ids` ("can see"). A host without the method falls back to
 the old meaning. Segment ZIP upload and evaluation recalculation stay global.
 
+Since 2026-11-13 a holder of the `manager` role sees on manage-locations (map,
+service-mode markers, service history) only locations of institutions they
+manage, not every location they can see (`_location_page_institution_ids`).
+A plain `pam_verifier` keeps the read-only view of what they can see.
+
 ---
 
 ## Integration
