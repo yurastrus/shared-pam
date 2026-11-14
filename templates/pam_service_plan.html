@@ -114,7 +114,7 @@
     };
     const ATTENTION = ['warning', 'critical', 'overdue', 'stopped'];
     const ACTIVE = ['ok'].concat(ATTENTION);
-    const byId = new Map(ITEMS.map(it => [it.id, it]));
+    const byId = new Map(ITEMS.map(it => [it.key, it]));
 
     // One selection drives both the list and the map.
     const selected = new Set();
@@ -143,8 +143,8 @@
     ITEMS.forEach(it => {
         const m = L.circleMarker([it.latitude, it.longitude], markerStyle(it, false));
         m.bindTooltip(esc(it.name), { direction: 'top', offset: [0, -8] });
-        m.on('click', () => toggle(it.id, 'map'));
-        markers[it.id] = m;
+        m.on('click', () => toggle(it.key, 'map'));
+        markers[it.key] = m;
     });
     let hereMarker = null;
 
@@ -205,7 +205,7 @@
         const dist = distanceText(it);
         return `
             <div class="svp-card-head">
-                <input type="checkbox" class="svp-card-check" ${selected.has(it.id) ? 'checked' : ''} aria-label="${esc(it.name)}">
+                <input type="checkbox" class="svp-card-check" ${selected.has(it.key) ? 'checked' : ''} aria-label="${esc(it.name)}">
                 <div class="svp-card-title">
                     <div class="svp-card-name">${esc(it.name)}</div>
                     <span class="service-badge service-badge-${esc(it.status)}">${esc(T.labels[it.status] || it.status)}</span>
@@ -225,13 +225,13 @@
     function render(fit) {
         const keep = currentFilter();
         const shown = sortItems(ITEMS.filter(keep));
-        visibleIds = shown.map(it => it.id);
+        visibleIds = shown.map(it => it.key);
         // A hidden point cannot stay selected: what is exported is what is seen.
         Array.from(selected).forEach(id => { if (!visibleIds.includes(id)) selected.delete(id); });
 
         ITEMS.forEach(it => {
-            const m = markers[it.id];
-            if (visibleIds.includes(it.id)) { m.addTo(map); m.setStyle(markerStyle(it, selected.has(it.id))); }
+            const m = markers[it.key];
+            if (visibleIds.includes(it.key)) { m.addTo(map); m.setStyle(markerStyle(it, selected.has(it.key))); }
             else m.remove();
         });
 
@@ -240,8 +240,8 @@
         if (!shown.length) list.innerHTML = `<p class="svp-plan-note">${esc(T.noneShown)}</p>`;
         shown.forEach(it => {
             const div = document.createElement('div');
-            div.className = 'svp-card' + (selected.has(it.id) ? ' svp-card-selected' : '');
-            div.dataset.id = it.id;
+            div.className = 'svp-card' + (selected.has(it.key) ? ' svp-card-selected' : '');
+            div.dataset.id = it.key;
             div.innerHTML = cardHtml(it);
             list.appendChild(div);
         });
@@ -288,7 +288,7 @@
     document.getElementById('svp-list').addEventListener('click', e => {
         const card = e.target.closest('.svp-card');
         if (!card) return;
-        const id = Number(card.dataset.id);
+        const id = card.dataset.id;
         const it = byId.get(id);
         if (e.target.closest('.svp-copy-one')) { copyText(coordText(it)); return; }
         if (e.target.closest('.svp-show')) {

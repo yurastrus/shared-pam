@@ -4046,7 +4046,7 @@ SERVICE_VISITS_SQL = text("""
 """)
 
 
-def _service_forecast_items(conn, locations, lang_code):
+def _service_forecast_items(conn, locations, lang_code, *, today=None):
     """Forecast dicts for ``locations`` (rows with location_id, names, lat, lon).
 
     Two reads (latest recording per location, every visit with its recorded
@@ -4059,7 +4059,7 @@ def _service_forecast_items(conn, locations, lang_code):
             "FROM recordings GROUP BY location_id")).fetchall()
     }
     visits_by_loc = service_forecast.visits_from_rows(conn.execute(SERVICE_VISITS_SQL).fetchall())
-    today = date.today()
+    today = today or date.today()
     cal = service_forecast.calibrate(visits_by_loc, today)
 
     response_data = []
@@ -4197,6 +4197,17 @@ def pam_service_plan(lang_code):
         institutions = (Institution.query.filter(Institution.id.in_(managed_ids))
                         .order_by(Institution.name_uk).all()) if managed_ids else []
 
+    today = date.today()
+    items = load_pam_service_plan(lang_code, today, managed_ids=None if is_admin else managed_ids)
+    name_attr = 'name_uk' if lang_code == 'uk' else 'name_en'
+    inst_list = [{'id': i.id, 'name': getattr(i, name_attr) or i.name_uk} for i in institutions]
+    return render_template('pam_service_plan.html', items=items, institutions=inst_list,
+                           today=today.isoformat())
+
+
+def load_pam_service_plan(lang_code, today, *, managed_ids):
+    """Return field rows for PAM institution IDs. Use None for an authorized admin."""
+    is_admin = managed_ids is None
     items = []
     if is_admin or managed_ids:
         conn = None
@@ -4212,7 +4223,7 @@ def pam_service_plan(lang_code):
                 FROM locations l WHERE {where}
             """), {'inst_ids': managed_ids}).fetchall()
             if locations:
-                items = _service_forecast_items(conn, locations, lang_code)
+                items = _service_forecast_items(conn, locations, lang_code, today=today)
                 equipment = service_forecast.current_equipment(conn.execute(
                     SERVICE_EQUIPMENT_SQL,
                     {'ids': [l.location_id for l in locations], 'lang': lang_code}).fetchall())
@@ -4221,7 +4232,9 @@ def pam_service_plan(lang_code):
                 for it in items:
                     eq = equipment.get(it['id'], {})
                     it.update(
-                        inst_ids=inst_map.get(it['id'], []),
+                        module='pam',
+                        key=f"pam:{it['id']}",
+                        inst_ids=[i for i in inst_map.get(it['id'], []) if is_admin or i in managed_ids],
                         device=eq.get('device'),
                         battery=eq.get('battery'),
                         battery_since=fmt(eq.get('battery_since')),
@@ -4231,10 +4244,7 @@ def pam_service_plan(lang_code):
         finally:
             if conn: conn.close()
 
-    name_attr = 'name_uk' if lang_code == 'uk' else 'name_en'
-    inst_list = [{'id': i.id, 'name': getattr(i, name_attr) or i.name_uk} for i in institutions]
-    return render_template('pam_service_plan.html', items=items, institutions=inst_list,
-                           today=date.today().isoformat())
+    return items
 
 
 @pam_bp.route('/<lang_code>/api/pam/location/<int:location_id>/service-history')
