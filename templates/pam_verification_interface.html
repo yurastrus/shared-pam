@@ -9,15 +9,8 @@
 {% block pam_content %}
 <div class="container mt-4">
     <div class="verification-container">
-        <div class="mb-3">
-            <label for="verification-sort">{{ _('Порядок подачі сегментів') }}</label>
-            <select id="verification-sort" class="form-control w-auto mw-100">
-                <option value="consensus">{{ _('Ближчі до консенсусу (звичайний режим)') }}</option>
-                <option value="benefit">{{ _('Найбільша користь (за пріоритетами)') }}</option>
-            </select>
-        </div>
         <!-- Main verification interface -->
-        <div id="verification-interface" style="display: none;">
+        <div id="verification-interface">
             <div class="verification-layout">
                 <!-- Left panel with segment info, filters, and stats -->
                 <div class="left-panel">
@@ -27,6 +20,13 @@
                     <!-- Filters -->
                     <div class="filters-panel">
                         <div class="filters-row-flex">
+                            <div class="species-select-group">
+                                <label for="verification-sort">{{ _('Порядок подачі сегментів') }}</label>
+                                <select id="verification-sort" class="form-control" style="width: 100%;">
+                                    <option value="consensus">{{ _('Ближчі до консенсусу (звичайний режим)') }}</option>
+                                    <option value="benefit">{{ _('Найбільша користь (за пріоритетами)') }}</option>
+                                </select>
+                            </div>
                             <div class="species-select-group">
                                 <label for="class-filter">{{ _('Таксономічний клас:') }}</label>
                                 <select id="class-filter" class="form-control" style="width: 100%;">
@@ -93,7 +93,7 @@
                     </div>
 
                     <!-- Segment info -->
-                    <div class="segment-info">
+                    <div class="segment-info" style="display: none;">
                         <h4 id="segment-species">Назва виду</h4>
                         <!-- Cross-check the call against reference recordings without
                              leaving the queue: opens xeno-canto in a new tab, filtered
@@ -120,7 +120,7 @@
                 </div>
 
                 <!-- Right panel with spectrogram and controls -->
-                <div class="right-panel">
+                <div class="right-panel" style="display: none;">
                     <!-- Spectrogram -->
                     <div class="spectrogram-section" style="text-align: center;">
                         <div class="spectrogram-wrapper">
@@ -183,25 +183,24 @@
                     <!-- Verification result message -->
                     <div id="verification-message" class="verification-message"></div>
                 </div>
-            </div>
-        </div>
+                <!-- No-segments message -->
+                <div id="no-segment-message" class="no-segment-message" style="display: none;">
+                    <h4>{{ _('Сегменти для верифікації відсутні') }}</h4>
+                    <p>{{ _('Немає сегментів для верифікації за вибраними критеріями, або ви вже верифікували всі доступні сегменти.') }}</p>
+                    <button type="button" class="btn btn-secondary" id="verify-reset-skips" hidden>
+                        {{ _('Повернути пропущені сегменти') }}
+                    </button>
+                    <button type="button" class="btn btn-secondary verify-back" disabled>
+                        {{ _('Повернутися до попередньої відповіді') }}
+                    </button>
+                </div>
 
-        <!-- No-segments message -->
-        <div id="no-segment-message" class="no-segment-message" style="display: none;">
-            <h4>{{ _('Сегменти для верифікації відсутні') }}</h4>
-            <p>{{ _('Немає сегментів для верифікації за вибраними критеріями, або ви вже верифікували всі доступні сегменти.') }}</p>
-            <button type="button" class="btn btn-secondary" id="verify-reset-skips" hidden>
-                {{ _('Повернути пропущені сегменти') }}
-            </button>
-            <button type="button" class="btn btn-secondary verify-back" disabled>
-                {{ _('Повернутися до попередньої відповіді') }}
-            </button>
-        </div>
-
-        <!-- Loading spinner -->
-        <div id="loading-spinner" class="loading-spinner">
-            <div class="spinner-border" role="status">
-                <span class="sr-only">{{ _('Завантаження...') }}</span>
+                <!-- Loading spinner -->
+                <div id="loading-spinner" class="loading-spinner">
+                    <div class="spinner-border" role="status">
+                        <span class="sr-only">{{ _('Завантаження...') }}</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -227,7 +226,7 @@ $(document).ready(function() {
     const SPECTROGRAM_PADDING_RIGHT_PERCENT = 1.6;
     
     const loadSegmentBtn = $('#load-segment-btn');
-    const verificationInterface = $('#verification-interface');
+    const segmentPanels = $('#verification-interface').find('.segment-info, .right-panel');
     const noSegmentMessage = $('#no-segment-message');
     const loadingSpinner = $('#loading-spinner');
     const audioPlayer = $('#audio-player')[0];
@@ -282,6 +281,11 @@ $(document).ready(function() {
     // of segments than the one being served.
     const DEEP = new URLSearchParams(window.location.search);
     verificationSort.val(DEEP.get('sort_by') === 'benefit' ? 'benefit' : 'consensus');
+    verificationSort.select2({
+        language: "{{ g.lang_code }}",
+        minimumResultsForSearch: Infinity,
+        width: '100%'
+    });
     const DEEP_LOCATIONS = DEEP.get('location_ids') || '';
     const DEEP_FROM = DEEP.get('from_ts') || '';
     const DEEP_TO = DEEP.get('to_ts') || '';
@@ -461,7 +465,7 @@ $(document).ready(function() {
         });
         displaySegment(currentSegment);
         noSegmentMessage.hide();
-        verificationInterface.show();
+        segmentPanels.show();
         showVerificationMessage({{ _('Виправлення попередньої відповіді. Виберіть правильний варіант.') | tojson }}, 'success');
         setBusy(false);
         return true;
@@ -636,7 +640,7 @@ $(document).ready(function() {
     /**
     // --- Keyboard shortcuts ---
     $(document).on('keydown', function(e) {
-        if (currentSegment && verificationInterface.is(':visible')) {
+        if (currentSegment && segmentPanels.is(':visible')) {
             switch(e.key.toLowerCase()) {
                 case ' ':
                     e.preventDefault();
@@ -698,10 +702,7 @@ $(document).ready(function() {
         editingSubmission = false;
         verdictButtons.removeClass('active').removeAttr('aria-pressed');
         setBusy(true);
-        // Preserve scroll position: showLoading() hides the whole interface and
-        // the page collapses, which throws the scroll to the top. On mobile this
-        // meant scrolling back down after every ТАК/НІ/Пропустити. Capture now
-        // (interface still visible) and restore after the new segment renders.
+        // Keep the verifier's scroll position while swapping the segment panels.
         const _savedScrollY = window.scrollY;
         loadUserStats(); // Refresh stats for the current filter.
         showLoading();
@@ -732,7 +733,7 @@ $(document).ready(function() {
             currentSegment = data;
             displaySegment(data);
             hideLoading();
-            verificationInterface.show();
+            segmentPanels.show();
             noSegmentMessage.hide();
             hideVerificationMessage();
             prefetchNextSegment();
@@ -747,7 +748,7 @@ $(document).ready(function() {
             }
         } catch (xhr) {
             hideLoading();
-            verificationInterface.hide();
+            segmentPanels.hide();
             currentSegment = null;
             playbackLine.hide();
 
@@ -910,7 +911,7 @@ $(document).ready(function() {
     
     function showLoading() {
         loadingSpinner.show();
-        verificationInterface.hide();
+        segmentPanels.hide();
         noSegmentMessage.hide();
     }
     
