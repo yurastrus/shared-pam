@@ -5210,6 +5210,38 @@ msgstr "RAI (detections per hour)"
 #~ "and Locus; for Garmin navigators use "
 #~ "GPX."
 
+msgid "Рекомендації враховують лише доступні вам записи. Території визначаються за установами, до яких прив’язані точки запису."
+msgstr "Recommendations use recordings you can access. Territories are based on the institutions associated with recording sites."
+
+msgid "Що може дати перевірка"
+msgstr "What verification could add"
+
+msgid "Перший підтверджений запис у PAM"
+msgstr "First confirmed PAM record"
+
+msgid "Перший запис на території"
+msgstr "First record for the territory"
+
+msgid "Перший запис у цьому місяці на території"
+msgstr "First record for this month in the territory"
+
+msgid "Додаткове підтвердження"
+msgstr "Additional confirmation"
+
+#, python-format
+msgid "Місяць %(number)s"
+msgstr "Month %(number)s"
+
+#, python-format
+msgid "Голосів «так» до підтвердження: %(count)s"
+msgstr "Yes votes needed to confirm: %(count)s"
+
+msgid "нижче порога"
+msgstr "below threshold"
+
+msgid "Інший сегмент цього виду з того самого аудіозапису спростовано"
+msgstr "Another segment for this species from the same recording was rejected"
+
 #~ msgid "Немає даних про обслуговування"
 #~ msgstr "No maintenance data"
 

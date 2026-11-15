@@ -268,6 +268,7 @@ $(document).ready(function() {
     const DEEP_LOCATIONS = DEEP.get('location_ids') || '';
     const DEEP_FROM = DEEP.get('from_ts') || '';
     const DEEP_TO = DEEP.get('to_ts') || '';
+    let preferredSegment = DEEP.get('preferred_segment_id');
     const sampleToken = DEEP.get('sample');
     let sampleIds = [];
     if (sampleToken) {
@@ -639,12 +640,15 @@ $(document).ready(function() {
         loadUserStats(); // Refresh stats for the current filter.
         showLoading();
         
-        const url = '{{ url_for("pam.api_next_verification_segment", lang_code=g.lang_code) }}' + filterParams();
+        const params = new URLSearchParams(filterParams());
+        if (preferredSegment) params.set('preferred_segment_id', preferredSegment);
+        const url = '{{ url_for("pam.api_next_verification_segment", lang_code=g.lang_code) }}' + '?' + params;
 
         $.ajax({
             url: url,
             ...queueRequest,
             success: function(data) {
+                preferredSegment = null;
                 currentSegment = data;
                 displaySegment(data);
                 hideLoading();

@@ -665,23 +665,9 @@ def verification_verifiers(lang_code):
 @login_required
 @role_required('manager', 'pam_verifier', 'roztochya_user', 'fzs_user', 'volunteer_user')
 def verification_priorities(lang_code):
-    """Priority table: which species most need verification.
+    """Recommend one actionable segment per species and show archive totals."""
+    from .verification_priorities import PRIORITY_CONFIDENCE, recommendations
 
-    One row per species that has segments OR detections in the system, with
-    taxonomy columns (class → order → family → genus → species) plus per-species
-    counts: total segments, total detections, verified segments (>=1
-    verification) and segments that reached consensus (>=2 verifications). Sorted
-    least-verified first. Among species with zero verified segments, Red Data
-    Book species come first, with detection counts descending within each group.
-
-    Row colours follow the number of verified segments, from red at zero to
-    green at VERIFIED_THRESHOLD and above.
-
-    For a user with the ``pam_verifier`` role, each species that still has
-    segments this user personally can verify (pending, not yet voted on, inside
-    their institutions) gets a deep link straight into the verify interface with
-    the species filter pre-applied.
-    """
     g.lang_code = lang_code
     VERIFIED_THRESHOLD = 250  # verified-segment count for the green (done) flag
     conn = None
@@ -719,29 +705,17 @@ def verification_priorities(lang_code):
             WHERE seg.species_id IS NOT NULL OR d.species_id IS NOT NULL
         """)).fetchall()
 
-        # For a verifier, find which species still have segments THEY can verify
-        # (pending, not yet voted on by them, inside their institutions) — same
-        # predicate as the next-segment queue, grouped by species.
-        pending_by_species = {}
+        is_admin = pam_access.is_admin(current_user)
+        roles = [role.name for role in current_user.roles]
         is_verifier = current_user.is_authenticated and current_user.has_role('pam_verifier')
+        recommended = {}
         if is_verifier:
             acc_sql, acc_params = _segment_access_sql('seg')
-            params = {'user_id': current_user.id}
-            params.update(acc_params)
-            pending_rows = conn.execute(text(f"""
-                SELECT seg.species_id, COUNT(*) AS remaining
-                FROM segments seg
-                WHERE seg.status = 'pending'
-                  AND seg.id NOT IN (
-                      SELECT sv.segment_id FROM segment_verifications sv
-                      WHERE sv.user_id = :user_id
-                  )
-                  AND {acc_sql}
-                GROUP BY seg.species_id
-            """), params).fetchall()
-            pending_by_species = {pr.species_id: int(pr.remaining or 0) for pr in pending_rows}
+            ranked = recommendations(conn, acc_sql, {
+                **acc_params, 'user_id': current_user.id, 'is_admin': is_admin, 'roles': roles,
+            })
+            recommended = {rec.species_id: (position, rec) for position, rec in enumerate(ranked)}
 
-        is_admin = pam_access.is_admin(current_user)
         managed_ids = [] if is_admin else pam_access.manage_institution_ids(current_user)
         cut_candidate_ids = [r.species_id for r in rows if r.detection_count]
         cuttable_ids = set(cut_candidate_ids) if is_admin else set()
@@ -762,11 +736,12 @@ def verification_priorities(lang_code):
             """), {
                 'species_ids': cut_candidate_ids,
                 'managed_ids': managed_ids,
-                'roles': [role.name for role in current_user.roles],
+                'roles': roles,
             }).scalars().all())
 
         species_rows = []
         for r in rows:
+            position, rec = recommended.get(r.species_id, (len(recommended), None))
             if lang_code == 'en' and r.common_name_en:
                 common = r.common_name_en
             elif r.common_name_uk:
@@ -786,11 +761,13 @@ def verification_priorities(lang_code):
                 'verified_segments': int(r.verified_segments or 0),
                 'is_redbook': r.redbook2021 is not None,
                 'consensus_segments': int(r.consensus_segments or 0),
-                'pending_for_user': pending_by_species.get(r.species_id, 0),
+                'priority_position': position,
+                'recommendation': rec,
                 'can_cut_segments': r.species_id in cuttable_ids,
             })
 
         species_rows.sort(key=lambda r: (
+            r['priority_position'],
             r['verified_segments'],
             r['verified_segments'] == 0 and not r['is_redbook'],
             -r['detection_count'] if r['verified_segments'] == 0 else 0,
@@ -801,6 +778,8 @@ def verification_priorities(lang_code):
         return render_template('pam_verification_priorities.html',
                                species_rows=species_rows,
                                verified_threshold=VERIFIED_THRESHOLD,
+                               priority_confidence=PRIORITY_CONFIDENCE,
+                               show_recommendations=is_verifier,
                                show_actions=is_verifier or bool(cuttable_ids))
     except Exception as e:
         current_app.logger.error(f"Error loading verification priorities: {e}")
@@ -1816,6 +1795,16 @@ def api_next_verification_segment(lang_code):
         # location may be shared by several. Resolved in SQL (a correlated
         # aggregate) rather than a second round trip, since it is one row.
         params['rights_lang'] = g.lang_code
+        preferred_segment = request.args.get('preferred_segment_id', type=int)
+        preferred_order = ''
+        if preferred_segment is not None and preferred_segment > 0:
+            params['preferred_segment'] = preferred_segment
+            # The preferred ID changes ordering only. All queue predicates
+            # still apply, with the normal queue as fallback for stale links.
+            conditions.append("(:is_admin OR s.required_role IS NULL OR s.required_role = ANY(:roles))")
+            params['is_admin'] = pam_access.is_admin(current_user)
+            params['roles'] = [role.name for role in current_user.roles]
+            preferred_order = 'CASE WHEN seg.id = :preferred_segment THEN 0 ELSE 1 END, '
         query = text(f"""
             SELECT seg.id, seg.filename, seg.confidence_level, seg.location_name,
                    seg.recorded_date, seg.recorded_time, seg.file_path,
@@ -1834,7 +1823,7 @@ def api_next_verification_segment(lang_code):
             LEFT JOIN recordings r ON seg.recording_id = r.recording_id
             LEFT JOIN locations l ON r.location_id = l.location_id
             WHERE {' AND '.join(conditions)}
-            ORDER BY COALESCE(seg.verification_count, 0) DESC, RANDOM() LIMIT 1
+            ORDER BY {preferred_order}COALESCE(seg.verification_count, 0) DESC, RANDOM() LIMIT 1
         """)
 
         result = conn.execute(query, params).fetchone()
@@ -1872,7 +1861,7 @@ def api_next_verification_segment(lang_code):
         return jsonify({
             'segment_id': result[0],
             'filename': result[1],
-            'confidence_level': round(result[2], 3),
+            'confidence_level': round(result[2], 3) if result[2] is not None else None,
             'location_name': location_name,
             'recorded_date': result[4].strftime('%d.%m.%Y'),
             'recorded_time': result[5].strftime('%H:%M:%S'),

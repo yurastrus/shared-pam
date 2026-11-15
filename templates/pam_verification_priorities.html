@@ -9,6 +9,9 @@
         <div class="page-header mb-4">
             <h1>{{ _('Пріоритети верифікації видів') }}</h1>
             <p class="lead">{{ _('Які види варто верифікувати в першу чергу. Клікніть на заголовок колонки, щоб відсортувати.') }}</p>
+            {% if show_recommendations %}
+            <p>{{ _('Рекомендації враховують лише доступні вам записи. Території визначаються за установами, до яких прив’язані точки запису.') }}</p>
+            {% endif %}
             <div class="priority-legend">
                 <span>{{ verified_label }}</span>
                 <span>0</span>
@@ -28,6 +31,9 @@
                         <th data-type="text">{{ _('Родина') }}</th>
                         <th data-type="text">{{ _('Рід') }}</th>
                         <th data-type="text">{{ _('Вид') }}</th>
+                        {% if show_recommendations %}
+                        <th data-type="text">{{ _('Що може дати перевірка') }}</th>
+                        {% endif %}
                         <th data-type="num">{{ _('Сегментів') }}</th>
                         <th data-type="num">{{ _('Детекцій') }}</th>
                         <th data-type="num">{{ verified_label }}</th>
@@ -38,6 +44,7 @@
                 <tbody>
                     {% for row in species_rows %}
                     {% set progress = ([row.verified_segments, verified_threshold] | min) / verified_threshold %}
+                    {% set rec = row.recommendation %}
                     <tr style="--priority-hue: {{ (progress * 132) | round(2) }}">
                         <td class="order-cell" data-sort="{{ loop.index }}">{{ loop.index }}</td>
                         <td>{{ row.class_name }}</td>
@@ -49,16 +56,39 @@
                                 {% if row.common_name %}<span class="species-common">{{ row.common_name }}</span> {% endif %}<span class="species-sci"><em>{{ row.scientific_name }}</em></span>
                             </span>
                         </td>
+                        {% if show_recommendations %}
+                        <td>
+                            {% if rec %}
+                                {% if rec.novelty == 3 %}{{ _('Перший підтверджений запис у PAM') }}
+                                {% elif rec.novelty == 2 %}{{ _('Перший запис на території') }}
+                                {% elif rec.novelty == 1 %}{{ _('Перший запис у цьому місяці на території') }}
+                                {% else %}{{ _('Додаткове підтвердження') }}{% endif %}
+                                {% set territory = (rec.name_en or rec.name_uk) if g.lang_code == 'en' else rec.name_uk %}
+                                {% if territory %}<br>{{ territory }}{% endif %}
+                                {% if rec.recorded_month %}
+                                    <br>{{ _('Місяць %(number)s', number='%02d' | format(rec.recorded_month)) }}
+                                {% endif %}
+                                <br>{{ _('Голосів «так» до підтвердження: %(count)s', count=rec.votes_needed) }}
+                                {% if rec.confidence_level is not none %}
+                                    <br>Confidence {{ '%.3f' | format(rec.confidence_level) }}
+                                    {% if not rec.plausible %}· {{ _('нижче порога') }} ({{ priority_confidence }}){% endif %}
+                                {% endif %}
+                                {% if rec.similar_rejected %}
+                                    <br>{{ _('Інший сегмент цього виду з того самого аудіозапису спростовано') }}
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        {% endif %}
                         <td data-sort="{{ row.total_segments }}">{{ row.total_segments }}</td>
                         <td data-sort="{{ row.detection_count }}">{{ row.detection_count }}</td>
                         <td data-sort="{{ row.verified_segments }}">{{ row.verified_segments }}</td>
                         <td data-sort="{{ row.consensus_segments }}">{{ row.consensus_segments }}</td>
                         {% if show_actions %}
                         <td class="action-cell">
-                            {% if row.pending_for_user > 0 %}
+                            {% if rec %}
                             <a class="btn btn-sm btn-primary verify-link"
-                               href="{{ url_for('pam.verification_interface', lang_code=g.lang_code, species_id=row.species_id) }}">
-                                {{ _('Верифікувати') }} ({{ row.pending_for_user }})
+                               href="{{ url_for('pam.verification_interface', lang_code=g.lang_code, species_id=row.species_id, preferred_segment_id=rec.segment_id) }}">
+                                {{ _('Верифікувати') }} ({{ rec.remaining }})
                             </a>
                             {% endif %}
                             {% if row.can_cut_segments %}
