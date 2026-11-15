@@ -98,6 +98,10 @@ def _candidate_query(conf_column, with_upper_bound):
             SELECT s.species_id, s.scientific_name, s.redbook2021 IS NOT NULL AS is_redbook
             FROM species s
             WHERE (:species_name = '' OR s.scientific_name = :species_name)
+              AND (:class_name = '' OR s.class = :class_name)
+              AND (:order_name = '' OR s.order_rank = :order_name)
+              AND (:family_name = '' OR s.family = :family_name)
+              AND (:genus_name = '' OR s.genus = :genus_name)
               AND (:is_admin OR s.required_role IS NULL OR s.required_role = ANY(:roles))
         ), registered AS (
             SELECT DISTINCT sg.species_id, sg.recording_id

@@ -46,6 +46,17 @@
     <!-- STEP 2: species (cascades on selected locations) -->
     <div class="su-card">
         <div class="su-title"><span class="su-step-num">2</span>{{ _('Вид') }}</div>
+        <div class="row g-2 mb-2" id="su-taxonomy">
+            {% for field, label in [('class_name', _('Клас')), ('order_name', _('Ряд')),
+                                     ('family_name', _('Родина')), ('genus_name', _('Рід'))] %}
+            <div class="col-6 col-md-3">
+                <label class="form-label form-label-sm" for="su-{{ field }}">{{ label }}</label>
+                <select id="su-{{ field }}" data-taxonomy="{{ field }}" class="form-select form-select-sm" disabled>
+                    <option value="">{{ _('Усі') }}</option>
+                </select>
+            </div>
+            {% endfor %}
+        </div>
         <input type="text" id="su-species-search" class="form-control form-control-sm mb-2"
                placeholder="{{ _('Пошук виду...') }}" disabled autocomplete="off">
         <select id="su-species" class="form-select form-select-sm" size="10" disabled>
@@ -225,6 +236,7 @@
     let busy = false;
 
     const $ = (id) => document.getElementById(id);
+    const taxonFilters = Array.from(document.querySelectorAll('#su-taxonomy select'));
     function log(msg) {
         const el = $('su-log');
         el.textContent += msg + "\n";
@@ -258,6 +270,7 @@
         const requestId = ++speciesRequest;
         const spSel = $('su-species');
         const search = $('su-species-search');
+        taxonFilters.forEach(select => { select.disabled = true; });
         spSel.disabled = true;
         search.disabled = true;
         speciesList = [];
@@ -278,6 +291,7 @@
         } catch (e) {
             if (requestId === speciesRequest) {
                 spSel.innerHTML = `<option value="">{{ _('Помилка завантаження видів') }}</option>`;
+                taxonFilters.forEach(select => { select.options.length = 1; });
             }
         }
     }
@@ -287,10 +301,23 @@
     // selected locations are ever in speciesList — the cascade is server-side.
     function renderSpecies() {
         const spSel = $('su-species');
+        const selectedSpecies = spSel.value;
         const q = ($('su-species-search').value || '').trim().toLowerCase();
-        const filtered = q
-            ? speciesList.filter(sp => sp.text.toLowerCase().includes(q))
-            : speciesList;
+        let filtered = speciesList;
+        for (const select of taxonFilters) {
+            const {taxonomy} = select.dataset;
+            const previous = select.value;
+            const options = [...new Set(filtered.map(sp => sp[taxonomy]).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b));
+            select.options.length = 1;
+            options.forEach(value => select.add(new Option(value, value)));
+            select.disabled = !options.length;
+            if (options.includes(previous)) {
+                select.value = previous;
+                filtered = filtered.filter(sp => sp[taxonomy] === previous);
+            }
+        }
+        if (q) filtered = filtered.filter(sp => sp.text.toLowerCase().includes(q));
         spSel.innerHTML = `<option value="">{{ _('— Виберіть вид —') }}</option>`;
         filtered.forEach(sp => {
             const o = document.createElement('option');
@@ -298,6 +325,9 @@
             o.textContent = sp.text;
             spSel.appendChild(o);
         });
+        if (filtered.some(sp => sp.scientific_name === selectedSpecies)) {
+            spSel.value = selectedSpecies;
+        }
         spSel.disabled = speciesList.length === 0;
         $('su-species-count').textContent =
             "{{ _('Видів:') }} " + filtered.length + " / " + speciesList.length;
@@ -354,6 +384,7 @@
         // Gap planning looks for missing calendar months across the archive.
         if (useGaps) {
             body.institution_id = parseInt($('su-institution').value, 10) || null;
+            taxonFilters.forEach(select => { body[select.dataset.taxonomy] = select.value; });
             delete body.confidence_threshold;
             delete body.confidence_max;
             delete body.n_strata;
@@ -579,6 +610,7 @@
     $('su-institution').addEventListener('change', renderLocations);
     $('su-locations').addEventListener('change', onLocationsChanged);
     $('su-species-search').addEventListener('input', renderSpecies);
+    taxonFilters.forEach(select => select.addEventListener('change', renderSpecies));
     $('su-species').addEventListener('change', () => {
         $('su-prepare').disabled = busy || !$('su-species').value || !selectedLocationIds().length;
     });

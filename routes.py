@@ -5372,7 +5372,8 @@ def api_sample_species(lang_code):
             """
         rows = conn.execute(text(f"""
             SELECT DISTINCT s.species_id, s.scientific_name,
-                   s.common_name_uk, s.common_name_en
+                   s.common_name_uk, s.common_name_en, s.class AS class_name,
+                   s.order_rank AS order_name, s.family AS family_name, s.genus AS genus_name
             {source}
               AND (:is_admin OR s.required_role IS NULL OR s.required_role = ANY(:roles))
             ORDER BY s.scientific_name
@@ -5392,6 +5393,10 @@ def api_sample_species(lang_code):
                 'species_id': row['species_id'],
                 'scientific_name': row['scientific_name'],
                 'text': display,
+                'class_name': row.get('class_name') or '',
+                'order_name': row.get('order_name') or '',
+                'family_name': row.get('family_name') or '',
+                'genus_name': row.get('genus_name') or '',
             })
         return jsonify({'species': species})
     except Exception as e:
@@ -5669,7 +5674,11 @@ def api_sample_prepare_gaps(lang_code):
     institution_id = data.get('institution_id')
     sample_size = data.get('sample_size', 700)
     model_id = data.get('model_id')
+    taxonomy = {key: data.get(key, '') for key in (
+        'class_name', 'order_name', 'family_name', 'genus_name',
+    )}
     if (not isinstance(species_name, str) or not isinstance(location_ids, list)
+            or any(not isinstance(value, str) for value in taxonomy.values())
             or any(type(value) is not int or not 0 < value < 2**31 for value in location_ids)
             or (institution_id is not None and
                 (type(institution_id) is not int or not 0 < institution_id < 2**31))
@@ -5687,6 +5696,7 @@ def api_sample_prepare_gaps(lang_code):
     access_sql, access_params = _segment_access_sql('seg')
     params = {
         **access_params,
+        **{key: value.strip() for key, value in taxonomy.items()},
         'is_admin': is_admin,
         'managed_ids': managed_ids,
         'roles': [role.name for role in current_user.roles],
