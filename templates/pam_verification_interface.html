@@ -238,6 +238,8 @@ $(document).ready(function() {
     const resetSkips = $('#verify-reset-skips');
     const skippedSegments = new Set();
     const maxQueueSkips = {{ max_queue_skips | tojson }};
+    const maxPrefetchAge = 90000;
+    let nextPrefetch = null;
     const verificationMessage = $('#verification-message');
     const backButtons = $('.verify-back');
     const verdictButtons = $('[data-verdict]');
@@ -427,7 +429,7 @@ $(document).ready(function() {
                 skippedSegments.delete(skippedSegments.values().next().value);
             }
         }
-        loadNextSegment();
+        loadNextSegment({advance: true});
     });
     resetSkips.on('click', function() {
         skippedSegments.clear();
@@ -660,10 +662,38 @@ $(document).ready(function() {
         }
     });
     **/
-    /**
-     * Load the next segment from the server and refresh stats.
-     */
-    function loadNextSegment() {
+    function segmentParams(excludeFromSkips) {
+        const params = new URLSearchParams(filterParams());
+        if (verificationSort.val() === 'benefit') {
+            params.set('sort_by', 'benefit');
+            skippedSegments.forEach(id => {
+                if (id !== excludeFromSkips) params.append('skip_segment_id', id);
+            });
+        }
+        return params;
+    }
+
+    function requestSegment(params) {
+        return $.ajax({
+            url: '{{ url_for("pam.api_next_verification_segment", lang_code=g.lang_code) }}' + '?' + params,
+            ...queueRequest,
+        });
+    }
+
+    function prefetchNextSegment() {
+        if (verificationSort.val() !== 'benefit') return;
+        const params = segmentParams();
+        const entry = {
+            key: params.toString(),
+            excludeId: currentSegment.segment_id,
+            at: Date.now(),
+        };
+        params.set('prefetch_exclude_id', entry.excludeId);
+        entry.promise = Promise.resolve(requestSegment(params)).catch(() => null);
+        nextPrefetch = entry;
+    }
+
+    async function loadNextSegment({advance = false, priorityChanged = false, corrected = false} = {}) {
         if (busy) return;
         editingSubmission = false;
         verdictButtons.removeClass('active').removeAttr('aria-pressed');
@@ -676,56 +706,62 @@ $(document).ready(function() {
         loadUserStats(); // Refresh stats for the current filter.
         showLoading();
         
-        const params = new URLSearchParams(filterParams());
+        const params = segmentParams();
         const optimized = verificationSort.val() === 'benefit';
-        if (optimized) {
-            params.set('sort_by', 'benefit');
-            skippedSegments.forEach(id => params.append('skip_segment_id', id));
-        }
         if (preferredSegment) params.set('preferred_segment_id', preferredSegment);
-        const url = '{{ url_for("pam.api_next_verification_segment", lang_code=g.lang_code) }}' + '?' + params;
+        const entry = nextPrefetch;
+        nextPrefetch = null;
+        const previous = currentSegment;
+        try {
+            let data = null;
+            if (optimized && advance && !corrected && !preferredSegment && entry
+                    && entry.excludeId === previous?.segment_id
+                    && entry.key === segmentParams(entry.excludeId).toString()
+                    && Date.now() - entry.at <= maxPrefetchAge) {
+                const candidate = await entry.promise;
+                // A new consensus can reorder other candidates of the same species.
+                // Recheck eligibility with current permissions and filters before use.
+                if (candidate && (!priorityChanged || candidate.scientific_name !== previous.scientific_name)) {
+                    const prepared = new URLSearchParams(params);
+                    prepared.set('prepared_segment_id', candidate.segment_id);
+                    data = await Promise.resolve(requestSegment(prepared)).catch(() => null);
+                }
+            }
+            if (!data) data = await requestSegment(params);
+            preferredSegment = null;
+            currentSegment = data;
+            displaySegment(data);
+            hideLoading();
+            verificationInterface.show();
+            noSegmentMessage.hide();
+            hideVerificationMessage();
+            prefetchNextSegment();
 
-        $.ajax({
-            url: url,
-            ...queueRequest,
-            success: function(data) {
+            // Restore scroll after rendering and after the spectrogram loads.
+            requestAnimationFrame(function () { window.scrollTo(0, _savedScrollY); });
+            const specImg = document.getElementById('spectrogram-image');
+            if (specImg) {
+                specImg.addEventListener('load', function () {
+                    window.scrollTo(0, _savedScrollY);
+                }, { once: true });
+            }
+        } catch (xhr) {
+            hideLoading();
+            verificationInterface.hide();
+            currentSegment = null;
+            playbackLine.hide();
+
+            if (xhr.status === 404) {
                 preferredSegment = null;
-                currentSegment = data;
-                displaySegment(data);
-                hideLoading();
-                verificationInterface.show();
-                noSegmentMessage.hide();
-                hideVerificationMessage();
-
-                // Restore scroll so a verdict button doesn't jump to the top.
-                // Twice: right after render, and again once the spectrogram image
-                // has loaded (its height stabilises only then).
-                requestAnimationFrame(function () { window.scrollTo(0, _savedScrollY); });
-                const _specImg = document.getElementById('spectrogram-image');
-                if (_specImg) {
-                    _specImg.addEventListener('load', function () {
-                        window.scrollTo(0, _savedScrollY);
-                    }, { once: true });
-                }
-            },
-            error: function(xhr) {
-                hideLoading();
-                verificationInterface.hide();
-                currentSegment = null;
-                
-                playbackLine.hide(); 
-                
-                if (xhr.status === 404) {
-                    preferredSegment = null;
-                    resetSkips.prop('hidden', !(optimized && skippedSegments.size));
-                    noSegmentMessage.show();
-                } else {
-                    const error = xhr.responseJSON ? xhr.responseJSON.error : '{{ _("Помилка завантаження сегменту") }}';
-                    alert(error);
-                }
-            },
-            complete: () => setBusy(false)
-        });
+                resetSkips.prop('hidden', !(optimized && skippedSegments.size));
+                noSegmentMessage.show();
+            } else {
+                const error = xhr.responseJSON?.error || {{ _('Помилка завантаження сегменту') | tojson }};
+                alert(error);
+            }
+        } finally {
+            setBusy(false);
+        }
     }
     
     /**
@@ -801,10 +837,13 @@ $(document).ready(function() {
         }
         
         setBusy(true);
+        const optimized = verificationSort.val() === 'benefit';
+        const corrected = editingSubmission;
         
         const data = {
             segment_id: currentSegment.segment_id,
             verification_result: result,
+            check_priority: optimized,
             csrf_token: '{{ csrf_token() }}'
         };
         if (editingSubmission) data.correction_token = previousSubmission.token;
@@ -830,8 +869,12 @@ $(document).ready(function() {
 
                 setTimeout(function() {
                     setBusy(false);
-                    loadNextSegment();
-                }, 1500);
+                    loadNextSegment({
+                        advance: true,
+                        priorityChanged: response.priority_changed !== false,
+                        corrected,
+                    });
+                }, optimized ? 0 : 1500);
             },
             error: function(xhr) {
                 const error = xhr.responseJSON ? xhr.responseJSON.error : '{{ _("Помилка збереження") }}';

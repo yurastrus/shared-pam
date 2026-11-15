@@ -1711,9 +1711,12 @@ def api_next_verification_segment(lang_code):
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         optimize = request.args.get('sort_by') == 'benefit'
+        prepared_id = request.args.get('prepared_segment_id', type=int) if optimize else None
+        prefetch_exclude_id = request.args.get('prefetch_exclude_id', type=int) if optimize else None
         skipped_ids = request.args.getlist('skip_segment_id', type=int) if optimize else []
+        queue_ids = [*skipped_ids, prepared_id, prefetch_exclude_id]
         if (len(skipped_ids) > pam_priorities.MAX_QUEUE_SKIPS
-                or any(not 0 < segment_id < 2**63 for segment_id in skipped_ids)):
+                or any(sid is not None and not 0 < sid < 2**63 for sid in queue_ids)):
             return jsonify({'error': 'Invalid skip_segment_id'}), 400
         conn = get_pam_db_connection()
         
@@ -1739,6 +1742,12 @@ def api_next_verification_segment(lang_code):
         if skipped_ids:
             conditions.append("NOT (seg.id = ANY(CAST(:skipped_ids AS bigint[])))")
             params['skipped_ids'] = skipped_ids
+        if prefetch_exclude_id is not None:
+            conditions.append("seg.id <> :prefetch_exclude_id")
+            params['prefetch_exclude_id'] = prefetch_exclude_id
+        if prepared_id is not None:
+            conditions.append("seg.id = :prepared_id")
+            params['prepared_id'] = prepared_id
 
         # Taxonomic class filter (s is joined below). Narrows the queue to one
         # class; combines with species_id (species always belongs to the class).
@@ -1810,7 +1819,7 @@ def api_next_verification_segment(lang_code):
             params['roles'] = [role.name for role in current_user.roles]
 
         ranking = ''
-        if optimize:
+        if optimize and prepared_id is None:
             params['confidence'] = pam_priorities.PRIORITY_CONFIDENCE
             ranking = pam_priorities.ranking_ctes(
                 acc_sql, conditions, filter_territories=bool(institution_ids),
@@ -1825,8 +1834,9 @@ def api_next_verification_segment(lang_code):
         else:
             conditions.append(acc_sql)
             preferred_order = ''
-            if has_preferred:
+            if optimize or has_preferred:
                 conditions.append("(:is_admin OR s.required_role IS NULL OR s.required_role = ANY(:roles))")
+            if has_preferred:
                 preferred_order = 'CASE WHEN seg.id = :preferred_segment THEN 0 ELSE 1 END, '
             selection = f"""
                 WHERE {' AND '.join(conditions)}
@@ -2047,6 +2057,11 @@ def api_submit_verification(lang_code):
                 current_app.logger.info(
                     f"Segment {segment_id} discarded: {counts.unknown_votes} unknown votes, no yes/no")
 
+        priority_changed = correcting
+        if not correcting and data.get('check_priority') is True and verification_result in (0, 1):
+            priority_changed = conn.execute(text("""
+                SELECT status = 'completed' FROM segments WHERE id = :segment_id
+            """), {"segment_id": segment_id}).scalar()
         next_correction_token = signer.dumps(correction_scope)
         conn.commit()
 
@@ -2059,6 +2074,7 @@ def api_submit_verification(lang_code):
             'message': 'Верифікацію збережено успішно',
             'action': action,
             'discarded': discarded,
+            'priority_changed': priority_changed,
             'correction_token': next_correction_token
         })
         
