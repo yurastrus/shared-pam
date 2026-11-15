@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-12 15:31+0200\n"
+"POT-Creation-Date: 2026-11-15 16:48+0200\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -48,7 +48,7 @@ msgstr "not evaluated"
 msgid "недостатньо відомий"
 msgstr "data deficient"
 
-#: app/pam/routes.py:1903 app/pam/routes.py:1943
+#: app/pam/routes.py:1938 app/pam/routes.py:1978
 msgid "Не вдалося відкрити відповідь для виправлення."
 msgstr "Could not reopen this answer for correction."
 
@@ -690,7 +690,7 @@ msgstr "No locations in this selection."
 #: app/pam/templates/pam_data_export.html:92
 #: app/pam/templates/pam_evaluation_results.html:184
 #: app/pam/templates/pam_import.html:216
-#: app/pam/templates/pam_sample_upload.html:239
+#: app/pam/templates/pam_sample_upload.html:257
 #: app/pam/templates/pam_service_log.html:242
 #: app/pam/templates/pam_verification_interface.html:132
 #: app/pam/templates/pam_verification_interface.html:194
@@ -768,7 +768,7 @@ msgstr "Enter coordinates: click on the map or enter manually."
 #: app/pam/templates/manage_pam_locations.html:930
 #: app/pam/templates/manage_pam_locations.html:1022
 #: app/pam/templates/manage_pam_locations.html:1123
-#: app/pam/templates/pam_sample_upload.html:352
+#: app/pam/templates/pam_sample_upload.html:371
 #: app/pam/templates/pam_species_detailed.html:187
 msgid "Помилка:"
 msgstr "Error:"
@@ -826,11 +826,23 @@ msgstr "PAM administration"
 msgid "Сервісні дії модуля акустичного моніторингу."
 msgstr "Service actions for the acoustic monitoring module."
 
+#: app/pam/templates/pam_admin.html:15 app/pam/templates/pam_home.html:20
+msgid "Аналітика"
+msgstr "Analytics"
+
 #: app/pam/templates/pam_admin.html:16
+msgid "Оновити багаторічні тренди видів та активність за біотопами."
+msgstr "Update long-term species trends and activity by habitat."
+
+#: app/pam/templates/pam_admin.html:21
+msgid "Перерахувати аналітику"
+msgstr "Recalculate analytics"
+
+#: app/pam/templates/pam_admin.html:28
 msgid "Біотопи з лендковеру"
 msgstr "Biotopes from landcover"
 
-#: app/pam/templates/pam_admin.html:18
+#: app/pam/templates/pam_admin.html:30
 msgid ""
 "Автоматичне призначення біотопів точкам за даними ESA WorldCover (Google "
 "Earth Engine). Для кожної точки береться гістограма класів покриву в "
@@ -844,11 +856,11 @@ msgstr ""
 "biotopes via the mapping table in the database. Existing biotopes are not"
 " removed — only missing ones are added."
 
-#: app/pam/templates/pam_admin.html:23
+#: app/pam/templates/pam_admin.html:35
 msgid "Автопризначення недоступне"
 msgstr "Auto-assignment unavailable"
 
-#: app/pam/templates/pam_admin.html:25
+#: app/pam/templates/pam_admin.html:37
 msgid ""
 "Google Earth Engine не налаштований на цьому сервері (немає пакета "
 "earthengine-api або сервісного ключа GEE_SERVICE_ACCOUNT_KEY). Функція "
@@ -858,19 +870,19 @@ msgstr ""
 " package or the GEE_SERVICE_ACCOUNT_KEY service key is missing). The "
 "feature is disabled."
 
-#: app/pam/templates/pam_admin.html:35
+#: app/pam/templates/pam_admin.html:47
 msgid "Радіус (м):"
 msgstr "Radius (m):"
 
-#: app/pam/templates/pam_admin.html:41
+#: app/pam/templates/pam_admin.html:53
 msgid "Топ-N біотопів:"
 msgstr "Top-N biotopes:"
 
-#: app/pam/templates/pam_admin.html:48
+#: app/pam/templates/pam_admin.html:60
 msgid "Лише точки без біотопів"
 msgstr "Only points without biotopes"
 
-#: app/pam/templates/pam_admin.html:51
+#: app/pam/templates/pam_admin.html:63
 msgid ""
 "Запустити автопризначення біотопів для точок? Наявні біотопи збережуться,"
 " додадуться лише відсутні."
@@ -878,11 +890,11 @@ msgstr ""
 "Run biotope auto-assignment for points? Existing biotopes are kept; only "
 "missing ones are added."
 
-#: app/pam/templates/pam_admin.html:52 app/pam/templates/pam_admin.html:92
+#: app/pam/templates/pam_admin.html:64 app/pam/templates/pam_admin.html:161
 msgid "Запустити"
 msgstr "Run"
 
-#: app/pam/templates/pam_admin.html:59
+#: app/pam/templates/pam_admin.html:71
 msgid ""
 "Відповідність «клас лендковеру → біотоп» задається в базі даних (таблиця "
 "biotope_landcover_map)."
@@ -890,31 +902,43 @@ msgstr ""
 "The \"landcover class → biotope\" mapping is managed in the database (the"
 " biotope_landcover_map table)."
 
-#: app/pam/templates/pam_admin.html:92
+#: app/pam/templates/pam_admin.html:84
+msgid "Перерахунок аналітики виконується у фоні…"
+msgstr "Analytics are being recalculated in the background…"
+
+#: app/pam/templates/pam_admin.html:89 app/pam/templates/pam_admin.html:161
 msgid "Виконується…"
 msgstr "Running…"
 
-#: app/pam/templates/pam_admin.html:94
-msgid "Автопризначення виконується у фоні…"
-msgstr "Auto-assignment is running in the background…"
-
-#: app/pam/templates/pam_admin.html:97
+#: app/pam/templates/pam_admin.html:102 app/pam/templates/pam_admin.html:166
 msgid "Останній запуск завершився помилкою."
 msgstr "The last run failed."
 
-#: app/pam/templates/pam_admin.html:101
+#: app/pam/templates/pam_admin.html:104 app/pam/templates/pam_admin.html:170
 msgid "Останній успішний запуск:"
 msgstr "Last successful run:"
 
-#: app/pam/templates/pam_admin.html:105
+#: app/pam/templates/pam_admin.html:107 app/pam/templates/pam_admin.html:174
 msgid "Ще не запускалося."
 msgstr "Not run yet."
 
+#: app/pam/templates/pam_admin.html:110
+msgid "Не вдалося отримати статус перерахунку."
+msgstr "Could not retrieve the recalculation status."
+
 #: app/pam/templates/pam_admin.html:125
+msgid "Не вдалося запустити перерахунок аналітики."
+msgstr "Could not start the analytics recalculation."
+
+#: app/pam/templates/pam_admin.html:163
+msgid "Автопризначення виконується у фоні…"
+msgstr "Auto-assignment is running in the background…"
+
+#: app/pam/templates/pam_admin.html:194
 msgid "Запуск…"
 msgstr "Starting…"
 
-#: app/pam/templates/pam_admin.html:147
+#: app/pam/templates/pam_admin.html:216
 msgid "Не вдалося запустити автопризначення."
 msgstr "Failed to start auto-assignment."
 
@@ -2755,10 +2779,6 @@ msgstr ""
 " dynamics, daily activity, verification of automatic BirdNET "
 "classifications."
 
-#: app/pam/templates/pam_home.html:20
-msgid "Аналітика"
-msgstr "Analytics"
-
 #: app/pam/templates/pam_home.html:25
 msgid "Таблиця детекцій"
 msgstr "Detection table"
@@ -3355,7 +3375,7 @@ msgid "Детекцій:"
 msgstr "Detections:"
 
 #: app/pam/templates/pam_overview.html:426
-#: app/pam/templates/pam_sample_upload.html:277
+#: app/pam/templates/pam_sample_upload.html:295
 msgid "Видів:"
 msgstr "Species:"
 
@@ -3377,11 +3397,11 @@ msgstr "RDBU"
 msgid "Детекції"
 msgstr "Detections"
 
-#: app/pam/templates/pam_overview.html:502
+#: app/pam/templates/pam_overview.html:507
 msgid "Дані не знайдено. Спробуйте змінити фільтри."
 msgstr "No data found. Try changing the filters."
 
-#: app/pam/templates/pam_overview.html:507
+#: app/pam/templates/pam_overview.html:512
 #: app/pam/templates/pam_species_detailed.html:620
 #: app/pam/templates/pam_species_detailed.html:636
 #: app/pam/templates/pam_species_detailed.html:643
@@ -3420,7 +3440,7 @@ msgid "Пошук виду..."
 msgstr "Search species..."
 
 #: app/pam/templates/pam_sample_upload.html:52
-#: app/pam/templates/pam_sample_upload.html:242
+#: app/pam/templates/pam_sample_upload.html:260
 msgid "— Спершу виберіть локації —"
 msgstr "— Select locations first —"
 
@@ -3504,107 +3524,188 @@ msgstr "Build sample"
 msgid "Локальна папка із записами"
 msgstr "Local folder with recordings"
 
+#: app/pam/templates/pam_sample_upload.html:164
+msgid "Використати або побудувати локальний індекс"
+msgstr "Use or build a local index"
+
+#: app/pam/templates/pam_sample_upload.html:167
+msgid "Як працює локальний індекс?"
+msgstr "How does the local index work?"
+
 #: app/pam/templates/pam_sample_upload.html:168
+msgid ""
+"Після формування вибірки виберіть кореневу папку архіву й дозвольте "
+"браузеру запис у неї. Перший пошук звірить імена аудіофайлів із PAM і "
+"збереже location.json у папках із записами. Якщо процес перерветься, "
+"виберіть ту саму папку, щоб продовжити."
+msgstr ""
+"After preparing the sample, select the archive root and grant the browser"
+" write access. The first search matches audio filenames against PAM and "
+"saves location.json in folders containing recordings. If the process is "
+"interrupted, select the same folder to resume."
+
+#: app/pam/templates/pam_sample_upload.html:169
+msgid ""
+"Наступні вибірки шукають файли в папках відповідних локацій. Якщо файлів "
+"бракує, можна завантажити знайдені сегменти або запустити пошук у всьому "
+"архіві, щоб знайти переміщені записи й оновити індекс. Зніміть галочку "
+"для звичайного вибору папки."
+msgstr ""
+"Later samples look for files in the folders for their locations. If some "
+"files are missing, you can upload the segments already found or search "
+"the entire archive to find moved recordings and update the index. Uncheck"
+" the box to use the regular folder picker."
+
+#: app/pam/templates/pam_sample_upload.html:171
+#: app/pam/templates/pam_sample_upload.html:172
+msgid "Вибрати папку"
+msgstr "Select folder"
+
+#: app/pam/templates/pam_sample_upload.html:174
+msgid "Шукати в усьому архіві"
+msgstr "Search the entire archive"
+
+#: app/pam/templates/pam_sample_upload.html:179
 msgid "Нарізати та завантажити"
 msgstr "Cut and upload"
 
-#: app/pam/templates/pam_sample_upload.html:169
+#: app/pam/templates/pam_sample_upload.html:180
 msgid "Старт"
 msgstr "Start"
 
-#: app/pam/templates/pam_sample_upload.html:174
+#: app/pam/templates/pam_sample_upload.html:182
+msgid "Перейти до верифікації"
+msgstr "Go to verification"
+
+#: app/pam/templates/pam_sample_upload.html:188
 msgid "Знайдено файлів:"
 msgstr "Files found:"
 
-#: app/pam/templates/pam_sample_upload.html:175
-#: app/pam/templates/pam_sample_upload.html:419
+#: app/pam/templates/pam_sample_upload.html:189
+#: app/pam/templates/pam_sample_upload.html:538
 #: app/pam/templates/pam_segment_window.html:92
 #: app/pam/templates/pam_segment_window.html:277
 msgid "Завантажено:"
 msgstr "Uploaded:"
 
-#: app/pam/templates/pam_sample_upload.html:176
+#: app/pam/templates/pam_sample_upload.html:190
 #: app/pam/templates/pam_segment_window.html:93
 msgid "Дублікати:"
 msgstr "Duplicates:"
 
-#: app/pam/templates/pam_sample_upload.html:177
+#: app/pam/templates/pam_sample_upload.html:191
 msgid "Пропущено (нема файлу):"
 msgstr "Skipped (no file):"
 
-#: app/pam/templates/pam_sample_upload.html:178
+#: app/pam/templates/pam_sample_upload.html:192
 #: app/pam/templates/pam_segment_window.html:95
 msgid "Помилки:"
 msgstr "Errors:"
 
-#: app/pam/templates/pam_sample_upload.html:255
+#: app/pam/templates/pam_sample_upload.html:273
 msgid "Помилка завантаження видів"
 msgstr "Error loading species"
 
-#: app/pam/templates/pam_sample_upload.html:268
+#: app/pam/templates/pam_sample_upload.html:286
 msgid "— Виберіть вид —"
 msgstr "— Select species —"
 
-#: app/pam/templates/pam_sample_upload.html:298
+#: app/pam/templates/pam_sample_upload.html:316
 msgid "Макс. конфіденс менший за мін. конфіденс."
 msgstr "Max. confidence is lower than min. confidence."
 
-#: app/pam/templates/pam_sample_upload.html:303
+#: app/pam/templates/pam_sample_upload.html:321
 msgid "Рік «від» пізніший за рік «до»."
 msgstr "Year \"from\" is later than year \"to\"."
 
-#: app/pam/templates/pam_sample_upload.html:315
+#: app/pam/templates/pam_sample_upload.html:334
 msgid "Формування вибірки..."
 msgstr "Building sample..."
 
-#: app/pam/templates/pam_sample_upload.html:348
-#: app/pam/templates/pam_sample_upload.html:349
+#: app/pam/templates/pam_sample_upload.html:367
+#: app/pam/templates/pam_sample_upload.html:368
 msgid "Відібрано детекцій:"
 msgstr "Detections selected:"
 
-#: app/pam/templates/pam_sample_upload.html:362
+#: app/pam/templates/pam_sample_upload.html:381
 #: app/pam/templates/pam_segment_window.html:227
 msgid "Аудіофайлів у папці:"
 msgstr "Audio files in folder:"
 
-#: app/pam/templates/pam_sample_upload.html:415
+#: app/pam/templates/pam_sample_upload.html:386
+msgid "Локальний індекс недоступний у цьому браузері."
+msgstr "The local index is unavailable in this browser."
+
+#: app/pam/templates/pam_sample_upload.html:387
+msgid "Пошук записів у локальному індексі…"
+msgstr "Looking up recordings in the local index…"
+
+#: app/pam/templates/pam_sample_upload.html:388
+msgid "Переглянуто аудіофайлів:"
+msgstr "Audio files scanned:"
+
+#: app/pam/templates/pam_sample_upload.html:389
+msgid "Знайдено записів:"
+msgstr "Recordings found:"
+
+#: app/pam/templates/pam_sample_upload.html:390
+msgid "Відсутні записи:"
+msgstr "Recordings missing:"
+
+#: app/pam/templates/pam_sample_upload.html:391
+msgid "Неоднозначні назви записів:"
+msgstr "Ambiguous recording names:"
+
+#: app/pam/templates/pam_sample_upload.html:392
+msgid "Сформуйте вибірку, щоб знайти потрібні записи."
+msgstr "Prepare the sample to find its recordings."
+
+#: app/pam/templates/pam_sample_upload.html:393
+msgid "Помилка локального індексу:"
+msgstr "Local index error:"
+
+#: app/pam/templates/pam_sample_upload.html:530
 #: app/pam/templates/pam_segment_window.html:250
 msgid "Старт нарізки та завантаження..."
 msgstr "Starting cutting and upload..."
 
-#: app/pam/templates/pam_sample_upload.html:418
+#: app/pam/templates/pam_sample_upload.html:537
 #: app/pam/templates/pam_segment_window.html:276
 msgid "Готово."
 msgstr "Done."
 
-#: app/pam/templates/pam_sample_upload.html:420
+#: app/pam/templates/pam_sample_upload.html:539
 #: app/pam/templates/pam_segment_window.html:278
 msgid "дублікати:"
 msgstr "duplicates:"
 
-#: app/pam/templates/pam_sample_upload.html:421
+#: app/pam/templates/pam_sample_upload.html:540
 #: app/pam/templates/pam_segment_window.html:279
 msgid "без файлу:"
 msgstr "no file:"
 
-#: app/pam/templates/pam_sample_upload.html:422
+#: app/pam/templates/pam_sample_upload.html:541
 #: app/pam/templates/pam_segment_window.html:280
 msgid "помилки:"
 msgstr "errors:"
 
-#: app/pam/templates/pam_sample_upload.html:449
+#: app/pam/templates/pam_sample_upload.html:555
+msgid "Не вдалося підготувати перехід до верифікації."
+msgstr "Could not open verification for this sample."
+
+#: app/pam/templates/pam_sample_upload.html:595
 msgid "Період із детального аналізу:"
 msgstr "Period from the species dashboard:"
 
-#: app/pam/templates/pam_sample_upload.html:504
+#: app/pam/templates/pam_sample_upload.html:650
 msgid "Локацій без детекцій або без доступу пропущено:"
 msgstr "Locations skipped (no detections or no access):"
 
-#: app/pam/templates/pam_sample_upload.html:518
+#: app/pam/templates/pam_sample_upload.html:664
 msgid "Вид не має детекцій на цій локації в цьому діапазоні:"
 msgstr "This species has no detections at that location in this range:"
 
-#: app/pam/templates/pam_sample_upload.html:524
+#: app/pam/templates/pam_sample_upload.html:670
 msgid ""
 "Параметри підставлено з детального аналізу виду. Перевірте їх, натисніть "
 "«Сформувати вибірку» і виберіть папку із записами."
@@ -3612,7 +3713,7 @@ msgstr ""
 "Filters taken from the species dashboard. Check them, press “Build "
 "sample” and choose the folder with the recordings."
 
-#: app/pam/templates/pam_sample_upload.html:525
+#: app/pam/templates/pam_sample_upload.html:671
 msgid ""
 "Параметри підставлено з карти одночасних детекцій. Перевірте діапазони й "
 "натисніть «Підготувати вибірку»."
@@ -4404,7 +4505,7 @@ msgstr "Taxonomic class:"
 
 #: app/pam/templates/pam_verification_interface.html:26
 #: app/pam/templates/pam_verification_interface.html:242
-#: app/pam/templates/pam_verification_interface.html:312
+#: app/pam/templates/pam_verification_interface.html:330
 msgid "-- Усі класи --"
 msgstr "-- All classes --"
 
@@ -4414,13 +4515,13 @@ msgstr "Species for BirdNET Audio Segment Verification"
 
 #: app/pam/templates/pam_verification_interface.html:35
 #: app/pam/templates/pam_verification_interface.html:249
-#: app/pam/templates/pam_verification_interface.html:313
+#: app/pam/templates/pam_verification_interface.html:331
 msgid "-- Всі види --"
 msgstr "-- All species --"
 
 #: app/pam/templates/pam_verification_interface.html:44
 #: app/pam/templates/pam_verification_interface.html:255
-#: app/pam/templates/pam_verification_interface.html:314
+#: app/pam/templates/pam_verification_interface.html:332
 msgid "-- Усі установи --"
 msgstr "-- All institutions --"
 
@@ -4518,31 +4619,40 @@ msgstr ""
 "There are no segments for verification that match the selected criteria, "
 "or you have already verified all available segments."
 
-#: app/pam/templates/pam_verification_interface.html:354
-msgid "Черга звужена до одного вікна"
-msgstr "The queue is narrowed to one window"
+#: app/pam/templates/pam_verification_interface.html:366
+msgid "Щойно завантажені сегменти"
+msgstr "Newly uploaded segments"
 
-#: app/pam/templates/pam_verification_interface.html:357
+#: app/pam/templates/pam_verification_interface.html:367
+msgid "Завантажена вибірка недоступна в цій вкладці."
+msgstr "The uploaded sample is unavailable in this tab."
+
+#: app/pam/templates/pam_verification_interface.html:370
+#: app/pam/templates/pam_verification_interface.html:386
 msgid "верифікувати всі сегменти"
 msgstr "verify all segments"
 
-#: app/pam/templates/pam_verification_interface.html:397
+#: app/pam/templates/pam_verification_interface.html:383
+msgid "Черга звужена до одного вікна"
+msgstr "The queue is narrowed to one window"
+
+#: app/pam/templates/pam_verification_interface.html:426
 msgid "Виправлення попередньої відповіді. Виберіть правильний варіант."
 msgstr "Editing your previous answer. Choose the correct option."
 
-#: app/pam/templates/pam_verification_interface.html:647
+#: app/pam/templates/pam_verification_interface.html:676
 msgid "Помилка завантаження сегменту"
 msgstr "Error loading segment."
 
-#: app/pam/templates/pam_verification_interface.html:685
+#: app/pam/templates/pam_verification_interface.html:714
 msgid "© Записи належать"
 msgstr "© Recordings belong to"
 
-#: app/pam/templates/pam_verification_interface.html:685
+#: app/pam/templates/pam_verification_interface.html:714
 msgid "Копіювання і поширення заборонене."
 msgstr "Copying and redistribution are prohibited."
 
-#: app/pam/templates/pam_verification_interface.html:686
+#: app/pam/templates/pam_verification_interface.html:715
 msgid ""
 "© Записи належать установі, яка веде спостереження. Копіювання і "
 "поширення заборонене."
@@ -4550,35 +4660,35 @@ msgstr ""
 "© Recordings belong to the institution running the survey. Copying and "
 "redistribution are prohibited."
 
-#: app/pam/templates/pam_verification_interface.html:723
+#: app/pam/templates/pam_verification_interface.html:752
 msgid "Немає активного сегменту для верифікації"
 msgstr "No active segment for verification"
 
-#: app/pam/templates/pam_verification_interface.html:744
+#: app/pam/templates/pam_verification_interface.html:773
 msgid "Верифікацію збережено! (Підтверджено)"
 msgstr "Verification saved! (Confirmed)"
 
-#: app/pam/templates/pam_verification_interface.html:745
+#: app/pam/templates/pam_verification_interface.html:774
 msgid "Верифікацію збережено! (Відхилено)"
 msgstr "Verification saved! (Rejected)"
 
-#: app/pam/templates/pam_verification_interface.html:746
+#: app/pam/templates/pam_verification_interface.html:775
 msgid "Позначено «не знаю» — більше не показуватиметься вам"
 msgstr "Marked \"don't know\" — you won't see it again"
 
-#: app/pam/templates/pam_verification_interface.html:747
+#: app/pam/templates/pam_verification_interface.html:776
 msgid "Сегмент пропущено"
 msgstr "(Segment skipped)"
 
-#: app/pam/templates/pam_verification_interface.html:751
+#: app/pam/templates/pam_verification_interface.html:780
 msgid "Сегмент відхилено (3+ «не знаю») і більше не показуватиметься"
 msgstr "Segment discarded (3+ \"don't know\") and will no longer be shown"
 
-#: app/pam/templates/pam_verification_interface.html:761
+#: app/pam/templates/pam_verification_interface.html:790
 msgid "Помилка збереження"
 msgstr "Save error:"
 
-#: app/pam/templates/pam_verification_interface.html:762
+#: app/pam/templates/pam_verification_interface.html:791
 msgid "Помилка: "
 msgstr "Error: "
 
@@ -4613,15 +4723,15 @@ msgstr "Consensus"
 msgid "Дія"
 msgstr "Action"
 
-#: app/pam/templates/pam_verification_priorities.html:59
+#: app/pam/templates/pam_verification_priorities.html:61
 msgid "Верифікувати"
 msgstr "Verify"
 
-#: app/pam/templates/pam_verification_priorities.html:65
+#: app/pam/templates/pam_verification_priorities.html:67
 msgid "Нарізати сегменти"
 msgstr "Cut segments"
 
-#: app/pam/templates/pam_verification_priorities.html:76
+#: app/pam/templates/pam_verification_priorities.html:78
 msgid "Немає видів із завантаженими сегментами для верифікації."
 msgstr "No species with uploaded segments to verify."
 
@@ -4990,95 +5100,6 @@ msgstr "Relative activity index (RAI)"
 #: app/pam/templates/pam_yearly_trends.html:188
 msgid "RAI (детекцій на годину)"
 msgstr "RAI (detections per hour)"
-
-#: app/pam/templates/pam_sample_upload.html:164
-msgid "Використати або побудувати локальний індекс"
-msgstr "Use or build a local index"
-
-#: app/pam/templates/pam_sample_upload.html:167
-msgid "Як працює локальний індекс?"
-msgstr "How does the local index work?"
-
-#: app/pam/templates/pam_sample_upload.html:168
-msgid ""
-"Після формування вибірки виберіть кореневу папку архіву й дозвольте "
-"браузеру запис у неї. Перший пошук звірить імена аудіофайлів із PAM і "
-"збереже location.json у папках із записами. Якщо процес перерветься, "
-"виберіть ту саму папку, щоб продовжити."
-msgstr ""
-"After preparing the sample, select the archive root and grant the browser "
-"write access. The first search matches audio filenames against PAM and saves "
-"location.json in folders containing recordings. If the process is interrupted, "
-"select the same folder to resume."
-
-#: app/pam/templates/pam_sample_upload.html:169
-msgid ""
-"Наступні вибірки шукають файли в папках відповідних локацій. Якщо файлів "
-"бракує, можна завантажити знайдені сегменти або запустити пошук у всьому "
-"архіві, щоб знайти переміщені записи й оновити індекс. Зніміть галочку "
-"для звичайного вибору папки."
-msgstr ""
-"Later samples look for files in the folders for their locations. If some "
-"files are missing, you can upload the segments already found or search the "
-"entire archive to find moved recordings and update the index. Uncheck the "
-"box to use the regular folder picker."
-
-#: app/pam/templates/pam_sample_upload.html:174
-msgid "Шукати в усьому архіві"
-msgstr "Search the entire archive"
-
-#: app/pam/templates/pam_sample_upload.html:171
-#: app/pam/templates/pam_sample_upload.html:172
-msgid "Вибрати папку"
-msgstr "Select folder"
-
-#: app/pam/templates/pam_sample_upload.html:382
-msgid "Локальний індекс недоступний у цьому браузері."
-msgstr "The local index is unavailable in this browser."
-
-#: app/pam/templates/pam_sample_upload.html:383
-msgid "Пошук записів у локальному індексі…"
-msgstr "Looking up recordings in the local index…"
-
-#: app/pam/templates/pam_sample_upload.html:384
-msgid "Переглянуто аудіофайлів:"
-msgstr "Audio files scanned:"
-
-#: app/pam/templates/pam_sample_upload.html:385
-msgid "Знайдено записів:"
-msgstr "Recordings found:"
-
-#: app/pam/templates/pam_sample_upload.html:386
-msgid "Відсутні записи:"
-msgstr "Recordings missing:"
-
-#: app/pam/templates/pam_sample_upload.html:387
-msgid "Неоднозначні назви записів:"
-msgstr "Ambiguous recording names:"
-
-#: app/pam/templates/pam_sample_upload.html:388
-msgid "Сформуйте вибірку, щоб знайти потрібні записи."
-msgstr "Prepare the sample to find its recordings."
-
-#: app/pam/templates/pam_sample_upload.html:389
-msgid "Помилка локального індексу:"
-msgstr "Local index error:"
-
-#: app/pam/templates/pam_sample_upload.html:182
-msgid "Перейти до верифікації"
-msgstr "Go to verification"
-
-#: app/pam/templates/pam_sample_upload.html:555
-msgid "Не вдалося підготувати перехід до верифікації."
-msgstr "Could not open verification for this sample."
-
-#: app/pam/templates/pam_verification_interface.html:366
-msgid "Щойно завантажені сегменти"
-msgstr "Newly uploaded segments"
-
-#: app/pam/templates/pam_verification_interface.html:367
-msgid "Завантажена вибірка недоступна в цій вкладці."
-msgstr "The uploaded sample is unavailable in this tab."
 
 #~ msgid "Алгоритм класифікації"
 #~ msgstr ""

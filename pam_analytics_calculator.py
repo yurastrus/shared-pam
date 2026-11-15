@@ -6,22 +6,13 @@ import sys
 from datetime import datetime
 from sqlalchemy import create_engine, text, Column, Integer, Numeric, DateTime, UniqueConstraint
 from sqlalchemy.orm import sessionmaker, declarative_base, Session as SessionType
-from sqlalchemy.exc import SQLAlchemyError
 from collections import defaultdict
-
-# --- Logging configuration ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Configuration ---
 DEFAULT_THRESHOLD = 0.95
 MIN_DETECTIONS_PER_YEAR = 50
 BOOTSTRAP_ITERATIONS = 10000
 RECORDING_DURATION_MIN = 5.0
-
-# --- Database connection settings ---
-DATABASE_URI = None
-engine = None
-Session = None
 
 # --- SQLAlchemy model declarations ---
 Base = declarative_base()
@@ -181,8 +172,8 @@ def _precalculate_biotope_effort_map(session: SessionType, institution_id: int =
         effort_df['year'] = effort_df['year'].astype(int)
         return effort_df
     except Exception as e:
-        logging.error(f"Failed during biotope effort map calculation: {e}")
-        return pd.DataFrame(columns=['biotope_id', 'year', 'effort_hours'])
+        logging.error(f"Failed during biotope effort map calculation: {e}", exc_info=True)
+        raise
 
 
 def _get_species_to_process(session: SessionType, force: bool, trends_only: bool, biotopes_only: bool):
@@ -456,14 +447,6 @@ def _get_location_institution_map(session: SessionType) -> pd.DataFrame:
     sql = "SELECT location_id, institution_id FROM location_institutions"
     return pd.read_sql(sql, session.bind)
 
-def _get_all_institution_ids(session: SessionType) -> list:
-    """Return a list of all institution IDs."""
-    # Check whether the institutions table exists (safety guard).
-    try:
-        return [r[0] for r in session.execute(text("SELECT id FROM institutions")).fetchall()]
-    except Exception:
-        return []
-
 def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataFrame, trends_only: bool, biotopes_only: bool):
     """Full calculation cycle: biotopes and trends (global + per institution)."""
     # 1. Guard: nothing to process.
@@ -473,9 +456,9 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
 
     # 2. Initialise base lists once at the start.
     all_species_ids = species_to_process_df.index.tolist()
-    all_institutions = _get_all_institution_ids(session)
     confidence_thresholds = _get_species_confidence_thresholds(session)
     loc_inst_map = _get_location_institution_map(session)
+    all_institutions = sorted(int(inst_id) for inst_id in loc_inst_map['institution_id'].dropna().unique())
 
     logging.info(f"Starting calculation for {len(all_species_ids)} species and {len(all_institutions)} institutions.")
 
@@ -499,6 +482,7 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
         except Exception as e:
             session.rollback()
             logging.error(f"Critical error in biotope calculation: {e}", exc_info=True)
+            raise
         
         # Biotopes-only mode — exit after this block.
         if biotopes_only:
@@ -513,6 +497,7 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
         
     monitoring_periods = pd.read_sql("SELECT * FROM species_monitoring_periods", session.bind).set_index('species_id')
     total_species = len(all_species_ids)
+    failed_species = 0
 
     for i, species_id in enumerate(all_species_ids):
         logging.info(f"[{i+1}/{total_species}] Processing trends for species ID: {species_id}")
@@ -583,30 +568,30 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
             session.commit()
 
         except Exception as e:
+            failed_species += 1
             logging.error(f"Error processing species {species_id}: {e}", exc_info=True)
             session.rollback()
 
+    if failed_species:
+        raise RuntimeError(f"PAM trends failed for {failed_species} of {total_species} species")
+
 def run_pam_analytics(db_uri: str, force: bool, trends_only: bool, biotopes_only: bool):
-    global DATABASE_URI, engine, Session
-    DATABASE_URI = db_uri
+    engine = create_engine(db_uri)
     try:
-        engine = create_engine(DATABASE_URI)
-        Session = sessionmaker(bind=engine)
-        with Session() as session:
+        with sessionmaker(bind=engine)() as session:
             logging.info("--- Starting Full PAM Analytics Calculation Cycle ---")
             if not trends_only and not biotopes_only:
                 _populate_monitoring_periods(session)
             species_to_process_df = _get_species_to_process(session, force, trends_only, biotopes_only)
             _run_calculation_cycle(session, species_to_process_df, trends_only, biotopes_only)
             logging.info("--- PAM Analytics Calculation Cycle Completed Successfully ---")
-    except SQLAlchemyError as e:
-        logging.error(f"Database error during analytics calculation: {e}", exc_info=True)
-    except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}", exc_info=True)
+    finally:
+        engine.dispose()
 
 
 if __name__ == '__main__':
     import os
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     sys.path.insert(0, project_root)
     
@@ -628,3 +613,4 @@ if __name__ == '__main__':
             run_pam_analytics(pam_db_uri, force=force_run, trends_only=trends_only_run, biotopes_only=biotopes_only_run)
     except Exception as e:
         logging.error(f"Failed to run script: {e}", exc_info=True)
+        sys.exit(1)

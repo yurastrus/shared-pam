@@ -224,6 +224,34 @@ def pam_admin(lang_code):
     )
 
 
+@pam_bp.route('/<lang_code>/pam/admin/run-analytics', methods=['POST'])
+@login_required
+@role_required('admin')
+def pam_run_analytics(lang_code):
+    from .analytics_job import start
+
+    try:
+        if start():
+            return jsonify(status='running'), 202
+        return jsonify(status='running'), 409
+    except Exception:
+        current_app.logger.exception("Could not start PAM analytics")
+        return jsonify(status='unavailable'), 500
+
+
+@pam_bp.route('/<lang_code>/pam/admin/analytics/status')
+@login_required
+@role_required('admin')
+def pam_analytics_status(lang_code):
+    from .analytics_job import get_status
+
+    try:
+        return jsonify(get_status())
+    except Exception:
+        current_app.logger.exception("Could not read PAM analytics status")
+        return jsonify(status='unavailable'), 500
+
+
 @pam_bp.route('/<lang_code>/pam/admin/biotopes/auto-assign', methods=['POST'])
 @login_required
 @role_required('admin')

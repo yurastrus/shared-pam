@@ -137,17 +137,21 @@ def ensure_schema() -> None:
                 biotope_id       INTEGER NOT NULL REFERENCES biotopes(id) ON DELETE CASCADE
             )
         """))
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS pam_calculation_log (
-                id                 SERIAL PRIMARY KEY,
-                source_name        VARCHAR(100) NOT NULL UNIQUE,
-                last_count         INTEGER NOT NULL DEFAULT 0,
-                last_calculated_at TIMESTAMPTZ,
-                status             VARCHAR(20) NOT NULL DEFAULT 'idle',
-                started_at         TIMESTAMPTZ,
-                error_message      TEXT
-            )
-        """))
+        _ensure_calculation_log(conn)
+
+
+def _ensure_calculation_log(conn) -> None:
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS pam_calculation_log (
+            id                 SERIAL PRIMARY KEY,
+            source_name        VARCHAR(100) NOT NULL UNIQUE,
+            last_count         INTEGER NOT NULL DEFAULT 0,
+            last_calculated_at TIMESTAMPTZ,
+            status             VARCHAR(20) NOT NULL DEFAULT 'idle',
+            started_at         TIMESTAMPTZ,
+            error_message      TEXT
+        )
+    """))
 
 
 # ── GEE availability & initialisation (self-contained) ──────────────────────
