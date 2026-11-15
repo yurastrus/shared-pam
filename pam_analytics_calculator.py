@@ -93,7 +93,8 @@ def _get_species_confidence_thresholds(session: SessionType, default_threshold: 
             SELECT
                 e.species_id,
                 e.p0_95_threshold,
-                ROW_NUMBER() OVER(PARTITION BY e.species_id ORDER BY e.calculated_at DESC) as rn
+                ROW_NUMBER() OVER(PARTITION BY e.species_id
+                                  ORDER BY e.calculated_at DESC, e.p0_95_threshold DESC) as rn
             FROM evaluation e
             WHERE e.p0_95_threshold IS NOT NULL
               AND e.p0_95_threshold > 0
@@ -110,10 +111,9 @@ def _get_species_confidence_thresholds(session: SessionType, default_threshold: 
         threshold_map.update(thresholds)
         logging.info(f"Loaded {len(thresholds)} custom thresholds. Using {default_threshold} for others.")
         return threshold_map
-    except Exception as e:
-        logging.error(f"Could not fetch evaluation thresholds: {e}", exc_info=True)
-        logging.warning("Falling back to default threshold for ALL species.")
-        return defaultdict(lambda: default_threshold)
+    except Exception:
+        logging.exception("Could not fetch species confidence thresholds")
+        raise
 
 
 def _precalculate_effort_map(session: SessionType):
@@ -215,19 +215,6 @@ def _calculate_and_save_biotope_activity(
     """
     if not species_ids:
         return
-
-    # 1. Delete stale records for this specific context (global or per institution).
-    # This prevents duplicates on re-run.
-    query_filter = session.query(SpeciesBiotopeYearlyActivity).filter(
-        SpeciesBiotopeYearlyActivity.species_id.in_(species_ids)
-    )
-    
-    if institution_id is None:
-        query_filter = query_filter.filter(SpeciesBiotopeYearlyActivity.institution_id.is_(None))
-    else:
-        query_filter = query_filter.filter(SpeciesBiotopeYearlyActivity.institution_id == institution_id)
-        
-    query_filter.delete(synchronize_session=False)
 
     # 2. Build dynamic SQL conditions.
     # Per-species confidence thresholds.
@@ -353,18 +340,6 @@ def _calculate_and_save_trends(
     if intermediate_df.empty:
         return
     
-    # 1. Delete stale trends for this species and institution.
-    query_filter = session.query(SpeciesYearlyTrends).filter(
-        SpeciesYearlyTrends.species_id == species_id
-    )
-    
-    if institution_id is None:
-        query_filter = query_filter.filter(SpeciesYearlyTrends.institution_id.is_(None))
-    else:
-        query_filter = query_filter.filter(SpeciesYearlyTrends.institution_id == institution_id)
-        
-    query_filter.delete(synchronize_session=False)
-
     # 2. Filter by phenology (species monitoring period).
     try:
         species_period = monitoring_periods.loc[species_id]
@@ -447,7 +422,7 @@ def _get_location_institution_map(session: SessionType) -> pd.DataFrame:
     sql = "SELECT location_id, institution_id FROM location_institutions"
     return pd.read_sql(sql, session.bind)
 
-def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataFrame, trends_only: bool, biotopes_only: bool):
+def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataFrame, trends_only: bool, biotopes_only: bool, thresholds=None):
     """Full calculation cycle: biotopes and trends (global + per institution)."""
     # 1. Guard: nothing to process.
     if species_to_process_df is None or species_to_process_df.empty:
@@ -456,7 +431,7 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
 
     # 2. Initialise base lists once at the start.
     all_species_ids = species_to_process_df.index.tolist()
-    confidence_thresholds = _get_species_confidence_thresholds(session)
+    confidence_thresholds = thresholds if thresholds is not None else _get_species_confidence_thresholds(session)
     loc_inst_map = _get_location_institution_map(session)
     all_institutions = sorted(int(inst_id) for inst_id in loc_inst_map['institution_id'].dropna().unique())
 
@@ -466,6 +441,11 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
     if not trends_only:
         logging.info("--- Step 1: Biotope Activity ---")
         try:
+            # Clear all contexts for selected species, including institutions
+            # that no longer have any locations or effort.
+            session.query(SpeciesBiotopeYearlyActivity).filter(
+                SpeciesBiotopeYearlyActivity.species_id.in_(all_species_ids)
+            ).delete(synchronize_session=False)
             # 1.1. Global biotopes.
             logging.info("Calculating GLOBAL biotope activity...")
             global_biotope_effort = _precalculate_biotope_effort_map(session, institution_id=None)
@@ -491,9 +471,6 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
     # --- BLOCK 2: TRENDS CALCULATION ---
     logging.info("--- Step 2: Yearly Trends ---")
     effort_df = _precalculate_effort_map(session)
-    if effort_df.empty:
-        logging.warning("No effort data found. Cannot calculate trends.")
-        return
         
     monitoring_periods = pd.read_sql("SELECT * FROM species_monitoring_periods", session.bind).set_index('species_id')
     total_species = len(all_species_ids)
@@ -502,6 +479,7 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
     for i, species_id in enumerate(all_species_ids):
         logging.info(f"[{i+1}/{total_species}] Processing trends for species ID: {species_id}")
         try:
+            session.query(SpeciesYearlyTrends).filter_by(species_id=species_id).delete(synchronize_session=False)
             # Fetch intermediate data (raw detections + effort).
             if trends_only:
                 # trends-only mode: use existing table data.
@@ -521,45 +499,39 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
                 """)
                 species_df = pd.read_sql(sql_species, session.bind, params={'species_id': species_id, 'confidence': confidence_threshold}, parse_dates=['datetime_start'])
 
-                if species_df.empty:
-                    continue
-
-                # Prepare data for aggregation.
-                if species_df['datetime_start'].dt.tz is not None:
-                    species_df['datetime_start'] = species_df['datetime_start'].dt.tz_localize(None)
-                
-                species_df['year'] = species_df['datetime_start'].dt.year
-                species_df['month'] = species_df['datetime_start'].dt.month
-                species_df['day'] = species_df['datetime_start'].dt.day
-                species_df['month_part'] = pd.cut(species_df['day'], bins=[0, 10, 20, 31], labels=[1, 2, 3], right=True).astype(int)
-                species_df['day_part'] = (species_df['datetime_start'].dt.hour // 6) + 1
-                
-                grouping_keys = ['year', 'location_id', 'month', 'month_part', 'day_part']
-                detections_agg = species_df.groupby(grouping_keys).size().reset_index(name='detection_count')
-                
-                intermediate_df = pd.merge(effort_df, detections_agg, on=grouping_keys, how='left').fillna(0)
+                intermediate_df = pd.DataFrame()
+                if not effort_df.empty and not species_df.empty:
+                    # Prepare data for aggregation.
+                    if species_df['datetime_start'].dt.tz is not None:
+                        species_df['datetime_start'] = species_df['datetime_start'].dt.tz_localize(None)
+                    species_df['year'] = species_df['datetime_start'].dt.year
+                    species_df['month'] = species_df['datetime_start'].dt.month
+                    species_df['day'] = species_df['datetime_start'].dt.day
+                    species_df['month_part'] = pd.cut(species_df['day'], bins=[0, 10, 20, 31], labels=[1, 2, 3], right=True).astype(int)
+                    species_df['day_part'] = (species_df['datetime_start'].dt.hour // 6) + 1
+                    grouping_keys = ['year', 'location_id', 'month', 'month_part', 'day_part']
+                    detections_agg = species_df.groupby(grouping_keys).size().reset_index(name='detection_count')
+                    intermediate_df = pd.merge(effort_df, detections_agg, on=grouping_keys, how='left').fillna(0)
                 intermediate_df['species_id'] = species_id
                 
                 if not intermediate_df.empty:
                     session.bulk_insert_mappings(AnalysisIntermediate, intermediate_df.to_dict(orient='records'))
 
-            if intermediate_df.empty:
-                continue
-
-            # 2.1. Calculate GLOBAL trend.
-            _calculate_and_save_trends(session, intermediate_df, monitoring_periods, species_id, institution_id=None)
-            
-            # 2.2. Per-institution trends.
-            if not loc_inst_map.empty:
-                merged_inter = pd.merge(intermediate_df, loc_inst_map, on='location_id', how='inner')
-                for inst_id, group_df in merged_inter.groupby('institution_id'):
-                    _calculate_and_save_trends(session, group_df, monitoring_periods, species_id, institution_id=int(inst_id))
+            if not intermediate_df.empty:
+                _calculate_and_save_trends(session, intermediate_df, monitoring_periods, species_id, institution_id=None)
+                if not loc_inst_map.empty:
+                    merged_inter = pd.merge(intermediate_df, loc_inst_map, on='location_id', how='inner')
+                    for inst_id, group_df in merged_inter.groupby('institution_id'):
+                        _calculate_and_save_trends(session, group_df, monitoring_periods, species_id, institution_id=int(inst_id))
 
             # Log successful completion for this species.
             if not trends_only:
                 current_count = int(species_to_process_df.loc[species_id, 'count'])
                 log_entry = session.get(AnalyticsLog, species_id)
-                if log_entry:
+                if current_count == 0:
+                    if log_entry:
+                        session.delete(log_entry)
+                elif log_entry:
                     log_entry.detection_count = current_count
                     log_entry.last_calculated_at = datetime.utcnow()
                 else:
@@ -575,15 +547,21 @@ def _run_calculation_cycle(session: SessionType, species_to_process_df: pd.DataF
     if failed_species:
         raise RuntimeError(f"PAM trends failed for {failed_species} of {total_species} species")
 
-def run_pam_analytics(db_uri: str, force: bool, trends_only: bool, biotopes_only: bool):
+def run_pam_analytics(db_uri: str, force: bool, trends_only: bool, biotopes_only: bool,
+                      *, selected_counts=None, thresholds=None):
     engine = create_engine(db_uri)
     try:
         with sessionmaker(bind=engine)() as session:
             logging.info("--- Starting Full PAM Analytics Calculation Cycle ---")
             if not trends_only and not biotopes_only:
                 _populate_monitoring_periods(session)
-            species_to_process_df = _get_species_to_process(session, force, trends_only, biotopes_only)
-            _run_calculation_cycle(session, species_to_process_df, trends_only, biotopes_only)
+            if selected_counts is None:
+                species_to_process_df = _get_species_to_process(session, force, trends_only, biotopes_only)
+            else:
+                species_to_process_df = pd.DataFrame(
+                    {"count": list(selected_counts.values())}, index=list(selected_counts)
+                )
+            _run_calculation_cycle(session, species_to_process_df, trends_only, biotopes_only, thresholds)
             logging.info("--- PAM Analytics Calculation Cycle Completed Successfully ---")
     finally:
         engine.dispose()
