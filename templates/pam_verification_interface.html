@@ -62,6 +62,32 @@
                         </div>
                     </div>
                     
+                    <!-- Segment info -->
+                    <div class="segment-info" style="display: none;">
+                        <h4 id="segment-species">Назва виду</h4>
+                        <!-- Cross-check the call against reference recordings without
+                             leaving the queue: opens xeno-canto in a new tab, filtered
+                             to the species of the current segment. -->
+                        <a id="segment-xc-link" class="xc-link" href="#" target="_blank"
+                           rel="noopener noreferrer" style="display:none;">
+                            {{ _('Послухати на xeno-canto') }} ↗
+                        </a>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="info-label">{{ _('Локація:') }}</span>
+                                <span class="info-value" id="segment-location">LOCATION</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">{{ _('Дата запису:') }}</span>
+                                <span class="info-value" id="segment-date">01.01.2025</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">{{ _('Час запису:') }}</span>
+                                <span class="info-value" id="segment-time">00:00:00</span>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- User statistics -->
                     <div class="stats-panel">
                         <h4>{{ _('Моя статистика') }}</h4>
@@ -89,32 +115,6 @@
                                 <div class="stats-value" id="skipped-verifications">-</div>
                             </div>
                             -->
-                        </div>
-                    </div>
-
-                    <!-- Segment info -->
-                    <div class="segment-info" style="display: none;">
-                        <h4 id="segment-species">Назва виду</h4>
-                        <!-- Cross-check the call against reference recordings without
-                             leaving the queue: opens xeno-canto in a new tab, filtered
-                             to the species of the current segment. -->
-                        <a id="segment-xc-link" class="xc-link" href="#" target="_blank"
-                           rel="noopener noreferrer" style="display:none;">
-                            {{ _('Послухати на xeno-canto') }} ↗
-                        </a>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <span class="info-label">{{ _('Локація:') }}</span>
-                                <span class="info-value" id="segment-location">LOCATION</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">{{ _('Дата запису:') }}</span>
-                                <span class="info-value" id="segment-date">01.01.2025</span>
-                            </div>
-                            <div class="info-item">
-                                <span class="info-label">{{ _('Час запису:') }}</span>
-                                <span class="info-value" id="segment-time">00:00:00</span>
-                            </div>
                         </div>
                     </div>
                 </div>
