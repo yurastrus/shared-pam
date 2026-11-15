@@ -69,6 +69,13 @@ The PAM module uses its own PostgreSQL database (`pam_db`, configured via `PAM_D
 | `species_yearly_trends` | `species_id`, `year`, `institution_id`, `mean_rai`, `lower_ci`, `upper_ci`, `calculated_at` | Relative Abundance Index per species / year / institution with 95 % bootstrap CI; unique on `(species_id, year, institution_id)` |
 | `species_biotope_yearly_activity` | `species_id`, `biotope_id`, `year`, `institution_id`, `detection_count`, `effort_hours` | Detection density per biotope and year; unique on `(species_id, biotope_id, year, institution_id)` |
 
+Apply `migrations/0010_analytics_checkpoint.sql` in pam_db before enabling the
+scheduled analytics job. `python -m app.pam.analytics_job` builds the baseline
+on its first successful run and then skips unchanged inputs. Species-specific
+changes rebuild those species. Shared changes to recordings or location
+assignments rebuild all affected species. The admin button and the CLI flag
+`--force` request a full recalculation and save a new baseline on success.
+
 ---
 
 ## Flask routes

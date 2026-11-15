@@ -7,7 +7,9 @@ from threading import Thread
 
 from flask import current_app
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
+from .analytics_inputs import CHECKPOINT_TABLE, read_checkpoint, read_inputs, save_checkpoint, select_species
 from .biotope_autoassign import _ensure_calculation_log
 from .utils import get_pam_engine
 
@@ -47,8 +49,8 @@ def get_status():
         }
 
 
-def _run(started=None):
-    from .pam_analytics_calculator import run_pam_analytics
+def _run(started=None, *, force=True):
+    from .pam_analytics_calculator import _get_species_confidence_thresholds, run_pam_analytics
 
     with get_pam_engine().connect() as conn:
         acquired = conn.scalar(
@@ -75,22 +77,52 @@ def _run(started=None):
                 started.set_result(True)
 
             status = "failed"
+            recalculated = False
             try:
-                logger.info("Starting full PAM analytics recalculation")
-                run_pam_analytics(
-                    current_app.config["PAM_DATABASE_URI"],
-                    force=True, trends_only=False, biotopes_only=False,
-                )
+                # Keep reads consistent without holding locks during the calculation.
+                with conn.begin():
+                    conn.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"))
+                    conn.execute(text("SET LOCAL statement_timeout = '90s'"))
+                    has_checkpoint_table = conn.scalar(
+                        text("SELECT to_regclass(:table)"), {"table": CHECKPOINT_TABLE}
+                    )
+                    if has_checkpoint_table:
+                        with Session(bind=conn) as session:
+                            thresholds = _get_species_confidence_thresholds(session)
+                            snapshot = read_inputs(conn, thresholds)
+                        previous = read_checkpoint(conn)
+                        selected = select_species(snapshot, previous, force=force)
+                    elif force:
+                        selected = thresholds = snapshot = None
+                    else:
+                        raise RuntimeError("PAM analytics checkpoint migration has not been applied")
+
+                if selected or selected is None:
+                    logger.info("Starting PAM analytics for %s species",
+                                "all" if selected is None else len(selected))
+                    run_pam_analytics(
+                        current_app.config["PAM_DATABASE_URI"],
+                        force=force, trends_only=False, biotopes_only=False,
+                        selected_counts=selected, thresholds=thresholds,
+                    )
+                    recalculated = True
+                    logger.info("PAM analytics recalculation completed")
+                else:
+                    logger.info("PAM analytics inputs unchanged; skipped recalculation")
+                if snapshot is not None and snapshot != previous:
+                    save_checkpoint(conn, snapshot)
                 status = "completed"
-                logger.info("PAM analytics recalculation completed")
+            except Exception:
+                conn.rollback()
+                raise
             finally:
                 conn.execute(text("""
                     UPDATE pam_calculation_log
                     SET status = :status, last_calculated_at = CASE
-                        WHEN :status = 'completed' THEN NOW() ELSE last_calculated_at
+                        WHEN :recalculated THEN NOW() ELSE last_calculated_at
                     END
                     WHERE source_name = :source
-                """), {"source": SOURCE, "status": status})
+                """), {"source": SOURCE, "status": status, "recalculated": recalculated})
                 conn.commit()
         finally:
             # A failed transaction must be cleared before unlocking. Never return
@@ -127,8 +159,13 @@ def start():
 
 
 if __name__ == "__main__":
+    from argparse import ArgumentParser
+
     from app import create_app
 
+    parser = ArgumentParser(description="Refresh PAM analytics when inputs change.")
+    parser.add_argument("--force", action="store_true", help="Recalculate all species.")
+    args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     with create_app().app_context():
-        _run()
+        _run(force=args.force)
