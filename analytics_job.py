@@ -60,6 +60,9 @@ def _run(started=None):
             logger.info("PAM analytics already running")
             return
         try:
+            # Calculation queries use other connections. Keep this session
+            # alive while it holds the lock, even during a long calculation.
+            conn.execute(text("SET idle_session_timeout = 0"))
             _ensure_calculation_log(conn)
             conn.execute(text("""
                 INSERT INTO pam_calculation_log (source_name, status, started_at)
@@ -95,6 +98,8 @@ def _run(started=None):
             try:
                 conn.rollback()
                 conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": LOCK_KEY})
+                conn.execute(text("RESET idle_session_timeout"))
+                conn.commit()
             except Exception:
                 conn.invalidate()
                 raise
