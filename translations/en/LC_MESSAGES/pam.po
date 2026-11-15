@@ -5254,6 +5254,21 @@ msgstr "Most useful records (by priority)"
 msgid "Повернути пропущені сегменти"
 msgstr "Bring back skipped segments"
 
+msgid "Підібрати для закриття прогалин"
+msgstr "Pick segments to fill gaps"
+
+msgid "Підбір прогалин використовує вибрану модель, кількість, установу, локації та вид за всі роки. Без вибраного виду або установи вибірка розподіляється між доступними видами або установами."
+msgstr "Gap sampling uses the selected model, number of clips, institution, locations, and species across all years. If the species or institution is left blank, the sample is spread across the available species or institutions."
+
+msgid "Із новою прогалиною:"
+msgstr "Targeting a new gap:"
+
+msgid "Пошук зупинено за лімітом часу. Показано знайдені сегменти."
+msgstr "The search reached its time limit. The segments found so far are shown."
+
+msgid "Не вдалося підібрати сегменти для прогалин."
+msgstr "Could not prepare a sample for verification gaps."
+
 #~ msgid "Немає даних про обслуговування"
 #~ msgstr "No maintenance data"
 

@@ -159,7 +159,7 @@ async function cutByDecode(file, startSec, durSec) {
             const fd = new FormData();
             fd.append('segment', blob,
                       seg.segment_filename.replace(/\.(flac|mp3)$/i, '.wav'));
-            fd.append('species_name', opts.speciesName || '');
+            fd.append('species_name', seg.species_name || opts.speciesName || '');
             fd.append('species_id', seg.species_id);
             fd.append('detection_id', seg.detection_id);
             fd.append('recording_id', seg.recording_id);

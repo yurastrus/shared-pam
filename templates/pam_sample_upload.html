@@ -152,8 +152,11 @@
         </div>
         <div class="mt-2">
             <button id="su-prepare" class="btn btn-sm btn-primary" disabled>{{ _('Сформувати вибірку') }}</button>
+            <button id="su-prepare-gaps" type="button" class="btn btn-sm btn-outline-primary" disabled
+                    aria-describedby="su-gap-help">{{ _('Підібрати для закриття прогалин') }}</button>
             <span id="su-prepare-info" class="su-help ms-2"></span>
         </div>
+        <p id="su-gap-help" class="su-help mt-1 mb-0">{{ _('Підбір прогалин використовує вибрану модель, кількість, установу, локації та вид за всі роки. Без вибраного виду або установи вибірка розподіляється між доступними видами або установами.') }}</p>
     </div>
 
     <!-- STEP 4: local folder -->
@@ -196,7 +199,7 @@
 </div>
 
 {# Browser-side WAV cutting + upload pool, shared with pam_segment_window.html. #}
-<script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=3"></script>
+<script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=4"></script>
 <script src="{{ url_for('pam.serve_pam_static', filename='js/recording_index.js', lang_code=g.lang_code) }}?v=4"></script>
 <script>
 "use strict";
@@ -207,12 +210,15 @@
     const LANG = "{{ g.lang_code }}";
     const URL_SPECIES  = "{{ url_for('pam.api_sample_species',  lang_code=g.lang_code) }}";
     const URL_PREPARE  = "{{ url_for('pam.api_sample_prepare',  lang_code=g.lang_code) }}";
+    const URL_PREPARE_GAPS = {{ url_for('pam.api_sample_prepare_gaps', lang_code=g.lang_code) | tojson }};
     const URL_UPLOAD   = "{{ url_for('pam.api_sample_upload_segment', lang_code=g.lang_code) }}";
     const URL_RECORDING_LOCATIONS = {{ url_for('pam.api_sample_recording_locations', lang_code=g.lang_code) | tojson }};
     const CONCURRENCY  = 4;               // parallel uploads, mirrors fast-upload
 
     // ── state ─────────────────────────────────────────────────────────────
     let plannedSegments = [];             // from /prepare
+    let gapPlan = false;
+    let prefillPending = true;
     let exactPeriod = null;               // {from, to} from the species dashboard
     let fileMap = new Map();              // basename(lower) -> File
     let archiveRoot = null;
@@ -245,9 +251,11 @@
     }
 
     let speciesList = [];   // full list for the selected locations (for search filter)
+    let speciesRequest = 0;
 
     async function onLocationsChanged() {
         const ids = selectedLocationIds();
+        const requestId = ++speciesRequest;
         const spSel = $('su-species');
         const search = $('su-species-search');
         spSel.disabled = true;
@@ -256,21 +264,21 @@
         $('su-species-count').textContent = '';
         spSel.innerHTML = `<option value="">{{ _('Завантаження...') }}</option>`;
         $('su-prepare').disabled = true;
-        if (!ids.length) {
-            spSel.innerHTML = `<option value="">{{ _('— Спершу виберіть локації —') }}</option>`;
-            return;
-        }
         try {
-            const r = await fetch(`${URL_SPECIES}?location_ids=${ids.join(',')}`, {
+            const query = ids.length ? 'location_ids=' + ids.join(',') : 'catalog=1';
+            const r = await fetch(`${URL_SPECIES}?${query}`, {
                 headers: { 'X-CSRFToken': CSRF }
             });
             const data = await r.json();
+            if (requestId !== speciesRequest) return;
             speciesList = data.species || [];
             search.value = '';
             search.disabled = speciesList.length === 0;
             renderSpecies();
         } catch (e) {
-            spSel.innerHTML = `<option value="">{{ _('Помилка завантаження видів') }}</option>`;
+            if (requestId === speciesRequest) {
+                spSel.innerHTML = `<option value="">{{ _('Помилка завантаження видів') }}</option>`;
+            }
         }
     }
 
@@ -293,7 +301,7 @@
         spSel.disabled = speciesList.length === 0;
         $('su-species-count').textContent =
             "{{ _('Видів:') }} " + filtered.length + " / " + speciesList.length;
-        $('su-prepare').disabled = busy || !spSel.value;
+        $('su-prepare').disabled = busy || !spSel.value || !selectedLocationIds().length;
     }
 
     // ── STEP 3: prepare stratified sample ───────────────────────────────────
@@ -323,12 +331,12 @@
         return null;
     }
 
-    async function prepareSample() {
+    async function prepareSample(useGaps = false) {
         if (busy) return;
         const species = $('su-species').value;
         const ids = selectedLocationIds();
-        if (!species || !ids.length) { return; }
-        const problem = validateParams();
+        if (!useGaps && (!species || !ids.length)) { return; }
+        const problem = useGaps ? null : validateParams();
         if (problem) { $('su-prepare-info').textContent = problem; return; }
         setBusy(true);
         $('su-prepare-info').textContent = "{{ _('Формування вибірки...') }}";
@@ -343,9 +351,13 @@
             sample_size: parseInt($('su-size').value, 10) || 700,
             model_id: parseInt(($('su-model') || {}).value, 10) || null,
         };
-        // An exact period replaces the month/year window rather than being
-        // intersected with it: the disabled selectors are not what the user sees.
-        if (exactPeriod) {
+        // Gap planning looks for missing calendar months across the archive.
+        if (useGaps) {
+            body.institution_id = parseInt($('su-institution').value, 10) || null;
+            delete body.confidence_threshold;
+            delete body.confidence_max;
+            delete body.n_strata;
+        } else if (exactPeriod) {
             body.date_from = exactPeriod.from;
             body.date_to = exactPeriod.to;
         } else {
@@ -355,7 +367,7 @@
             body.year_end = parseInt($('su-year-end').value, 10) || null;
         }
         try {
-            const r = await fetch(URL_PREPARE, {
+            const r = await fetch(useGaps ? URL_PREPARE_GAPS : URL_PREPARE, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
                 body: JSON.stringify(body)
@@ -363,9 +375,13 @@
             const data = await r.json();
             if (!data.success) { throw new Error(data.error || 'error'); }
             plannedSegments = data.segments || [];
-            $('su-prepare-info').textContent =
-                "{{ _('Відібрано детекцій:') }} " + plannedSegments.length;
-            log("{{ _('Відібрано детекцій:') }} " + plannedSegments.length);
+            gapPlan = useGaps;
+            const summary = "{{ _('Відібрано детекцій:') }} " + plannedSegments.length
+                + (useGaps ? ' · ' + {{ _('Із новою прогалиною:') | tojson }}
+                    + ' ' + plannedSegments.filter(seg => seg.novelty > 0).length : '')
+                + (data.search_limited ? ' · ' + {{ _('Пошук зупинено за лімітом часу. Показано знайдені сегменти.') | tojson }} : '');
+            $('su-prepare-info').textContent = summary;
+            log(summary);
             if (archiveRoot) await matchIndexedFolder();
         } catch (e) {
             $('su-prepare-info').textContent = "{{ _('Помилка:') }} " + e.message;
@@ -462,7 +478,8 @@
 
     function setBusy(value) {
         busy = value;
-        $('su-prepare').disabled = busy || !$('su-species').value;
+        $('su-prepare').disabled = busy || !$('su-species').value || !selectedLocationIds().length;
+        $('su-prepare-gaps').disabled = busy || prefillPending;
         $('su-folder').disabled = busy;
         $('su-index-folder').disabled = busy;
         $('su-search-archive').disabled = busy;
@@ -548,6 +565,7 @@
                 }));
                 const url = new URL({{ url_for('pam.verification_interface', lang_code=g.lang_code) | tojson }}, window.location.origin);
                 url.searchParams.set('sample', token);
+                if (gapPlan) url.searchParams.set('sort_by', 'benefit');
                 verifyLink.href = url.href;
                 $('su-verify-count').textContent = savedIds.size;
                 verifyLink.style.display = '';
@@ -562,9 +580,10 @@
     $('su-locations').addEventListener('change', onLocationsChanged);
     $('su-species-search').addEventListener('input', renderSpecies);
     $('su-species').addEventListener('change', () => {
-        $('su-prepare').disabled = busy || !$('su-species').value;
+        $('su-prepare').disabled = busy || !$('su-species').value || !selectedLocationIds().length;
     });
-    $('su-prepare').addEventListener('click', prepareSample);
+    $('su-prepare').addEventListener('click', () => prepareSample());
+    $('su-prepare-gaps').addEventListener('click', () => prepareSample(true));
     $('su-folder').addEventListener('change', onFolderPicked);
     $('su-index-folder').addEventListener('click', pickIndexedFolder);
     $('su-search-archive').addEventListener('click', async () => {
@@ -674,7 +693,10 @@
     }
 
     renderLocations();
-    applyPrefill();
+    applyPrefill().finally(() => {
+        prefillPending = false;
+        $('su-prepare-gaps').disabled = busy;
+    });
 })();
 </script>
 {% endblock %}

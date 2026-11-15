@@ -287,6 +287,11 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
         if own_conn and conn is not None:
             conn.close()
 
+    return format_sample_plan(rows, model_id)
+
+
+def format_sample_plan(rows, model_id):
+    """Format detection rows for the browser cutter, including mixed-species plans."""
     # Assign a per-recording part counter, exactly like the R script, so two
     # detections from the same recording get _part1, _part2, ... .
     part_counter = defaultdict(int)
@@ -319,6 +324,10 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
             'recorded_date': dt.date().isoformat() if dt else None,
             'recorded_time': dt.time().isoformat() if dt else None,
         })
+        if row.get('species_name'):
+            result[-1]['species_name'] = row['species_name']
+        if 'novelty' in row:
+            result[-1]['novelty'] = row['novelty']
     return result
 
 

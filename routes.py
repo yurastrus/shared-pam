@@ -5352,21 +5352,28 @@ def api_sample_species(lang_code):
     try:
         raw = request.args.get('location_ids', '')
         location_ids = [int(x) for x in raw.split(',') if x.strip().isdigit()]
-        if not location_ids:
+        catalog = request.args.get('catalog') == '1' and not location_ids
+        if not location_ids and not catalog:
             return jsonify({'species': []})
 
         conn = get_pam_db_connection()
-        location_ids = _sample_managed_location_ids(conn, location_ids)
-        if not location_ids:
-            return jsonify({'species': []})
+        if not catalog:
+            location_ids = _sample_managed_location_ids(conn, location_ids)
+            if not location_ids:
+                return jsonify({'species': []})
 
-        rows = conn.execute(text("""
+        source = "FROM species s WHERE EXISTS (SELECT 1 FROM detections d WHERE d.species_id = s.species_id)"
+        if not catalog:
+            source = """
+                FROM detections d
+                JOIN recordings r ON d.recording_id = r.recording_id
+                JOIN species s ON d.species_id = s.species_id
+                WHERE r.location_id = ANY(:locs)
+            """
+        rows = conn.execute(text(f"""
             SELECT DISTINCT s.species_id, s.scientific_name,
                    s.common_name_uk, s.common_name_en
-            FROM detections d
-            JOIN recordings r ON d.recording_id = r.recording_id
-            JOIN species s ON d.species_id = s.species_id
-            WHERE r.location_id = ANY(:locs)
+            {source}
               AND (:is_admin OR s.required_role IS NULL OR s.required_role = ANY(:roles))
             ORDER BY s.scientific_name
         """), {
@@ -5645,6 +5652,65 @@ def api_sample_prepare(lang_code):
     finally:
         if conn:
             conn.close()
+
+
+@pam_bp.route('/<lang_code>/api/pam/sample/prepare-gaps', methods=['POST'])
+@_pam_manager_required
+def api_sample_prepare_gaps(lang_code):
+    """Plan new clips across the archive within managed locations and optional filters."""
+    from .pam_gap_sampling import plan_gap_sample
+    from .utils import get_model_conf_columns
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'success': False, 'error': 'Invalid sample parameters'}), 400
+    species_name = data.get('species_name', '')
+    location_ids = data.get('location_ids', [])
+    institution_id = data.get('institution_id')
+    sample_size = data.get('sample_size', 700)
+    model_id = data.get('model_id')
+    if (not isinstance(species_name, str) or not isinstance(location_ids, list)
+            or any(type(value) is not int or not 0 < value < 2**31 for value in location_ids)
+            or (institution_id is not None and
+                (type(institution_id) is not int or not 0 < institution_id < 2**31))
+            or type(sample_size) is not int or not 1 <= sample_size <= MAX_SAMPLE_PER_SPECIES
+            or (model_id is not None and type(model_id) is not int)):
+        return jsonify({'success': False, 'error': 'Invalid sample parameters'}), 400
+
+    is_admin = pam_access.is_admin(current_user)
+    managed_ids = pam_access.manage_institution_ids(current_user)
+    if not is_admin and (not managed_ids or
+                         (institution_id is not None and institution_id not in managed_ids)):
+        return jsonify({'success': False, 'error': 'Access denied to this institution'}), 403
+
+    species_name = species_name.strip()
+    access_sql, access_params = _segment_access_sql('seg')
+    params = {
+        **access_params,
+        'is_admin': is_admin,
+        'managed_ids': managed_ids,
+        'roles': [role.name for role in current_user.roles],
+        'species_name': species_name,
+        'all_institutions': institution_id is None,
+        'institution_id': institution_id,
+        'all_locations': not location_ids,
+        'location_ids': location_ids,
+    }
+    try:
+        model_id, _ = _resolve_model_choice(model_id)
+        with get_pam_db_connection() as conn:
+            if species_name and not _sample_species_allowed(conn, species_name):
+                return jsonify({'success': False, 'error': 'Access denied to this species'}), 403
+            conf_column = get_model_conf_columns(conn).get(model_id, 'confidence')
+            segments, search_limited = plan_gap_sample(
+                conn, access_sql=access_sql, params=params,
+                sample_size=sample_size, model_id=model_id, conf_column=conf_column,
+            )
+        return jsonify({'success': True, 'count': len(segments), 'model_id': model_id,
+                        'segments': segments, 'search_limited': search_limited})
+    except Exception as e:
+        current_app.logger.error(f"api_sample_prepare_gaps error: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': _('Не вдалося підібрати сегменти для прогалин.')}), 500
 
 
 def _validate_managed_sample_upload(conn, meta):
