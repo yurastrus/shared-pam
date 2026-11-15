@@ -9,6 +9,13 @@
 {% block pam_content %}
 <div class="container mt-4">
     <div class="verification-container">
+        <div class="mb-3">
+            <label for="verification-sort">{{ _('Порядок подачі сегментів') }}</label>
+            <select id="verification-sort" class="form-control w-auto mw-100">
+                <option value="consensus">{{ _('Ближчі до консенсусу (звичайний режим)') }}</option>
+                <option value="benefit">{{ _('Найбільша користь (за пріоритетами)') }}</option>
+            </select>
+        </div>
         <!-- Main verification interface -->
         <div id="verification-interface" style="display: none;">
             <div class="verification-layout">
@@ -183,6 +190,9 @@
         <div id="no-segment-message" class="no-segment-message" style="display: none;">
             <h4>{{ _('Сегменти для верифікації відсутні') }}</h4>
             <p>{{ _('Немає сегментів для верифікації за вибраними критеріями, або ви вже верифікували всі доступні сегменти.') }}</p>
+            <button type="button" class="btn btn-secondary" id="verify-reset-skips" hidden>
+                {{ _('Повернути пропущені сегменти') }}
+            </button>
             <button type="button" class="btn btn-secondary verify-back" disabled>
                 {{ _('Повернутися до попередньої відповіді') }}
             </button>
@@ -224,6 +234,10 @@ $(document).ready(function() {
     const classFilter = $('#class-filter');
     const speciesFilter = $('#species-filter');
     const institutionFilter = $('#institution-filter');
+    const verificationSort = $('#verification-sort');
+    const resetSkips = $('#verify-reset-skips');
+    const skippedSegments = new Set();
+    const maxQueueSkips = {{ max_queue_skips | tojson }};
     const verificationMessage = $('#verification-message');
     const backButtons = $('.verify-back');
     const verdictButtons = $('[data-verdict]');
@@ -265,6 +279,7 @@ $(document).ready(function() {
     // them, otherwise the stats and the cascade would describe a different set
     // of segments than the one being served.
     const DEEP = new URLSearchParams(window.location.search);
+    verificationSort.val(DEEP.get('sort_by') === 'benefit' ? 'benefit' : 'consensus');
     const DEEP_LOCATIONS = DEEP.get('location_ids') || '';
     const DEEP_FROM = DEEP.get('from_ts') || '';
     const DEEP_TO = DEEP.get('to_ts') || '';
@@ -393,11 +408,31 @@ $(document).ready(function() {
 
     // --- Event handlers ---
     loadSegmentBtn.on('click', () => loadNextSegment());
+    verificationSort.on('change', function() {
+        const url = new URL(window.location.href);
+        url.searchParams.set('sort_by', this.value);
+        url.searchParams.delete('preferred_segment_id');
+        history.replaceState(history.state, '', url);
+        preferredSegment = null;
+        loadNextSegment();
+    });
 
     $('#verify-yes').on('click', () => submitVerification(1));
     $('#verify-no').on('click', () => submitVerification(0));
     $('#verify-unknown').on('click', () => submitVerification(2)); // "don't know"
-    $('#verify-skip').on('click', () => loadNextSegment());
+    $('#verify-skip').on('click', function() {
+        if (currentSegment && verificationSort.val() === 'benefit') {
+            skippedSegments.add(currentSegment.segment_id);
+            if (skippedSegments.size > maxQueueSkips) {
+                skippedSegments.delete(skippedSegments.values().next().value);
+            }
+        }
+        loadNextSegment();
+    });
+    resetSkips.on('click', function() {
+        skippedSegments.clear();
+        loadNextSegment();
+    });
     backButtons.on('click', reopenPreviousSubmission);
     $(document).on('keydown', function(e) {
         if (e.shiftKey && e.key === 'ArrowLeft' && !e.repeat &&
@@ -409,7 +444,8 @@ $(document).ready(function() {
 
     function setBusy(value) {
         busy = value;
-        loadSegmentBtn.add(verdictButtons).add('#verify-skip').prop('disabled', busy);
+        loadSegmentBtn.add(verdictButtons).add('#verify-skip')
+            .add(verificationSort).add(resetSkips).prop('disabled', busy);
         backButtons.prop('disabled', busy || !previousSubmission || editingSubmission);
     }
 
@@ -641,6 +677,11 @@ $(document).ready(function() {
         showLoading();
         
         const params = new URLSearchParams(filterParams());
+        const optimized = verificationSort.val() === 'benefit';
+        if (optimized) {
+            params.set('sort_by', 'benefit');
+            skippedSegments.forEach(id => params.append('skip_segment_id', id));
+        }
         if (preferredSegment) params.set('preferred_segment_id', preferredSegment);
         const url = '{{ url_for("pam.api_next_verification_segment", lang_code=g.lang_code) }}' + '?' + params;
 
@@ -675,6 +716,8 @@ $(document).ready(function() {
                 playbackLine.hide(); 
                 
                 if (xhr.status === 404) {
+                    preferredSegment = null;
+                    resetSkips.prop('hidden', !(optimized && skippedSegments.size));
                     noSegmentMessage.show();
                 } else {
                     const error = xhr.responseJSON ? xhr.responseJSON.error : '{{ _("Помилка завантаження сегменту") }}';

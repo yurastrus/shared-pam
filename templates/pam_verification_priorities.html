@@ -107,7 +107,7 @@
                             {% set verify_label = _('Верифікувати') ~ ' (' ~ rec.remaining ~ ')' %}
                             <a class="btn btn-sm btn-primary verify-link"
                                title="{{ verify_label }}" aria-label="{{ verify_label }}"
-                               href="{{ url_for('pam.verification_interface', lang_code=g.lang_code, species_id=row.species_id, preferred_segment_id=rec.segment_id) }}">
+                               href="{{ url_for('pam.verification_interface', lang_code=g.lang_code, species_id=row.species_id, preferred_segment_id=rec.segment_id, sort_by='benefit') }}">
                                 <span aria-hidden="true">☑</span>
                             </a>
                             {% endif %}

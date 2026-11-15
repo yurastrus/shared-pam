@@ -21,6 +21,7 @@ from . import pam_bp
 from .domain import _
 from . import access as pam_access
 from . import service_forecast
+from . import verification_priorities as pam_priorities
 from .utils import get_pam_db_connection, get_pam_engine, generate_spectrogram_image, get_occurrence_data, get_institution_filter, get_models_list, get_reference_model_id
 import io
 import csv
@@ -666,8 +667,6 @@ def verification_verifiers(lang_code):
 @role_required('manager', 'pam_verifier', 'roztochya_user', 'fzs_user', 'volunteer_user')
 def verification_priorities(lang_code):
     """Recommend one actionable segment per species and show archive totals."""
-    from .verification_priorities import PRIORITY_CONFIDENCE, recommendations
-
     g.lang_code = lang_code
     VERIFIED_THRESHOLD = 250  # verified-segment count for the green (done) flag
     conn = None
@@ -711,7 +710,7 @@ def verification_priorities(lang_code):
         recommended = {}
         if is_verifier:
             acc_sql, acc_params = _segment_access_sql('seg')
-            ranked = recommendations(conn, acc_sql, {
+            ranked = pam_priorities.recommendations(conn, acc_sql, {
                 **acc_params, 'user_id': current_user.id, 'is_admin': is_admin, 'roles': roles,
             })
             recommended = {rec.species_id: (position, rec) for position, rec in enumerate(ranked)}
@@ -781,7 +780,7 @@ def verification_priorities(lang_code):
         return render_template('pam_verification_priorities.html',
                                species_rows=species_rows,
                                verified_threshold=VERIFIED_THRESHOLD,
-                               priority_confidence=PRIORITY_CONFIDENCE,
+                               priority_confidence=pam_priorities.PRIORITY_CONFIDENCE,
                                show_recommendations=is_verifier,
                                show_actions=is_verifier or bool(cuttable_ids))
     except Exception as e:
@@ -882,7 +881,8 @@ def verification_interface(lang_code):
         return render_template('pam_verification_interface.html',
                              available_species=species_list,
                              classes=classes,
-                             institutions=institutions)
+                             institutions=institutions,
+                             max_queue_skips=pam_priorities.MAX_QUEUE_SKIPS)
         
     except Exception as e:
         current_app.logger.error(f"Error loading verification interface: {e}")
@@ -1710,6 +1710,11 @@ def api_next_verification_segment(lang_code):
             sample_conditions, sample_params = _verification_sample_scope()
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
+        optimize = request.args.get('sort_by') == 'benefit'
+        skipped_ids = request.args.getlist('skip_segment_id', type=int) if optimize else []
+        if (len(skipped_ids) > pam_priorities.MAX_QUEUE_SKIPS
+                or any(not 0 < segment_id < 2**63 for segment_id in skipped_ids)):
+            return jsonify({'error': 'Invalid skip_segment_id'}), 400
         conn = get_pam_db_connection()
         
         species_id = request.args.get('species_id', type=int)
@@ -1729,12 +1734,11 @@ def api_next_verification_segment(lang_code):
 
         # Build the filter dynamically. Base: pending + not-yet-seen-by-this-user
         # (an existing verification row — including an "unknown" vote — hides it).
-        conditions = [
-            "seg.status = 'pending'",
-            ("seg.id NOT IN (SELECT sv.segment_id FROM segment_verifications sv "
-             "WHERE sv.user_id = :user_id)"),
-        ] + sample_conditions
+        conditions = [*pam_priorities.PENDING_FOR_USER, *sample_conditions]
         params = {"user_id": current_user.id, **sample_params}
+        if skipped_ids:
+            conditions.append("NOT (seg.id = ANY(CAST(:skipped_ids AS bigint[])))")
+            params['skipped_ids'] = skipped_ids
 
         # Taxonomic class filter (s is joined below). Narrows the queue to one
         # class; combines with species_id (species always belongs to the class).
@@ -1786,7 +1790,6 @@ def api_next_verification_segment(lang_code):
         # ACCESS baseline: non-admins only ever get segments from their own
         # institutions, even with no UI filter selected.
         acc_sql, acc_params = _segment_access_sql('seg')
-        conditions.append(acc_sql)
         params.update(acc_params)
 
         # Priority for segments closest to consensus (more votes first).
@@ -1799,16 +1802,38 @@ def api_next_verification_segment(lang_code):
         # aggregate) rather than a second round trip, since it is one row.
         params['rights_lang'] = g.lang_code
         preferred_segment = request.args.get('preferred_segment_id', type=int)
-        preferred_order = ''
-        if preferred_segment is not None and preferred_segment > 0:
+        has_preferred = preferred_segment is not None and 0 < preferred_segment < 2**63
+        if has_preferred:
             params['preferred_segment'] = preferred_segment
-            # The preferred ID changes ordering only. All queue predicates
-            # still apply, with the normal queue as fallback for stale links.
-            conditions.append("(:is_admin OR s.required_role IS NULL OR s.required_role = ANY(:roles))")
+        if optimize or has_preferred:
             params['is_admin'] = pam_access.is_admin(current_user)
             params['roles'] = [role.name for role in current_user.roles]
-            preferred_order = 'CASE WHEN seg.id = :preferred_segment THEN 0 ELSE 1 END, '
+
+        ranking = ''
+        if optimize:
+            params['confidence'] = pam_priorities.PRIORITY_CONFIDENCE
+            ranking = pam_priorities.ranking_ctes(
+                acc_sql, conditions, filter_territories=bool(institution_ids),
+            )
+            preferred_order = 'segment_id <> :preferred_segment, ' if has_preferred else ''
+            selection = f"""
+                JOIN (
+                    SELECT segment_id FROM candidates
+                    ORDER BY {preferred_order}{pam_priorities.PRIORITY_ORDER} LIMIT 1
+                ) chosen ON chosen.segment_id = seg.id
+            """
+        else:
+            conditions.append(acc_sql)
+            preferred_order = ''
+            if has_preferred:
+                conditions.append("(:is_admin OR s.required_role IS NULL OR s.required_role = ANY(:roles))")
+                preferred_order = 'CASE WHEN seg.id = :preferred_segment THEN 0 ELSE 1 END, '
+            selection = f"""
+                WHERE {' AND '.join(conditions)}
+                ORDER BY {preferred_order}COALESCE(seg.verification_count, 0) DESC, RANDOM() LIMIT 1
+            """
         query = text(f"""
+            {ranking}
             SELECT seg.id, seg.filename, seg.confidence_level, seg.location_name,
                    seg.recorded_date, seg.recorded_time, seg.file_path,
                    s.scientific_name, s.common_name_uk, s.common_name_en,
@@ -1825,8 +1850,7 @@ def api_next_verification_segment(lang_code):
             JOIN species s ON seg.species_id = s.species_id
             LEFT JOIN recordings r ON seg.recording_id = r.recording_id
             LEFT JOIN locations l ON r.location_id = l.location_id
-            WHERE {' AND '.join(conditions)}
-            ORDER BY {preferred_order}COALESCE(seg.verification_count, 0) DESC, RANDOM() LIMIT 1
+            {selection}
         """)
 
         result = conn.execute(query, params).fetchone()

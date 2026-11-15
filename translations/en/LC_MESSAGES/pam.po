@@ -5242,6 +5242,18 @@ msgstr "below threshold"
 msgid "Інший сегмент цього виду з того самого аудіозапису спростовано"
 msgstr "Another segment for this species from the same recording was rejected"
 
+msgid "Порядок подачі сегментів"
+msgstr "Segment order"
+
+msgid "Ближчі до консенсусу (звичайний режим)"
+msgstr "Closest to consensus (standard)"
+
+msgid "Найбільша користь (за пріоритетами)"
+msgstr "Most useful records (by priority)"
+
+msgid "Повернути пропущені сегменти"
+msgstr "Bring back skipped segments"
+
 #~ msgid "Немає даних про обслуговування"
 #~ msgstr "No maintenance data"
 
