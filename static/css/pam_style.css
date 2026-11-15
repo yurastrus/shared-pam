@@ -2793,6 +2793,12 @@ main .container:not(.maplistcontainer) {
     margin-left: auto;
     margin-right: auto;
 }
+.priority-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
 .priorities-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .priorities-table th,
 .priorities-table td {
@@ -2822,9 +2828,10 @@ main .container:not(.maplistcontainer) {
 body.dark-theme .priorities-table .sp-redbook { color: #ff8b96; }
 /* Keep the verify column off the numeric right-align rule and always fully
    visible (never clipped by the table edge). */
-.priorities-table th:last-child,
-.priorities-table td.action-cell { text-align: center; white-space: nowrap; min-width: 150px; }
-.priorities-table td.action-cell .btn { white-space: nowrap; }
+.priorities-table th.action-cell,
+.priorities-table td.action-cell { text-align: center; white-space: nowrap; width: 1%; }
+.priorities-table .action-cell .btn { min-width: 2rem; }
+.priorities-table td.recommendation-cell { text-align: left; white-space: normal; }
 
 /* Legend under the page header. */
 .priority-legend { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; font-size: 0.9rem; }

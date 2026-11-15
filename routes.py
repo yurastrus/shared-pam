@@ -752,6 +752,9 @@ def verification_priorities(lang_code):
                 'species_id': r.species_id,
                 'scientific_name': r.scientific_name,
                 'common_name': common,
+                'search_names': [name for name in (
+                    r.scientific_name, r.common_name_uk, r.common_name_en,
+                ) if name],
                 'class_name': r.class_name or '',
                 'order_name': r.order_name or '',
                 'family_name': r.family_name or '',

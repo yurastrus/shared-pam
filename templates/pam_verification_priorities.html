@@ -21,6 +21,24 @@
         </div>
 
         {% if species_rows %}
+        <div class="priority-filters" id="priority-filters">
+            {% for name, label in [('class', _('Клас')), ('order', _('Ряд')),
+                                    ('family', _('Родина')), ('genus', _('Рід'))] %}
+            <div>
+                <label for="priority-{{ name }}">{{ label }}</label>
+                <select id="priority-{{ name }}" class="form-control">
+                    <option value="">{{ _('Усі') }}</option>
+                </select>
+            </div>
+            {% endfor %}
+            <div>
+                <label for="priority-search">{{ _('Вид') }}</label>
+                <input id="priority-search" class="form-control" type="search" placeholder="{{ _('Пошук виду...') }}">
+            </div>
+        </div>
+        <div role="status">
+            <p id="priorities-no-results" hidden>{{ _('Дані не знайдено. Спробуйте змінити фільтри.') }}</p>
+        </div>
         <div class="table-scroll">
             <table class="priorities-table" id="priorities-table">
                 <thead>
@@ -38,7 +56,7 @@
                         <th data-type="num">{{ _('Детекцій') }}</th>
                         <th data-type="num">{{ verified_label }}</th>
                         <th data-type="num">{{ _('Консенсус') }}</th>
-                        {% if show_actions %}<th data-type="text">{{ _('Дія') }}</th>{% endif %}
+                        {% if show_actions %}<th class="action-cell" data-type="text">{{ _('Дія') }}</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -51,13 +69,13 @@
                         <td>{{ row.order_name }}</td>
                         <td>{{ row.family_name }}</td>
                         <td>{{ row.genus_name }}</td>
-                        <td class="species-cell">
+                        <td class="species-cell" data-search='{{ row.search_names | tojson }}'>
                             <span{% if row.is_redbook %} class="sp-redbook"{% endif %}>
                                 {% if row.common_name %}<span class="species-common">{{ row.common_name }}</span> {% endif %}<span class="species-sci"><em>{{ row.scientific_name }}</em></span>
                             </span>
                         </td>
                         {% if show_recommendations %}
-                        <td>
+                        <td class="recommendation-cell">
                             {% if rec %}
                                 {% if rec.novelty == 3 %}{{ _('Перший підтверджений запис у PAM') }}
                                 {% elif rec.novelty == 2 %}{{ _('Перший запис на території') }}
@@ -86,15 +104,19 @@
                         {% if show_actions %}
                         <td class="action-cell">
                             {% if rec %}
+                            {% set verify_label = _('Верифікувати') ~ ' (' ~ rec.remaining ~ ')' %}
                             <a class="btn btn-sm btn-primary verify-link"
+                               title="{{ verify_label }}" aria-label="{{ verify_label }}"
                                href="{{ url_for('pam.verification_interface', lang_code=g.lang_code, species_id=row.species_id, preferred_segment_id=rec.segment_id) }}">
-                                {{ _('Верифікувати') }} ({{ rec.remaining }})
+                                <span aria-hidden="true">☑</span>
                             </a>
                             {% endif %}
                             {% if row.can_cut_segments %}
+                            {% set cut_label = _('Нарізати сегменти') %}
                             <a class="btn btn-sm btn-success"
+                               title="{{ cut_label }}" aria-label="{{ cut_label }}"
                                href="{{ url_for('pam.sample_upload', lang_code=g.lang_code, source='priorities', species=row.scientific_name) }}">
-                                {{ _('Нарізати сегменти') }}
+                                <span aria-hidden="true">✂︎</span>
                             </a>
                             {% endif %}
                         </td>
@@ -118,6 +140,40 @@
     if (!table) return;
     var headers = table.querySelectorAll('thead th');
     var tbody = table.querySelector('tbody');
+
+    const taxonFilters = Array.from(document.querySelectorAll('#priority-filters select'));
+    const search = document.getElementById('priority-search');
+    const noResults = document.getElementById('priorities-no-results');
+    const species = Array.from(tbody.rows, row => ({
+        row,
+        taxonomy: taxonFilters.map((_, index) => row.cells[index + 1].textContent.trim()),
+        names: JSON.parse(row.querySelector('.species-cell').dataset.search)
+            .map(name => name.toLocaleLowerCase()),
+    }));
+
+    function filterRows() {
+        let matches = species;
+        taxonFilters.forEach((select, index) => {
+            const selected = select.value;
+            const options = [...new Set(matches.map(item => item.taxonomy[index]).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b));
+            select.options.length = 1;
+            options.forEach(value => select.add(new Option(value, value)));
+            if (options.includes(selected)) {
+                select.value = selected;
+                matches = matches.filter(item => item.taxonomy[index] === selected);
+            }
+        });
+
+        const query = search.value.toLocaleLowerCase().trim();
+        const visible = new Set(matches.filter(item => item.names.some(name => name.includes(query))));
+        species.forEach(item => { item.row.hidden = !visible.has(item); });
+        noResults.hidden = visible.size > 0;
+    }
+
+    taxonFilters.forEach(select => select.addEventListener('change', filterRows));
+    search.addEventListener('input', filterRows);
+    filterRows();
 
     function cellValue(row, index, type) {
         var cell = row.children[index];
