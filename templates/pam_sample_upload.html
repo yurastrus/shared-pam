@@ -178,6 +178,9 @@
     <div class="su-card">
         <div class="su-title"><span class="su-step-num">5</span>{{ _('Нарізати та завантажити') }}</div>
         <button id="su-run" class="btn btn-sm btn-success" disabled>{{ _('Старт') }}</button>
+        {% if can_verify %}
+        <a id="su-verify" class="btn btn-sm" style="display:none;">{{ _('Перейти до верифікації') }} (<span id="su-verify-count"></span>)</a>
+        {% endif %}
         <div class="mt-3">
             <div class="su-prog-wrap"><div id="su-prog" class="su-prog-bar">0%</div></div>
         </div>
@@ -193,7 +196,7 @@
 </div>
 
 {# Browser-side WAV cutting + upload pool, shared with pam_segment_window.html. #}
-<script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=2"></script>
+<script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=3"></script>
 <script src="{{ url_for('pam.serve_pam_static', filename='js/recording_index.js', lang_code=g.lang_code) }}?v=4"></script>
 <script>
 "use strict";
@@ -485,7 +488,7 @@
         $('su-prog').textContent = pct + '%';
     }
 
-    function cutterOptions() {
+    function cutterOptions(savedIds) {
         return {
             plan: plannedSegments,
             fileMap: fileMap,
@@ -498,7 +501,12 @@
             modelId: ($('su-model') || {}).value,
             concurrency: CONCURRENCY,
             onResult: function (seg, outcome, done) {
-                if (outcome.status === 'saved') stats.saved++;
+                if (outcome.status === 'saved') {
+                    stats.saved++;
+                    if (Number.isSafeInteger(outcome.segmentId) && outcome.segmentId > 0) {
+                        savedIds.add(outcome.segmentId);
+                    }
+                }
                 else if (outcome.status === 'duplicate') stats.dup++;
                 else if (outcome.status === 'nofile') stats.nofile++;
                 else {
@@ -513,13 +521,16 @@
     }
 
     async function runPipeline() {
+        const verifyLink = $('su-verify');
+        if (verifyLink) verifyLink.style.display = 'none';
+        const savedIds = new Set();
         setBusy(true);
         Object.keys(stats).forEach(k => stats[k] = 0);
         refreshStats();
         log("{{ _('Старт нарізки та завантаження...') }}");
 
         try {
-            await PamSegmentCutter.run(cutterOptions());
+            await PamSegmentCutter.run(cutterOptions(savedIds));
         } finally {
             setBusy(false);
         }
@@ -528,6 +539,22 @@
             ", {{ _('дублікати:') }} " + stats.dup +
             ", {{ _('без файлу:') }} " + stats.nofile +
             ", {{ _('помилки:') }} " + stats.err);
+
+        if (verifyLink && savedIds.size) {
+            try {
+                const token = crypto.getRandomValues(new Uint32Array(4)).join('-');
+                sessionStorage.setItem('pam-verification-sample', JSON.stringify({
+                    token, segment_ids: Array.from(savedIds)
+                }));
+                const url = new URL({{ url_for('pam.verification_interface', lang_code=g.lang_code) | tojson }}, window.location.origin);
+                url.searchParams.set('sample', token);
+                verifyLink.href = url.href;
+                $('su-verify-count').textContent = savedIds.size;
+                verifyLink.style.display = '';
+            } catch (error) {
+                log({{ _('Не вдалося підготувати перехід до верифікації.') | tojson }});
+            }
+        }
     }
 
     // ── wire up ─────────────────────────────────────────────────────────────

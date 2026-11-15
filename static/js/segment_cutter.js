@@ -146,8 +146,7 @@ async function cutByDecode(file, startSec, durSec) {
         return await cutByDecode(file, start, dur);   // flac / mp3 / non-PCM wav
     }
 
-    // Cut + upload one segment. Returns the outcome as a word, so the caller
-    // owns both the counters and the wording of its log.
+    // Cut + upload one segment. The caller owns the counters and log wording.
     //   'saved' | 'duplicate' | 'nofile' | 'error'
     async function uploadOne(seg, opts) {
         const file = opts.fileForSegment
@@ -177,7 +176,9 @@ async function cutByDecode(file, startSec, durSec) {
                 body: fd
             });
             const data = await r.json();
-            if (data.success && data.status === 'saved') return { status: 'saved' };
+            if (data.success && data.status === 'saved') {
+                return { status: 'saved', segmentId: data.segment_id };
+            }
             if (data.success && data.status === 'duplicate') return { status: 'duplicate' };
             return { status: 'error', error: data.error || r.status };
         } catch (e) {

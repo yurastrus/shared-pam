@@ -268,6 +268,24 @@ $(document).ready(function() {
     const DEEP_LOCATIONS = DEEP.get('location_ids') || '';
     const DEEP_FROM = DEEP.get('from_ts') || '';
     const DEEP_TO = DEEP.get('to_ts') || '';
+    const sampleToken = DEEP.get('sample');
+    let sampleIds = [];
+    if (sampleToken) {
+        try {
+            const sample = JSON.parse(sessionStorage.getItem('pam-verification-sample'));
+            if (sample?.token === sampleToken && Array.isArray(sample.segment_ids)) {
+                sampleIds = sample.segment_ids;
+            }
+        } catch (error) {
+            // A missing or unreadable sample must still request an empty queue.
+        }
+    }
+    const queueRequest = sampleToken ? {
+        method: 'POST',
+        contentType: 'application/json',
+        headers: { 'X-CSRFToken': {{ csrf_token() | tojson }} },
+        data: JSON.stringify({segment_ids: sampleIds})
+    } : {method: 'GET'};
 
     function filterParams() {
         const params = [];
@@ -304,7 +322,7 @@ $(document).ready(function() {
         cascadeBusy = true;
         $.ajax({
             url: '{{ url_for("pam.api_verification_filter_options", lang_code=g.lang_code) }}' + filterParams(),
-            method: 'GET',
+            ...queueRequest,
             success: function(data) {
                 // Repopulate every filter EXCEPT the one the user just touched,
                 // so its selection is preserved while the others prune to valid
@@ -340,7 +358,18 @@ $(document).ready(function() {
 
     // The location/window narrowing has no control of its own, so the only way
     // a verifier can tell why the queue is three segments long is a banner.
-    if (DEEP_LOCATIONS || DEEP_FROM || DEEP_TO) {
+    if (sampleToken) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('sample');
+        const banner = $('#verification-scope-banner').empty().show();
+        const title = sampleIds.length
+            ? {{ _('Щойно завантажені сегменти') | tojson }} + ' (' + sampleIds.length + ')'
+            : {{ _('Завантажена вибірка недоступна в цій вкладці.') | tojson }};
+        banner.append($('<b>').text(title), ' ', $('<a>')
+            .attr('href', url.pathname + url.search)
+            .text({{ _('верифікувати всі сегменти') | tojson }}));
+        refreshCascade();
+    } else if (DEEP_LOCATIONS || DEEP_FROM || DEEP_TO) {
         const parts = [];
         if (DEEP.get('scope_label')) parts.push(DEEP.get('scope_label'));
         if (DEEP_FROM && DEEP_TO) {
@@ -614,7 +643,7 @@ $(document).ready(function() {
 
         $.ajax({
             url: url,
-            method: 'GET',
+            ...queueRequest,
             success: function(data) {
                 currentSegment = data;
                 displaySegment(data);
@@ -774,7 +803,7 @@ $(document).ready(function() {
 
         $.ajax({
             url: url,
-            method: 'GET',
+            ...queueRequest,
             success: function(data) {
                 const stats = data.user_stats;
                 $('#total-verifications').text(stats.total_verifications);

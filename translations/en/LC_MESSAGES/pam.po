@@ -5064,6 +5064,22 @@ msgstr "Prepare the sample to find its recordings."
 msgid "Помилка локального індексу:"
 msgstr "Local index error:"
 
+#: app/pam/templates/pam_sample_upload.html:182
+msgid "Перейти до верифікації"
+msgstr "Go to verification"
+
+#: app/pam/templates/pam_sample_upload.html:555
+msgid "Не вдалося підготувати перехід до верифікації."
+msgstr "Could not open verification for this sample."
+
+#: app/pam/templates/pam_verification_interface.html:366
+msgid "Щойно завантажені сегменти"
+msgstr "Newly uploaded segments"
+
+#: app/pam/templates/pam_verification_interface.html:367
+msgid "Завантажена вибірка недоступна в цій вкладці."
+msgstr "The uploaded sample is unavailable in this tab."
+
 #~ msgid "Алгоритм класифікації"
 #~ msgstr ""
 

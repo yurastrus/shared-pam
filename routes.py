@@ -14,7 +14,7 @@ from .pam_import_utils import IMPORTERS, PAMImportProcessor
 from .pam_segment_sampling import (
     run_stratified_sample, save_and_register_segment,
     get_earliest_recording_year, ALLOWED_SEGMENT_DURATIONS,
-    build_segment_filename, _location_token, EARLIEST_YEAR_FLOOR,
+    build_segment_filename, _location_token, EARLIEST_YEAR_FLOOR, MAX_SAMPLE_PER_SPECIES,
 )
 from app.utils.decorators import role_required
 from . import pam_bp
@@ -1674,7 +1674,20 @@ def api_verification_segments(lang_code):
         if conn:
             conn.close()
 
-@pam_bp.route('/<lang_code>/api/verification/next-segment')
+def _verification_sample_scope():
+    """Return a bounded, parameterized segment filter for sample queue requests."""
+    if request.method == 'GET':
+        return [], {}
+    body = request.get_json(silent=True)
+    ids = body.get('segment_ids') if isinstance(body, dict) else None
+    # The stratified sampler rounds up each of at most 50 strata.
+    if (not isinstance(ids, list) or len(ids) > MAX_SAMPLE_PER_SPECIES + 49
+            or any(type(value) is not int or not 0 < value < 2**63 for value in ids)):
+        raise ValueError('Invalid segment_ids')
+    return ["seg.id = ANY(CAST(:sample_ids AS bigint[]))"], {'sample_ids': ids}
+
+
+@pam_bp.route('/<lang_code>/api/verification/next-segment', methods=['GET', 'POST'])
 @login_required
 @role_required('pam_verifier')
 def api_next_verification_segment(lang_code):
@@ -1683,6 +1696,10 @@ def api_next_verification_segment(lang_code):
     try:
         g.lang_code = lang_code
         
+        try:
+            sample_conditions, sample_params = _verification_sample_scope()
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         conn = get_pam_db_connection()
         
         species_id = request.args.get('species_id', type=int)
@@ -1706,8 +1723,8 @@ def api_next_verification_segment(lang_code):
             "seg.status = 'pending'",
             ("seg.id NOT IN (SELECT sv.segment_id FROM segment_verifications sv "
              "WHERE sv.user_id = :user_id)"),
-        ]
-        params = {"user_id": current_user.id}
+        ] + sample_conditions
+        params = {"user_id": current_user.id, **sample_params}
 
         # Taxonomic class filter (s is joined below). Narrows the queue to one
         # class; combines with species_id (species always belongs to the class).
@@ -2011,25 +2028,29 @@ def api_submit_verification(lang_code):
         if conn:
             conn.close()
 
-@pam_bp.route('/<lang_code>/api/verification/stats')
+@pam_bp.route('/<lang_code>/api/verification/stats', methods=['GET', 'POST'])
 @login_required
 @role_required('pam_verifier')
 def api_verification_stats(lang_code):
     """API endpoint to fetch the current user's verification statistics (filterable by species_id)."""
     conn = None
     try:
+        try:
+            sample_conditions, sample_params = _verification_sample_scope()
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         conn = get_pam_db_connection()
         species_id = request.args.get('species_id', type=int)
         class_name = request.args.get('class_name')
         institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
 
         # --- Prepare query conditions and parameters ---
-        params = {'user_id': current_user.id}
+        params = {'user_id': current_user.id, **sample_params}
 
         # Conditions for user verification statistics (verified segments).
-        user_stats_conditions = ["sv.user_id = :user_id"]
+        user_stats_conditions = ["sv.user_id = :user_id"] + sample_conditions
         # Conditions for counting remaining (unverified) segments.
-        remaining_conditions = ["seg.status = 'pending'"]
+        remaining_conditions = ["seg.status = 'pending'"] + sample_conditions
 
         # Taxonomic class filter. No species alias here, so match via subquery on
         # seg.species_id — applies to both the user's history and the remaining count.
@@ -2061,6 +2082,8 @@ def api_verification_stats(lang_code):
         # ACCESS baseline for the "remaining" count (non-admins: own institutions).
         acc_sql, acc_params = _segment_access_sql('seg')
         remaining_conditions.append(acc_sql)
+        if sample_conditions:
+            user_stats_conditions.append(acc_sql)
         params.update(acc_params)
 
         user_stats_where = " AND ".join(user_stats_conditions)
@@ -2139,7 +2162,7 @@ def api_verification_stats(lang_code):
         if conn:
             conn.close()
 
-@pam_bp.route('/<lang_code>/api/verification/filter-options')
+@pam_bp.route('/<lang_code>/api/verification/filter-options', methods=['GET', 'POST'])
 @login_required
 @role_required('pam_verifier')
 def api_verification_filter_options(lang_code):
@@ -2153,6 +2176,10 @@ def api_verification_filter_options(lang_code):
     """
     conn = None
     try:
+        try:
+            sample_conditions, sample_params = _verification_sample_scope()
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         conn = get_pam_db_connection()
         g.lang_code = lang_code
         species_id = request.args.get('species_id', type=int)
@@ -2176,7 +2203,8 @@ def api_verification_filter_options(lang_code):
         # --- classes available for the selected species / institution(s) ---
         # (ignores class_name itself)
         cls_join, cls_extra, cls_params = _inst_join_cond()
-        cls_cond = ["seg.status = 'pending'", "s.class IS NOT NULL"] + cls_extra
+        cls_cond = ["seg.status = 'pending'", "s.class IS NOT NULL"] + cls_extra + sample_conditions
+        cls_params.update(sample_params)
         if species_id:
             cls_cond.append("seg.species_id = :species_id")
             cls_params['species_id'] = species_id
@@ -2195,7 +2223,8 @@ def api_verification_filter_options(lang_code):
         # --- species available for the selected class / institution(s) ---
         # (ignores species_id itself)
         sp_join, sp_extra, sp_params = _inst_join_cond()
-        sp_cond = ["seg.status = 'pending'"] + sp_extra
+        sp_cond = ["seg.status = 'pending'"] + sp_extra + sample_conditions
+        sp_params.update(sample_params)
         if class_name:
             sp_cond.append("s.class = :class_name")
             sp_params['class_name'] = class_name
@@ -2220,8 +2249,8 @@ def api_verification_filter_options(lang_code):
 
         # --- institutions that have pending segments for the selected class/species ---
         # (ignores institution_ids itself)
-        inst_params = {}
-        inst_cond = ["seg.status = 'pending'"]
+        inst_params = sample_params.copy()
+        inst_cond = ["seg.status = 'pending'"] + sample_conditions
         if species_id:
             inst_cond.append("seg.species_id = :species_id")
             inst_params['species_id'] = species_id
@@ -5244,6 +5273,7 @@ def sample_upload(lang_code):
             earliest_year=earliest_year,
             current_year=current_year,
             year_options=list(range(earliest_year, current_year + 1)),
+            can_verify=current_user.has_role('pam_verifier'),
         )
     except Exception as e:
         current_app.logger.error(f"PAM sample-upload page error: {e}", exc_info=True)
