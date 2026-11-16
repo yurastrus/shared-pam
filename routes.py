@@ -5277,16 +5277,6 @@ def sample_upload(lang_code):
         conn = get_pam_db_connection()
         is_admin = pam_access.is_admin(current_user)
         managed_ids = pam_access.manage_institution_ids(current_user)
-        institution_query = Institution.query.order_by(Institution.name_uk)
-        if not is_admin:
-            institution_query = institution_query.filter(Institution.id.in_(managed_ids))
-        all_inst_objects = institution_query.all()
-        if lang_code == 'uk':
-            inst_names_map = {i.id: i.name_uk for i in all_inst_objects}
-        else:
-            inst_names_map = {i.id: (i.name_en or i.name_uk) for i in all_inst_objects}
-        institutions = [{'id': i.id, 'name': inst_names_map[i.id]} for i in all_inst_objects]
-
         raw_rows = conn.execute(text("""
             SELECT l.location_id, l.location_name, l.location_name_en, li.institution_id
             FROM locations l
@@ -5301,6 +5291,7 @@ def sample_upload(lang_code):
         """), {'is_admin': is_admin, 'managed_ids': managed_ids}).fetchall()
 
         locations_dict = {}
+        institution_ids = set()
         for row in raw_rows:
             lid = row.location_id
             if lid not in locations_dict:
@@ -5310,6 +5301,13 @@ def sample_upload(lang_code):
                 locations_dict[lid] = {'location_id': lid, 'name': loc_name, 'inst_ids': []}
             if row.institution_id:
                 locations_dict[lid]['inst_ids'].append(row.institution_id)
+                institution_ids.add(row.institution_id)
+
+        institutions = [
+            {'id': inst.id, 'name': (inst.name_en or inst.name_uk) if lang_code == 'en' else inst.name_uk}
+            for inst in Institution.query.filter(Institution.id.in_(institution_ids))
+            .order_by(Institution.name_uk)
+        ]
 
         models = get_models_list()
         reference_id = get_reference_model_id(conn)
