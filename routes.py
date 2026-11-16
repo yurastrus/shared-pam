@@ -5303,10 +5303,11 @@ def sample_upload(lang_code):
                 locations_dict[lid]['inst_ids'].append(row.institution_id)
                 institution_ids.add(row.institution_id)
 
+        institution_objects = Institution.query.filter(Institution.id.in_(institution_ids)) \
+            .order_by(Institution.name_uk).all()
         institutions = [
             {'id': inst.id, 'name': (inst.name_en or inst.name_uk) if lang_code == 'en' else inst.name_uk}
-            for inst in Institution.query.filter(Institution.id.in_(institution_ids))
-            .order_by(Institution.name_uk)
+            for inst in institution_objects
         ]
 
         models = get_models_list()
@@ -5324,6 +5325,7 @@ def sample_upload(lang_code):
         return render_template(
             'pam_sample_upload.html',
             institutions=institutions,
+            ecoregions=_institution_ecoregions(institution_objects, lang_code),
             locations_data=list(locations_dict.values()),
             segment_durations=list(ALLOWED_SEGMENT_DURATIONS),
             models=models,
@@ -5670,6 +5672,7 @@ def api_sample_prepare_gaps(lang_code):
     species_name = data.get('species_name', '')
     location_ids = data.get('location_ids', [])
     institution_id = data.get('institution_id')
+    institution_ids = data.get('institution_ids', [institution_id] if institution_id is not None else [])
     sample_size = data.get('sample_size', 700)
     model_id = data.get('model_id')
     taxonomy = {key: data.get(key, '') for key in (
@@ -5678,16 +5681,17 @@ def api_sample_prepare_gaps(lang_code):
     if (not isinstance(species_name, str) or not isinstance(location_ids, list)
             or any(not isinstance(value, str) for value in taxonomy.values())
             or any(type(value) is not int or not 0 < value < 2**31 for value in location_ids)
+            or not isinstance(institution_ids, list)
+            or any(type(value) is not int or not 0 < value < 2**31 for value in institution_ids)
             or (institution_id is not None and
-                (type(institution_id) is not int or not 0 < institution_id < 2**31))
+                (type(institution_id) is not int or institution_id not in institution_ids))
             or type(sample_size) is not int or not 1 <= sample_size <= MAX_SAMPLE_PER_SPECIES
             or (model_id is not None and type(model_id) is not int)):
         return jsonify({'success': False, 'error': 'Invalid sample parameters'}), 400
 
     is_admin = pam_access.is_admin(current_user)
     managed_ids = pam_access.manage_institution_ids(current_user)
-    if not is_admin and (not managed_ids or
-                         (institution_id is not None and institution_id not in managed_ids)):
+    if not is_admin and (not managed_ids or not set(institution_ids).issubset(managed_ids)):
         return jsonify({'success': False, 'error': 'Access denied to this institution'}), 403
 
     species_name = species_name.strip()
@@ -5699,8 +5703,8 @@ def api_sample_prepare_gaps(lang_code):
         'managed_ids': managed_ids,
         'roles': [role.name for role in current_user.roles],
         'species_name': species_name,
-        'all_institutions': institution_id is None,
-        'institution_id': institution_id,
+        'all_institutions': not institution_ids,
+        'institution_ids': sorted(set(institution_ids)),
         'all_locations': not location_ids,
         'location_ids': location_ids,
     }
@@ -5865,6 +5869,10 @@ def _cooc_ecoregions(lang_code):
         institutions = Institution.query.all()
     else:
         institutions = pam_access.manage_institutions(current_user)
+    return _institution_ecoregions(institutions, lang_code)
+
+
+def _institution_ecoregions(institutions, lang_code):
     out = {}
     for inst in institutions:
         if not inst.ecoregion_uk:

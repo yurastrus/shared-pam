@@ -86,7 +86,7 @@ def _candidate_query(conf_column, with_upper_bound):
             FROM locations l
             LEFT JOIN location_institutions li ON li.location_id = l.location_id
                 AND (:is_admin OR li.institution_id = ANY(:managed_ids))
-                AND (:all_institutions OR li.institution_id = :institution_id)
+                AND (:all_institutions OR li.institution_id = ANY(:institution_ids))
             WHERE (:all_locations OR l.location_id = ANY(:location_ids))
             GROUP BY l.location_id, l.location_name
             HAVING (:is_admin AND :all_institutions) OR COUNT(li.institution_id) > 0
@@ -185,7 +185,8 @@ def plan_gap_sample(conn, *, access_sql, params, sample_size, model_id, conf_col
             break
         plan = prioritize_candidates(
             candidates, history, sample_size,
-            balance_species=not params['species_name'], balance_institutions=params['all_institutions'],
+            balance_species=not params['species_name'],
+            balance_institutions=len(params['institution_ids']) != 1,
         )
         if len(plan) == sample_size and all(row['novelty'] for row in plan):
             break

@@ -28,13 +28,25 @@
         <div class="su-title"><span class="su-step-num">1</span>{{ _('Установа та локації') }}</div>
         <div class="row g-2">
             <div class="col-md-4">
-                <label class="form-label form-label-sm">{{ _('Установа') }}</label>
-                <select id="su-institution" class="form-select form-select-sm">
-                    <option value="">— {{ _('Усі доступні') }} —</option>
+                <label for="su-institution" class="form-label form-label-sm">{{ _('Установи') }}
+                    <span class="su-help">({{ _('можна кілька') }})</span>
+                </label>
+                <select id="su-institution" class="form-select form-select-sm" multiple size="6">
                     {% for inst in institutions %}
                     <option value="{{ inst.id }}">{{ inst.name }}</option>
                     {% endfor %}
                 </select>
+                <div class="mt-2 d-flex flex-wrap gap-1">
+                    <button type="button" id="su-all-institutions" class="btn btn-sm btn-outline-secondary">
+                        {{ _('Усі доступні') }}
+                    </button>
+                    {% for region in ecoregions.values() %}
+                    <button type="button" class="btn btn-sm btn-outline-secondary su-ecoregion"
+                            aria-pressed="false" data-members="{{ region.institution_ids | join(',') }}">
+                        {{ region.name }}
+                    </button>
+                    {% endfor %}
+                </div>
             </div>
             <div class="col-md-8">
                 <label class="form-label form-label-sm">{{ _('Локації') }} <span class="su-help">({{ _('можна кілька') }})</span></label>
@@ -237,24 +249,36 @@
 
     const $ = (id) => document.getElementById(id);
     const taxonFilters = Array.from(document.querySelectorAll('#su-taxonomy select'));
+    const regionButtons = Array.from(document.querySelectorAll('.su-ecoregion'));
     function log(msg) {
         const el = $('su-log');
         el.textContent += msg + "\n";
         el.scrollTop = el.scrollHeight;
     }
 
-    // ── STEP 1: institution → locations cascade (client-side filter) ────────
+    function selectedInstitutionIds() {
+        return Array.from($('su-institution').selectedOptions, option => Number(option.value));
+    }
+
+    // ── STEP 1: institutions → locations cascade (client-side filter) ────────
     function renderLocations() {
-        const inst = $('su-institution').value;
+        const institutions = new Set(selectedInstitutionIds());
+        const previousLocations = new Set(selectedLocationIds());
         const sel = $('su-locations');
         sel.innerHTML = '';
-        LOCATIONS.filter(loc => !inst || (loc.inst_ids || []).includes(parseInt(inst, 10)))
+        LOCATIONS.filter(loc => !institutions.size || loc.inst_ids.some(id => institutions.has(id)))
             .forEach(loc => {
                 const o = document.createElement('option');
                 o.value = loc.location_id;
                 o.textContent = loc.name;
                 sel.appendChild(o);
+                o.selected = previousLocations.has(loc.location_id);
             });
+        regionButtons.forEach(button => {
+            const selected = button.dataset.members.split(',').every(id => institutions.has(Number(id)));
+            button.setAttribute('aria-pressed', String(selected));
+            button.classList.toggle('active', selected);
+        });
         onLocationsChanged();
     }
 
@@ -383,7 +407,7 @@
         };
         // Gap planning looks for missing calendar months across the archive.
         if (useGaps) {
-            body.institution_id = parseInt($('su-institution').value, 10) || null;
+            body.institution_ids = selectedInstitutionIds();
             taxonFilters.forEach(select => { body[select.dataset.taxonomy] = select.value; });
             delete body.confidence_threshold;
             delete body.confidence_max;
@@ -608,6 +632,18 @@
 
     // ── wire up ─────────────────────────────────────────────────────────────
     $('su-institution').addEventListener('change', renderLocations);
+    $('su-all-institutions').addEventListener('click', () => {
+        $('su-institution').selectedIndex = -1;
+        renderLocations();
+    });
+    regionButtons.forEach(button => button.addEventListener('click', () => {
+        const members = new Set(button.dataset.members.split(','));
+        const select = button.getAttribute('aria-pressed') !== 'true';
+        Array.from($('su-institution').options).forEach(option => {
+            if (members.has(option.value)) option.selected = select;
+        });
+        renderLocations();
+    }));
     $('su-locations').addEventListener('change', onLocationsChanged);
     $('su-species-search').addEventListener('input', renderSpecies);
     taxonFilters.forEach(select => select.addEventListener('change', renderSpecies));
@@ -692,7 +728,9 @@
         const first = wantedLocs[0];
         const commonInst = first && (first.inst_ids || []).find(
             id => wantedLocs.every(l => (l.inst_ids || []).includes(id)));
-        $('su-institution').value = commonInst ? String(commonInst) : '';
+        Array.from($('su-institution').options).forEach(option => {
+            option.selected = Number(option.value) === commonInst;
+        });
         renderLocations();
         Array.from($('su-locations').options).forEach(o => {
             o.selected = wanted.includes(parseInt(o.value, 10));
