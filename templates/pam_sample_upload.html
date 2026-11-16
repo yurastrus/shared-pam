@@ -36,22 +36,22 @@
                     <option value="{{ inst.id }}">{{ inst.name }}</option>
                     {% endfor %}
                 </select>
-                <div class="mt-2 d-flex flex-wrap gap-1">
-                    <button type="button" id="su-all-institutions" class="btn btn-sm btn-outline-secondary">
-                        {{ _('Усі доступні') }}
-                    </button>
-                    {% for region in ecoregions.values() %}
-                    <button type="button" class="btn btn-sm btn-outline-secondary su-ecoregion"
-                            aria-pressed="false" data-members="{{ region.institution_ids | join(',') }}">
-                        {{ region.name }}
-                    </button>
-                    {% endfor %}
-                </div>
             </div>
             <div class="col-md-8">
                 <label class="form-label form-label-sm">{{ _('Локації') }} <span class="su-help">({{ _('можна кілька') }})</span></label>
                 <select id="su-locations" class="form-select form-select-sm" multiple size="6"></select>
             </div>
+        </div>
+        <div class="su-ecoregion-row mt-2">
+            <button type="button" id="su-all-institutions" class="btn btn-sm btn-outline-secondary">
+                {{ _('Усі доступні') }}
+            </button>
+            {% for region in ecoregions.values() %}
+            <button type="button" class="btn btn-sm btn-outline-secondary su-ecoregion"
+                    aria-pressed="false" data-members="{{ region.institution_ids | join(',') }}">
+                {{ region.name }}
+            </button>
+            {% endfor %}
         </div>
     </div>
 
