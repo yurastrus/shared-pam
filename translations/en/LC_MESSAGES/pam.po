@@ -3391,6 +3391,26 @@ msgstr "#"
 msgid "ЧКУ"
 msgstr "RDBU"
 
+#: app/pam/templates/pam_overview.html:454
+msgid "Підтверджено остаточно"
+msgstr "Confirmed (final)"
+
+#: app/pam/templates/pam_overview.html:455
+msgid "Підтверджено одним голосом"
+msgstr "Confirmed by one reviewer"
+
+#: app/pam/templates/pam_overview.html:456
+msgid "Відхилено остаточно"
+msgstr "Rejected (final)"
+
+#: app/pam/templates/pam_overview.html:457
+msgid "Відхилено одним голосом"
+msgstr "Rejected by one reviewer"
+
+#: app/pam/templates/pam_overview.html:458
+msgid "Сегменти з розбіжностями"
+msgstr "Segments with conflicting votes"
+
 #: app/pam/templates/pam_overview.html:449
 #: app/pam/templates/pam_species_detailed.html:528
 #: app/pam/templates/pam_species_detailed.html:662

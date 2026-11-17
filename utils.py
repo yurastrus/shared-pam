@@ -1078,8 +1078,26 @@ def get_unique_detection_points(lang_code, species_name, start_date=None, end_da
         if conn is not None:
             conn.close()
 
+_RANKING_VERIFICATION_COUNTS = (
+    'consensus_confirmed', 'single_confirmed',
+    'consensus_rejected', 'single_rejected', 'mixed',
+)
+
+
+def _ranking_verification_status(counts):
+    if counts['consensus_confirmed']:
+        return 'consensus_confirmed'
+    if counts['mixed'] or (counts['single_confirmed'] and
+                           (counts['single_rejected'] or counts['consensus_rejected'])):
+        return 'mixed'
+    for status in ('single_confirmed', 'consensus_rejected', 'single_rejected'):
+        if counts[status]:
+            return status
+    return None
+
+
 def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.0, min_detections=1, location_ids=None, biotope_ids=None, tax_filters=None, institution_id=None, mode='birdnet', model_id=None):
-    """Return a ranked species table with detection counts."""
+    """Rank species and summarize verification of their filtered detections."""
     conn = None
     try:
         conn = get_pam_db_connection()
@@ -1105,11 +1123,9 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
             JOIN detections d ON s.species_id = d.species_id
             JOIN recordings r ON d.recording_id = r.recording_id
             JOIN locations l ON r.location_id = l.location_id
+            LEFT JOIN detection_verification_map dvm ON d.detection_id = dvm.detection_id
+            LEFT JOIN segments seg ON dvm.segment_id = seg.id
         """
-        
-        # Additional JOINs for filters.
-        if biotope_ids:
-            from_clause += " JOIN location_biotopes lb ON l.location_id = lb.location_id"
 
         # Build WHERE conditions.
         mode = _normalize_model_mode(mode, model_id, params)
@@ -1125,7 +1141,10 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
             params['location_ids'] = location_ids
 
         if biotope_ids:
-            conditions.append("lb.biotope_id = ANY(:biotope_ids)")
+            conditions.append("""EXISTS (
+                SELECT 1 FROM location_biotopes lb
+                WHERE lb.location_id = l.location_id AND lb.biotope_id = ANY(:biotope_ids)
+            )""")
             params['biotope_ids'] = biotope_ids
 
         # Access filter.
@@ -1153,17 +1172,40 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
         where_clause = "WHERE " + " AND ".join(conditions)
         
         
+        verification_counts_sql = ",\n                ".join(
+            f"COUNT(*) FILTER (WHERE verification_status = '{status}') AS {status}"
+            for status in _RANKING_VERIFICATION_COUNTS
+        )
+        # Honor stored results, including legacy completed imports, as the
+        # detailed PAM charts do. Segment tallies exclude uncertain votes.
         sql = f"""
-            SELECT 
-                s.scientific_name,
-                s.common_name_en,
-                s.common_name_uk,
-                s.redbook2021,
-                COUNT(d.detection_id) as detection_count
-            {from_clause}
-            {where_clause}
-            GROUP BY s.species_id, s.scientific_name, s.common_name_en, s.common_name_uk, s.redbook2021
-            HAVING COUNT(d.detection_id) >= :min_detections
+            WITH filtered AS (
+                SELECT s.species_id, s.scientific_name, s.common_name_en,
+                       s.common_name_uk, s.redbook2021,
+                       CASE
+                           WHEN dvm.verification_result = 1 THEN 'consensus_confirmed'
+                           WHEN dvm.verification_result = 0 THEN 'consensus_rejected'
+                           WHEN seg.verification_count >= 2 THEN
+                               CASE
+                                   WHEN 3 * seg.positive_verifications >= 2 * seg.verification_count
+                                       THEN 'consensus_confirmed'
+                                   WHEN 3 * seg.positive_verifications <= seg.verification_count
+                                       THEN 'consensus_rejected'
+                                   ELSE 'mixed'
+                               END
+                           WHEN seg.verification_count = 1 THEN
+                               CASE WHEN seg.positive_verifications = 1 THEN 'single_confirmed'
+                                    ELSE 'single_rejected' END
+                       END AS verification_status
+                {from_clause}
+                {where_clause}
+            )
+            SELECT scientific_name, common_name_en, common_name_uk, redbook2021,
+                COUNT(*) AS detection_count,
+                {verification_counts_sql}
+            FROM filtered
+            GROUP BY species_id, scientific_name, common_name_en, common_name_uk, redbook2021
+            HAVING COUNT(*) >= :min_detections
             ORDER BY detection_count DESC
         """
         
@@ -1177,11 +1219,14 @@ def get_species_ranking(lang_code, start_date=None, end_date=None, confidence=0.
             elif lang_code == 'en' and row['common_name_en']:
                 display_name = f"{row['common_name_en']} ({row['scientific_name']})"
             
+            verification_counts = {status: row[status] for status in _RANKING_VERIFICATION_COUNTS}
             ranking.append({
                 'rank': i,
                 'scientific_name': row['scientific_name'],
                 'display_name': display_name,
                 'detection_count': row['detection_count'],
+                'verification_counts': verification_counts,
+                'verification_status': _ranking_verification_status(verification_counts),
                 # Red Book 2021: code, translated label, severity (0 = extinct).
                 'redbook2021': row['redbook2021'],
                 'redbook_label': str(REDBOOK_LABELS[row['redbook2021']]) if row['redbook2021'] in REDBOOK_LABELS else None,

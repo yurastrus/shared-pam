@@ -3601,6 +3601,25 @@ body.dark-theme .gap-tool-note { color: var(--text-secondary, #aaa); }
 .sp-table tr[data-restricted="1"][data-redlisted="1"] td:nth-child(n+2):nth-child(-n+4) { color: #d98a92; }
 
 /* Species ranking on pam_overview: sortable headers, Red Book status. */
+.ranking-table td.ranking-verification {
+    text-align: center;
+}
+
+.ranking-verification-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    vertical-align: middle;
+    cursor: help;
+}
+
+.ranking-verification-dot[data-status="consensus_confirmed"] { background-color: #17643a; }
+.ranking-verification-dot[data-status="single_confirmed"] { background-color: #8bc978; }
+.ranking-verification-dot[data-status="mixed"] { background-color: #e4b600; }
+.ranking-verification-dot[data-status="single_rejected"] { background-color: #ee8585; }
+.ranking-verification-dot[data-status="consensus_rejected"] { background-color: #a52832; }
+
 .ranking-table--sortable th[data-sort-key] { cursor: pointer; user-select: none; white-space: nowrap; }
 .ranking-table--sortable th[data-sort-key]:hover { text-decoration: underline; }
 .ranking-table--sortable th.sort-asc::after { content: " ▲"; font-size: .75em; }

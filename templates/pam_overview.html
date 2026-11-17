@@ -441,13 +441,22 @@
             // until the filters change (new data starts from the server's order).
             let rankingData = [];
             let rankingSort = {key: 'rank', asc: true};
+            let rankingRequest = 0;
             const rankingCollator = new Intl.Collator('{{ g.lang_code }}', {numeric: true, sensitivity: 'base'});
             const rankingColumns = [
                 {key: 'rank', label: "{{ _('#') }}"},
                 {key: 'display_name', label: "{{ _('Вид') }}"},
                 {key: 'redbook_rank', label: "{{ _('ЧКУ') }}", title: "{{ _('Червона книга України (2021)') }}"},
+                {key: 'verification_status', label: {{ _('Верифікація') | tojson }}},
                 {key: 'detection_count', label: "{{ _('Детекції') }}"},
             ];
+            const verificationLabels = {
+                consensus_confirmed: {{ _('Підтверджено остаточно') | tojson }},
+                single_confirmed: {{ _('Підтверджено одним голосом') | tojson }},
+                consensus_rejected: {{ _('Відхилено остаточно') | tojson }},
+                single_rejected: {{ _('Відхилено одним голосом') | tojson }},
+                mixed: {{ _('Сегменти з розбіжностями') | tojson }},
+            };
 
             function compareRanking(a, b) {
                 const x = a[rankingSort.key], y = b[rankingSort.key];
@@ -465,7 +474,7 @@
                 const head = rankingColumns.map(col => {
                     const cls = col.key === rankingSort.key ? (rankingSort.asc ? 'sort-asc' : 'sort-desc') : '';
                     const title = col.title ? ` title="${col.title}"` : '';
-                    return `<th data-sort-key="${col.key}" class="${cls}"${title}>${col.label}</th>`;
+                    return `<th data-sort-key="${col.key}" class="${cls}"${title}>${escapeHtml(col.label)}</th>`;
                 }).join('');
                 let tableHtml = `<div class="table-scroll"><table class="ranking-table ranking-table--sortable"><thead><tr>${head}</tr></thead><tbody>`;
                 rankingData.slice().sort(compareRanking).forEach(species => {
@@ -473,7 +482,15 @@
                     detailUrlParams.set('species', species.scientific_name);
                     const detailUrl = `{{ url_for('pam.pam_detailed', lang_code=g.lang_code) }}?${detailUrlParams.toString()}`;
                     const status = species.redbook_label ? `<span class="redbook-status">${escapeHtml(species.redbook_label)}</span>` : '';
-                    tableHtml += `<tr><td>${species.rank}</td><td><a href="${detailUrl}" class="species-link">${species.display_name}</a></td><td>${status}</td><td>${species.detection_count.toLocaleString()}</td></tr>`;
+                    let verification = '';
+                    if (species.verification_status) {
+                        const tooltip = Object.entries(verificationLabels).map(([key, label]) =>
+                            `${label}: ${species.verification_counts[key].toLocaleString()}`
+                        ).join('\n');
+                        verification = `<span class="ranking-verification-dot" data-status="${escapeHtml(species.verification_status)}"
+                            role="img" aria-label="${escapeHtml(tooltip)}" title="${escapeHtml(tooltip)}"></span>`;
+                    }
+                    tableHtml += `<tr><td>${species.rank}</td><td><a href="${detailUrl}" class="species-link">${escapeHtml(species.display_name)}</a></td><td>${status}</td><td class="ranking-verification">${verification}</td><td>${species.detection_count.toLocaleString()}</td></tr>`;
                 });
                 tableHtml += '</tbody></table></div>';
                 rankingContent.html(tableHtml);
@@ -494,11 +511,13 @@
             });
 
             function updateRankingTable() {
+                const request = ++rankingRequest;
                 rankingContent.html('<div class="spinner-wrapper"><div class="spinner-border" style="width: 3rem; height: 3rem; color: #0779e4;" role="status"></div></div>');
                 
                 fetch(`/{{ g.lang_code }}/api/pam/get-species-ranking?${getApiParams().toString()}`)
                     .then(response => response.ok ? response.json() : Promise.reject(response))
                     .then(data => {
+                        if (request !== rankingRequest) return;
                         if (data && data.length > 0) {
                             rankingData = data;
                             rankingSort = {key: 'rank', asc: true};
@@ -508,6 +527,7 @@
                         }
                     })
                     .catch(error => {
+                        if (request !== rankingRequest) return;
                         console.error('Error loading ranking:', error);
                         rankingContent.html('<div class="overview-message error">{{ _("Помилка завантаження даних.") }}</div>');
                     });
