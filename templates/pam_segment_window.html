@@ -51,7 +51,7 @@
     </div>
 
     <!-- STEP 2: local folder -->
-    <div class="su-card">
+    <div class="su-card sw-folder-card">
         <div class="su-title"><span class="su-step-num">2</span>{{ _('Папка із записами') }}</div>
         <div class="form-check mb-2">
             <input type="checkbox" class="form-check-input" id="sw-use-index" checked>
@@ -62,10 +62,12 @@
             <p>{{ _('Після формування вибірки виберіть кореневу папку архіву й дозвольте браузеру запис у неї. Перший пошук звірить імена аудіофайлів із PAM і збереже location.json у папках із записами. Якщо процес перерветься, виберіть ту саму папку, щоб продовжити.') }}</p>
             <p>{{ _('Наступні вибірки шукають файли в папках відповідних локацій. Якщо файлів бракує, можна завантажити знайдені сегменти або запустити пошук у всьому архіві, щоб знайти переміщені записи й оновити індекс. Зніміть галочку для звичайного вибору папки.') }}</p>
         </details>
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="sw-index-folder" hidden>{{ _('Вибрати папку') }}</button>
-        <input type="file" id="sw-folder" class="form-control" webkitdirectory directory multiple>
+        <div class="sw-folder-actions">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="sw-index-folder" hidden>{{ _('Вибрати папку') }}</button>
+            <input type="file" id="sw-folder" class="form-control" webkitdirectory directory multiple>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="sw-search-archive" hidden>{{ _('Шукати в усьому архіві') }}</button>
+        </div>
         <div id="sw-folder-info" class="su-help mt-1"></div>
-        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="sw-search-archive" hidden>{{ _('Шукати в усьому архіві') }}</button>
         <div class="su-help">
             {{ _('Потрібні лише ті файли, що названі у таблиці вище; зайві в папці нікому не шкодять.') }}
         </div>
@@ -278,7 +280,7 @@
     function updateFolderMode() {
         const enabled = $('sw-use-index').checked;
         $('sw-index-folder').hidden = !enabled;
-        $('sw-folder').classList.toggle('d-none', enabled);
+        $('sw-folder').hidden = enabled;
         $('sw-search-archive').hidden = true;
         $('sw-folder').value = '';
         archiveRoot = null;
