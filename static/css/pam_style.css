@@ -3418,6 +3418,7 @@ body.dark-theme .pam-scope-banner {
 }
 .sw-plan-table th:nth-child(-n+2), .sw-plan-table td:nth-child(-n+2) { text-align: left; }
 .sw-run-row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.sw-run-row + .su-prog-wrap { margin-top: 14px; }
 .sw-duration { display: flex; gap: 6px; align-items: center; margin: 0; }
 .sw-duration .form-control { width: auto; }
 #sw-log {
