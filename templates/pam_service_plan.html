@@ -217,9 +217,9 @@
             <div class="svp-card-body">${rows.join('')}</div>
             <div class="svp-card-coords">
                 <code>${esc(coordText(it))}</code>
-                <button type="button" class="svp-btn svp-copy-one" title="${esc(T.copy)}">⧉ ${esc(T.copyShort)}</button>
-                <button type="button" class="svp-btn svp-show" title="${esc(T.onMap)}">📍 ${esc(T.onMap)}</button>
-                <a class="svp-btn" href="${geoUrl}" title="${esc(T.navigate)}">🧭 ${esc(T.navigate)}</a>
+                <button type="button" class="svp-btn svp-copy-one" title="${esc(T.copy)}" aria-label="${esc(T.copyShort)}"><span aria-hidden="true">⧉</span></button>
+                <button type="button" class="svp-btn svp-show" title="${esc(T.onMap)}" aria-label="${esc(T.onMap)}"><span aria-hidden="true">📍</span></button>
+                <a class="svp-btn" href="${geoUrl}" title="${esc(T.navigate)}" aria-label="${esc(T.navigate)}"><span aria-hidden="true">🧭</span></a>
                 <a class="svp-btn" href="${navUrl}" target="_blank" rel="noopener" title="Google Maps">Google</a>
             </div>`;
     }
