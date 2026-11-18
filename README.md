@@ -487,7 +487,7 @@ cannot drift back apart.
 
 ### Local folders for the sample uploader
 
-The sample uploader can resolve exact recording filenames through a folder
+The sample uploader and segment-window cutter resolve exact recording filenames through a folder
 catalog. On the first run, the browser sends basenames in batches to the PAM
 recording-locations endpoint and atomically saves a `location.json` marker in
 each folder containing audio. Mixed folders list every resolved location.

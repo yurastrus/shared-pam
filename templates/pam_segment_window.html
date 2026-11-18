@@ -53,8 +53,19 @@
     <!-- STEP 2: local folder -->
     <div class="su-card">
         <div class="su-title"><span class="su-step-num">2</span>{{ _('Папка із записами') }}</div>
+        <div class="form-check mb-2">
+            <input type="checkbox" class="form-check-input" id="sw-use-index" checked>
+            <label class="form-check-label" for="sw-use-index">{{ _('Використати або побудувати локальний індекс') }}</label>
+        </div>
+        <details class="su-help mb-2">
+            <summary>{{ _('Як працює локальний індекс?') }}</summary>
+            <p>{{ _('Після формування вибірки виберіть кореневу папку архіву й дозвольте браузеру запис у неї. Перший пошук звірить імена аудіофайлів із PAM і збереже location.json у папках із записами. Якщо процес перерветься, виберіть ту саму папку, щоб продовжити.') }}</p>
+            <p>{{ _('Наступні вибірки шукають файли в папках відповідних локацій. Якщо файлів бракує, можна завантажити знайдені сегменти або запустити пошук у всьому архіві, щоб знайти переміщені записи й оновити індекс. Зніміть галочку для звичайного вибору папки.') }}</p>
+        </details>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="sw-index-folder" hidden>{{ _('Вибрати папку') }}</button>
         <input type="file" id="sw-folder" class="form-control" webkitdirectory directory multiple>
         <div id="sw-folder-info" class="su-help mt-1"></div>
+        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="sw-search-archive" hidden>{{ _('Шукати в усьому архіві') }}</button>
         <div class="su-help">
             {{ _('Потрібні лише ті файли, що названі у таблиці вище; зайві в папці нікому не шкодять.') }}
         </div>
@@ -106,7 +117,8 @@
 
 {% block scripts %}
 {# The WAV cutting and the upload pool are shared with pam_sample_upload.html. #}
-<script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=1"></script>
+<script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=2"></script>
+<script src="{{ url_for('pam.serve_pam_static', filename='js/recording_index.js', lang_code=g.lang_code) }}?v=4"></script>
 <script>
 "use strict";
 (function () {
@@ -114,6 +126,7 @@
     const LANG = "{{ g.lang_code }}";
     const URL_PLAN   = "{{ url_for('pam.api_sample_plan_window', lang_code=g.lang_code) }}";
     const URL_UPLOAD = "{{ url_for('pam.api_sample_upload_segment', lang_code=g.lang_code) }}";
+    const URL_LOCATIONS = {{ url_for('pam.api_sample_recording_locations', lang_code=g.lang_code) | tojson }};
     const URL_VERIFY = "{{ url_for('pam.verification_interface', lang_code=g.lang_code) }}";
     const CONCURRENCY = 4;
 
@@ -142,6 +155,8 @@
 
     let plan = [];
     let fileMap = new Map();
+    let archiveRoot = null;
+    let busy = false;
 
     function shortTs(v) { return (v || '').replace('T', ' ').substring(0, 19); }
 
@@ -172,10 +187,13 @@
 
     // ── STEP 1: ask the server which detections are not cut yet ─────────────
     async function loadPlan() {
+        setBusy(true);
+        plan = [];
         if (!SPECIES || !LOCATION_IDS.length || (ATLAS_SCOPE
             ? !RECORDING_SCOPE.recording_to : !FROM_TS || !TO_TS)) {
             fail("{{ _('Посилання неповне: немає виду, локації або вікна. Відкрийте сторінку з попапа на карті одночасних детекцій.') }}");
             $('sw-plan-info').textContent = '';
+            setBusy(false);
             return;
         }
         try {
@@ -200,8 +218,11 @@
             }
             plan = data.segments || [];
             renderPlan(data);
+            if (archiveRoot) await matchIndexedFolder();
         } catch (e) {
             fail("{{ _('Не вдалося звʼязатися з сервером.') }}");
+        } finally {
+            setBusy(false);
         }
     }
 
@@ -245,6 +266,91 @@
     }
 
     // ── STEP 2: local folder ────────────────────────────────────────────────
+    function setBusy(value) {
+        busy = value;
+        ['sw-folder', 'sw-index-folder', 'sw-search-archive', 'sw-model'].forEach(id => {
+            $(id).disabled = busy;
+        });
+        $('sw-use-index').disabled = busy || !PamRecordingIndex.supported;
+        refreshRun();
+    }
+
+    function updateFolderMode() {
+        const enabled = $('sw-use-index').checked;
+        $('sw-index-folder').hidden = !enabled;
+        $('sw-folder').classList.toggle('d-none', enabled);
+        $('sw-search-archive').hidden = true;
+        $('sw-folder').value = '';
+        archiveRoot = null;
+        fileMap = new Map();
+        $('sw-folder-info').textContent = PamRecordingIndex.supported
+            ? '' : {{ _('Локальний індекс недоступний у цьому браузері.') | tojson }};
+        refreshRun();
+    }
+
+    async function lookupLocations(filenames) {
+        const locations = Object.create(null);
+        for (let i = 0; i < filenames.length; i += 1000) {
+            const response = await fetch(URL_LOCATIONS, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                body: JSON.stringify({ filenames: filenames.slice(i, i + 1000) })
+            });
+            if (!response.ok) throw new Error(response.status);
+            Object.assign(locations, (await response.json()).locations);
+        }
+        return locations;
+    }
+
+    async function matchIndexedFolder(searchArchive = false) {
+        if (!searchArchive) fileMap = new Map();
+        const info = $('sw-folder-info');
+        $('sw-search-archive').hidden = true;
+        if (!plan.length) return;
+        info.textContent = {{ _('Пошук записів у локальному індексі…') | tojson }};
+        try {
+            const matches = await PamRecordingIndex.find(archiveRoot, plan, lookupLocations, count => {
+                info.textContent = {{ _('Переглянуто аудіофайлів:') | tojson }} + ' ' + count.toLocaleString();
+            }, { searchArchive });
+            fileMap = matches.files;
+            $('sw-search-archive').hidden = !matches.missing.size;
+            info.textContent = [
+                archiveRoot.name,
+                {{ _('Знайдено записів:') | tojson }} + ' ' + fileMap.size,
+                {{ _('Відсутні записи:') | tojson }} + ' ' + matches.missingCount,
+                {{ _('Неоднозначні назви записів:') | tojson }} + ' ' + matches.ambiguous
+            ].join(' · ');
+        } catch (error) {
+            info.textContent = {{ _('Помилка локального індексу:') | tojson }} + ' ' + error.message;
+            $('sw-search-archive').hidden = !searchArchive;
+        }
+    }
+
+    $('sw-index-folder').addEventListener('click', async () => {
+        setBusy(true);
+        try {
+            archiveRoot = await window.showDirectoryPicker({ id: 'pam-recordings', mode: 'readwrite' });
+            await matchIndexedFolder();
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                $('sw-folder-info').textContent = {{ _('Помилка локального індексу:') | tojson }} + ' ' + error.message;
+            }
+        } finally {
+            setBusy(false);
+        }
+    });
+    $('sw-search-archive').addEventListener('click', async () => {
+        setBusy(true);
+        try {
+            await matchIndexedFolder(true);
+        } finally {
+            setBusy(false);
+        }
+    });
+    $('sw-use-index').addEventListener('change', updateFolderMode);
+    $('sw-use-index').checked = PamRecordingIndex.supported;
+    updateFolderMode();
+
     $('sw-folder').addEventListener('change', function () {
         fileMap = PamSegmentCutter.indexFolder($('sw-folder').files);
         const needed = new Set(plan.map(s => (s.recording_filename || '').toLowerCase()));
@@ -256,7 +362,7 @@
         refreshRun();
     });
 
-    function refreshRun() { $('sw-run').disabled = !(plan.length && fileMap.size); }
+    function refreshRun() { $('sw-run').disabled = busy || !(plan.length && fileMap.size); }
 
     // ── STEP 3: cut + upload ────────────────────────────────────────────────
     const stats = { saved: 0, dup: 0, nofile: 0, err: 0 };
@@ -271,34 +377,39 @@
     }
 
     $('sw-run').addEventListener('click', async function () {
-        $('sw-run').disabled = true;
+        setBusy(true);
         Object.keys(stats).forEach(k => stats[k] = 0);
         refreshStats(0, plan.length);
         log("{{ _('Старт нарізки та завантаження...') }}");
 
-        await PamSegmentCutter.run({
-            plan: plan,
-            fileMap: fileMap,
-            uploadUrl: URL_UPLOAD,
-            csrf: CSRF,
-            duration: parseFloat($('sw-duration').value) || 3,
-            shift: 0,
-            speciesName: SPECIES,
-            modelId: ($('sw-model') || {}).value,
-            concurrency: CONCURRENCY,
-            onResult: function (seg, outcome, done, total) {
-                if (outcome.status === 'saved') stats.saved++;
-                else if (outcome.status === 'duplicate') stats.dup++;
-                else if (outcome.status === 'nofile') {
-                    stats.nofile++;
-                    log("{{ _('Немає файлу:') }} " + seg.recording_filename);
-                } else {
-                    stats.err++;
-                    log("ERR " + seg.segment_filename + ": " + outcome.error);
+        try {
+            await PamSegmentCutter.run({
+                plan: plan,
+                fileMap: fileMap,
+                fileForSegment: archiveRoot ? seg => fileMap.get(PamRecordingIndex.key(seg)) : null,
+                uploadUrl: URL_UPLOAD,
+                csrf: CSRF,
+                duration: parseFloat($('sw-duration').value) || 3,
+                shift: 0,
+                speciesName: SPECIES,
+                modelId: ($('sw-model') || {}).value,
+                concurrency: CONCURRENCY,
+                onResult: function (seg, outcome, done, total) {
+                    if (outcome.status === 'saved') stats.saved++;
+                    else if (outcome.status === 'duplicate') stats.dup++;
+                    else if (outcome.status === 'nofile') {
+                        stats.nofile++;
+                        log("{{ _('Немає файлу:') }} " + seg.recording_filename);
+                    } else {
+                        stats.err++;
+                        log("ERR " + seg.segment_filename + ": " + outcome.error);
+                    }
+                    refreshStats(done, total);
                 }
-                refreshStats(done, total);
-            }
-        });
+            });
+        } finally {
+            setBusy(false);
+        }
 
         log("{{ _('Готово.') }} "
             + "{{ _('Завантажено:') }} " + stats.saved
@@ -313,7 +424,7 @@
                 '<a class="btn btn-sm" href="' + verificationUrl() + '">{{ _("Верифікувати ці сегменти") }}</a>';
             $('sw-next').style.display = '';
         }
-        $('sw-run').disabled = false;
+        refreshRun();
     });
 
     loadPlan();
