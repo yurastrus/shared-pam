@@ -351,7 +351,7 @@ def format_sample_plan(rows, model_id):
 WINDOW_RECORDING_SLACK = "1 day"
 
 
-def build_window_query(conf_column='confidence'):
+def build_window_query(conf_column='confidence', recording_scope=None):
     """Parameterised SQL for every detection inside one time window.
 
     Pure function (no DB, no I/O) so it is unit-testable, like
@@ -375,6 +375,18 @@ def build_window_query(conf_column='confidence'):
         raise ValueError(f"Invalid conf_column: {conf_column!r}")
     conf_expr = f"d.{conf_column}"
     det_ts = "r.datetime_start + (d.start_s * interval '1 second')"
+    if recording_scope is not None:
+        conditions, _ = recording_scope.where('r')
+        window_sql = " AND ".join(conditions)
+        score_filter = f"ROUND(({conf_expr})::numeric, 4) >= :conf_thr"
+    else:
+        score_filter = f"{conf_expr} >= :conf_thr"
+        window_sql = f"""
+            r.datetime_start >= CAST(:from_ts AS timestamptz) - CAST(:slack AS interval)
+            AND r.datetime_start < CAST(:to_ts AS timestamptz)
+            AND {det_ts} >= CAST(:from_ts AS timestamptz)
+            AND {det_ts} <  CAST(:to_ts AS timestamptz)
+        """
     return text(f"""
         SELECT d.detection_id,
                d.recording_id,
@@ -392,12 +404,8 @@ def build_window_query(conf_column='confidence'):
         WHERE s.scientific_name = :species_name
           AND r.location_id = ANY(:location_ids)
           AND {conf_expr} IS NOT NULL
-          AND {conf_expr} >= :conf_thr
-          AND r.datetime_start >= CAST(:from_ts AS timestamptz)
-                                  - CAST(:slack AS interval)
-          AND r.datetime_start <  CAST(:to_ts AS timestamptz)
-          AND {det_ts} >= CAST(:from_ts AS timestamptz)
-          AND {det_ts} <  CAST(:to_ts AS timestamptz)
+          AND {score_filter}
+          AND ({window_sql})
           AND NOT EXISTS (
                 SELECT 1 FROM segments sg
                 WHERE sg.detection_id = d.detection_id
@@ -417,28 +425,29 @@ MAX_WINDOW_SEGMENTS = 200
 def plan_window_segments(species_name, location_ids, from_ts, to_ts,
                          confidence_threshold=0.0, conn=None, model_id=None,
                          conf_column='confidence',
-                         max_rows=MAX_WINDOW_SEGMENTS):
+                         max_rows=MAX_WINDOW_SEGMENTS, recording_scope=None):
     """Every not-yet-cut detection of one species inside one window.
 
     Returns the same plain-dict plan as ``run_stratified_sample``, so the
     browser-side cutting and upload path is shared verbatim: the two pages
     differ in how the plan is chosen, not in what a plan is.
     """
-    if not location_ids or from_ts is None or to_ts is None:
+    if not location_ids or (recording_scope is None and (from_ts is None or to_ts is None)):
         return []
+    window_params = (recording_scope.where('r')[1] if recording_scope is not None else {
+        'from_ts': from_ts, 'to_ts': to_ts, 'slack': WINDOW_RECORDING_SLACK,
+    })
     own_conn = conn is None
     if own_conn:
         conn = get_pam_db_connection()
     try:
         rows = conn.execute(
-            build_window_query(conf_column=conf_column),
+            build_window_query(conf_column=conf_column, recording_scope=recording_scope),
             {
                 'species_name': species_name,
                 'location_ids': list(location_ids),
                 'conf_thr': float(confidence_threshold),
-                'from_ts': from_ts,
-                'to_ts': to_ts,
-                'slack': WINDOW_RECORDING_SLACK,
+                **window_params,
                 'seg_model_id': model_id,
                 'max_rows': int(max_rows),
             },

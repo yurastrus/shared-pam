@@ -1,6 +1,6 @@
 {% extends "pam_base.html" %}
 
-{% block title %}{{ _('Нарізка сегментів для вікна') }}{% endblock %}
+{% block title %}{{ _('Нарізка сегментів у клітинці атласу') if atlas_scope else _('Нарізка сегментів для вікна') }}{% endblock %}
 
 {#
   Targeted counterpart of pam_sample_upload.html, reached only from a popup on
@@ -19,9 +19,13 @@
 
 <div class="container-fluid px-3 py-2 sw-page">
 
-    <h4 class="sw-title-main">{{ _('Нарізка сегментів для одного вікна') }}</h4>
+    <h4 class="sw-title-main">{{ _('Нарізка сегментів у клітинці атласу') if atlas_scope else _('Нарізка сегментів для одного вікна') }}</h4>
     <p class="su-help mb-3">
+        {% if atlas_scope %}
+        {{ _('Виберіть папку із записами, щоб нарізати детекції вибраного виду за фільтрами клітинки.') }}
+        {% else %}
         {{ _('Ці детекції стоять за однією точкою на карті одночасних детекцій. Вибірки тут немає: нарізаються саме вони. Виберіть папку із записами й натисніть кнопку.') }}
+        {% endif %}
     </p>
 
     <div id="sw-scope" class="pam-scope-banner"></div>
@@ -29,7 +33,7 @@
 
     <!-- STEP 1: what will be cut -->
     <div class="su-card">
-        <div class="su-title"><span class="su-step-num">1</span>{{ _('Детекції вікна') }}</div>
+        <div class="su-title"><span class="su-step-num">1</span>{{ _('Детекції клітинки') if atlas_scope else _('Детекції вікна') }}</div>
         <div id="sw-plan-info" class="su-help">{{ _('Завантаження…') }}</div>
         <div class="sw-plan-wrap">
             <table class="sw-plan-table" id="sw-plan-table" style="display:none;">
@@ -131,20 +135,45 @@
     const TO_TS = Q.get('to_ts') || '';
     const MIN_CONF = Q.get('conf') || '';
     const SCOPE_LABEL = Q.get('scope_label') || '';
+    const RECORDING_SCOPE = Object.fromEntries(
+        ['recording_from', 'recording_to', 'recording_months'].filter(key => Q.has(key))
+            .map(key => [key, Q.get(key)]));
+    const ATLAS_SCOPE = Q.has('recording_from');
 
     let plan = [];
     let fileMap = new Map();
 
     function shortTs(v) { return (v || '').replace('T', ' ').substring(0, 19); }
 
-    $('sw-scope').innerHTML =
-        '<b>' + (SCOPE_LABEL || SPECIES) + '</b><br>'
-        + shortTs(FROM_TS) + ' … ' + shortTs(TO_TS) + ' UTC'
-        + (MIN_CONF ? ' · confidence ≥ ' + MIN_CONF : '');
+    const scopeTitle = document.createElement('b');
+    scopeTitle.textContent = SCOPE_LABEL || SPECIES;
+    const period = ATLAS_SCOPE
+        ? [RECORDING_SCOPE.recording_from + ' … ' + RECORDING_SCOPE.recording_to,
+            RECORDING_SCOPE.recording_months].filter(Boolean).join(' · ')
+        : shortTs(FROM_TS) + ' … ' + shortTs(TO_TS) + ' UTC';
+    $('sw-scope').replaceChildren(scopeTitle, document.createElement('br'),
+        period + (MIN_CONF ? ' · confidence ≥ ' + MIN_CONF : ''));
+
+    function verificationUrl() {
+        const params = new URLSearchParams({
+            species_id: Q.get('species_id') || '', location_ids: LOCATION_IDS.join(','),
+            scope_label: SCOPE_LABEL,
+        });
+        if (ATLAS_SCOPE) {
+            for (const [key, value] of Object.entries(RECORDING_SCOPE)) params.set(key, value);
+            params.set('scope_species_id', Q.get('species_id') || '');
+            if (MIN_CONF) params.set('scope_conf', MIN_CONF);
+        } else {
+            params.set('from_ts', FROM_TS);
+            params.set('to_ts', TO_TS);
+        }
+        return URL_VERIFY + '?' + params;
+    }
 
     // ── STEP 1: ask the server which detections are not cut yet ─────────────
     async function loadPlan() {
-        if (!SPECIES || !LOCATION_IDS.length || !FROM_TS || !TO_TS) {
+        if (!SPECIES || !LOCATION_IDS.length || (ATLAS_SCOPE
+            ? !RECORDING_SCOPE.recording_to : !FROM_TS || !TO_TS)) {
             fail("{{ _('Посилання неповне: немає виду, локації або вікна. Відкрийте сторінку з попапа на карті одночасних детекцій.') }}");
             $('sw-plan-info').textContent = '';
             return;
@@ -158,6 +187,7 @@
                     location_ids: LOCATION_IDS,
                     from_ts: FROM_TS,
                     to_ts: TO_TS,
+                    ...RECORDING_SCOPE,
                     confidence_threshold: MIN_CONF || 0,
                     model_id: ($('sw-model') || {}).value || null
                 })
@@ -182,10 +212,7 @@
             $('sw-plan-info').textContent =
                 "{{ _('Усі детекції цього вікна вже нарізані для вибраної моделі — нарізати нічого.') }}";
             $('sw-next').innerHTML =
-                '<a href="' + URL_VERIFY + '?' + new URLSearchParams({
-                    species_id: '', location_ids: LOCATION_IDS.join(','),
-                    from_ts: FROM_TS, to_ts: TO_TS, scope_label: SCOPE_LABEL
-                }) + '">{{ _("Перейти до верифікації цього вікна") }}</a>';
+                '<a href="' + verificationUrl() + '">{{ _("Перейти до верифікації цього вікна") }}</a>';
             $('sw-next').style.display = '';
             return;
         }
@@ -283,10 +310,7 @@
             // The point of cutting these was to verify them, so offer that
             // straight away rather than making the operator find the page.
             $('sw-next').innerHTML =
-                '<a class="btn btn-sm" href="' + URL_VERIFY + '?' + new URLSearchParams({
-                    location_ids: LOCATION_IDS.join(','),
-                    from_ts: FROM_TS, to_ts: TO_TS, scope_label: SCOPE_LABEL
-                }) + '">{{ _("Верифікувати ці сегменти") }}</a>';
+                '<a class="btn btn-sm" href="' + verificationUrl() + '">{{ _("Верифікувати ці сегменти") }}</a>';
             $('sw-next').style.display = '';
         }
         $('sw-run').disabled = false;

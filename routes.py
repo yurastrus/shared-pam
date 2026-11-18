@@ -1697,6 +1697,64 @@ def _verification_sample_scope():
     return ["seg.id = ANY(CAST(:sample_ids AS bigint[]))"], {'sample_ids': ids}
 
 
+def _verification_queue_scope():
+    """Combine sample selection with the map's location and time filters."""
+    from .recording_scope import RecordingScope
+
+    conditions, params = _verification_sample_scope()
+    location_ids = _parse_id_list(request.args.get('location_ids', ''))
+    try:
+        from_ts = _parse_ts_arg(request.args.get('from_ts'))
+        to_ts = _parse_ts_arg(request.args.get('to_ts'))
+    except ValueError as exc:
+        raise ValueError('Invalid from_ts/to_ts') from exc
+    recording_scope = RecordingScope.from_params(request.args)
+    det_conditions = []
+    if location_ids:
+        det_conditions.append("r_det.location_id = ANY(:det_location_ids)")
+        params['det_location_ids'] = location_ids
+    det_ts = "r_det.datetime_start + (d_det.start_s * interval '1 second')"
+    if from_ts:
+        det_conditions.append(f"{det_ts} >= CAST(:from_ts AS timestamptz)")
+        params['from_ts'] = from_ts
+    if to_ts:
+        det_conditions.append(f"{det_ts} < CAST(:to_ts AS timestamptz)")
+        params['to_ts'] = to_ts
+    if recording_scope is not None:
+        from .gap_routes import _species_condition
+        from .gap_analysis import SCORE_DECIMALS
+        from .utils import _confidence_value_sql
+
+        species_id = request.args.get('scope_species_id', type=int)
+        if not location_ids or not species_id or not 0 < species_id < 2**31:
+            raise ValueError('Recording scope requires a species and locations')
+        date_conditions, date_params = recording_scope.where('r_det')
+        species_sql, species_params = _species_condition()
+        det_conditions.extend(date_conditions)
+        det_conditions.extend([
+            "d_det.species_id = :scope_species_id",
+            "d_det.species_id = seg.species_id",
+            f"EXISTS (SELECT 1 FROM species s WHERE s.species_id = d_det.species_id AND ({species_sql}))",
+        ])
+        params.update(date_params, **species_params, scope_species_id=species_id)
+        if 'scope_conf' in request.args:
+            confidence = request.args.get('scope_conf', type=float)
+            if confidence is None or not 0 <= confidence <= 1:
+                raise ValueError('Invalid scope_conf')
+            score = _confidence_value_sql(alias='d_det')
+            det_conditions.append(
+                f"(seg.positive_verifications > 0 OR ROUND(({score})::numeric, {SCORE_DECIMALS}) >= :scope_conf)"
+            )
+            params['scope_conf'] = confidence
+    if det_conditions:
+        conditions.append(
+            "EXISTS (SELECT 1 FROM detections d_det "
+            "JOIN recordings r_det ON r_det.recording_id = d_det.recording_id "
+            "WHERE d_det.detection_id = seg.detection_id AND " + " AND ".join(det_conditions) + ")"
+        )
+    return conditions, params
+
+
 @pam_bp.route('/<lang_code>/api/verification/next-segment', methods=['GET', 'POST'])
 @login_required
 @role_required('pam_verifier')
@@ -1707,7 +1765,7 @@ def api_next_verification_segment(lang_code):
         g.lang_code = lang_code
         
         try:
-            sample_conditions, sample_params = _verification_sample_scope()
+            sample_conditions, sample_params = _verification_queue_scope()
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         optimize = request.args.get('sort_by') == 'benefit'
@@ -1723,18 +1781,6 @@ def api_next_verification_segment(lang_code):
         species_id = request.args.get('species_id', type=int)
         class_name = request.args.get('class_name')
         institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
-        # Deep-link narrowing, used by the co-occurrence map: one location and
-        # one time window. Both are properties of the DETECTION, not of the
-        # segment -- segments.recorded_date/recorded_time is the recording's
-        # start, shared by every segment cut from that recording, so filtering
-        # on it could not tell one minute from another.
-        location_ids = _parse_id_list(request.args.get('location_ids', ''))
-        try:
-            from_ts = _parse_ts_arg(request.args.get('from_ts'))
-            to_ts = _parse_ts_arg(request.args.get('to_ts'))
-        except ValueError:
-            return jsonify({'error': 'Invalid from_ts/to_ts'}), 400
-
         # Build the filter dynamically. Base: pending + not-yet-seen-by-this-user
         # (an existing verification row — including an "unknown" vote — hides it).
         conditions = [*pam_priorities.PENDING_FOR_USER, *sample_conditions]
@@ -1772,29 +1818,6 @@ def api_next_verification_segment(lang_code):
                 )
             """)
             params["institution_ids"] = institution_ids
-
-        # Location and/or time window, through the authoritative
-        # segments.detection_id link. A segment with no detection link cannot
-        # be placed in time, so it drops out while either filter is on.
-        det_conds = []
-        if location_ids:
-            det_conds.append("r_det.location_id = ANY(:det_location_ids)")
-            params["det_location_ids"] = location_ids
-        if from_ts:
-            det_conds.append("r_det.datetime_start + (d_det.start_s * interval "
-                             "'1 second') >= CAST(:from_ts AS timestamptz)")
-            params["from_ts"] = from_ts
-        if to_ts:
-            det_conds.append("r_det.datetime_start + (d_det.start_s * interval "
-                             "'1 second') < CAST(:to_ts AS timestamptz)")
-            params["to_ts"] = to_ts
-        if det_conds:
-            conditions.append(
-                "EXISTS (SELECT 1 FROM detections d_det "
-                "JOIN recordings r_det ON r_det.recording_id = d_det.recording_id "
-                "WHERE d_det.detection_id = seg.detection_id AND "
-                + " AND ".join(det_conds) + ")"
-            )
 
         # ACCESS baseline: non-admins only ever get segments from their own
         # institutions, even with no UI filter selected.
@@ -2096,7 +2119,7 @@ def api_verification_stats(lang_code):
     conn = None
     try:
         try:
-            sample_conditions, sample_params = _verification_sample_scope()
+            sample_conditions, sample_params = _verification_queue_scope()
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         conn = get_pam_db_connection()
@@ -2237,7 +2260,7 @@ def api_verification_filter_options(lang_code):
     conn = None
     try:
         try:
-            sample_conditions, sample_params = _verification_sample_scope()
+            sample_conditions, sample_params = _verification_queue_scope()
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
         conn = get_pam_db_connection()
@@ -5432,6 +5455,7 @@ def segment_window(lang_code):
         segment_durations=ALLOWED_SEGMENT_DURATIONS,
         models=get_models_list(),
         reference_model_id=get_reference_model_id(),
+        atlas_scope='recording_from' in request.args,
     )
 
 
@@ -5440,6 +5464,7 @@ def segment_window(lang_code):
 def api_sample_plan_window(lang_code):
     """The cutting plan for every not-yet-cut detection inside one window."""
     from .pam_segment_sampling import plan_window_segments, MAX_WINDOW_SEGMENTS
+    from .recording_scope import RecordingScope
 
     conn = None
     try:
@@ -5451,11 +5476,15 @@ def api_sample_plan_window(lang_code):
             return jsonify({'success': False,
                             'error': 'species_name and location_ids are required'}), 400
         try:
+            recording_scope = RecordingScope.from_params(payload)
+        except ValueError as exc:
+            return jsonify({'success': False, 'error': str(exc)}), 400
+        try:
             from_ts = _parse_ts_arg(payload.get('from_ts'))
             to_ts = _parse_ts_arg(payload.get('to_ts'))
         except ValueError:
             return jsonify({'success': False, 'error': 'Invalid from_ts/to_ts'}), 400
-        if from_ts is None or to_ts is None or to_ts <= from_ts:
+        if recording_scope is None and (from_ts is None or to_ts is None or to_ts <= from_ts):
             return jsonify({'success': False,
                             'error': 'from_ts must be before to_ts'}), 400
 
@@ -5489,6 +5518,7 @@ def api_sample_plan_window(lang_code):
             conn=conn,
             model_id=model_id,
             conf_column=conf_column,
+            recording_scope=recording_scope,
         )
         return jsonify({'success': True, 'count': len(segments),
                         'model_id': model_id, 'limit': MAX_WINDOW_SEGMENTS,
