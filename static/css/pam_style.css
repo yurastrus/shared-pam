@@ -940,12 +940,19 @@ main .container:not(.maplistcontainer) {
 .segments-container .btn-secondary { background-color: var(--color-secondary); }
 .segments-container .btn-secondary:hover { background-color: var(--color-secondary-hover); }
 
+.verification-container .verification-current-species {
+    margin-top: 15px;
+    text-align: center;
+    font-size: 1.15rem;
+    font-weight: 600;
+}
+
 /* pam_verification_interface: цвітові кнопки (так/ні/пропустити) */
 .verification-container .verification-buttons {
     display: flex;
     justify-content: center;
     gap: 12px;
-    margin: 15px 0;
+    margin: 6px 0 15px;
 }
 .verification-container .verification-buttons .btn {
     min-width: 100px;

@@ -813,7 +813,8 @@ def verification_interface(lang_code):
         # their own institutions.
         acc_sql, acc_params = _segment_access_sql('seg')
         species_query = f"""
-            SELECT DISTINCT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
+            SELECT DISTINCT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en,
+                   s.class AS class_name, s.order_rank AS order_name, s.family AS family_name
             FROM species s
             JOIN segments seg ON s.species_id = seg.species_id
             WHERE seg.status = 'pending' AND {acc_sql}
@@ -838,17 +839,10 @@ def verification_interface(lang_code):
         
         current_app.logger.info(f"Prepared {len(species_list)} species for verification interface")
 
-        # Taxonomic classes with pending segments (for the class filter, above
-        # species). Same ACCESS baseline as species. Raw Latin class names
-        # (Aves, Mammalia, …) — consistent with the rest of the app's taxonomy UI.
-        class_rows = conn.execute(text(f"""
-            SELECT DISTINCT s.class AS cls
-            FROM species s
-            JOIN segments seg ON s.species_id = seg.species_id
-            WHERE seg.status = 'pending' AND s.class IS NOT NULL AND {acc_sql}
-            ORDER BY s.class
-        """), acc_params).fetchall()
-        classes = [r.cls for r in class_rows]
+        taxonomy_options = {
+            options_key: sorted({getattr(row, key) for row in species_data if getattr(row, key)})
+            for key, _, options_key in VERIFICATION_TAXONOMY
+        }
 
         # Institutions for the optional verification filter — only those that
         # actually have PENDING segments (so we never offer an institution that
@@ -880,9 +874,9 @@ def verification_interface(lang_code):
 
         return render_template('pam_verification_interface.html',
                              available_species=species_list,
-                             classes=classes,
                              institutions=institutions,
-                             max_queue_skips=pam_priorities.MAX_QUEUE_SKIPS)
+                             max_queue_skips=pam_priorities.MAX_QUEUE_SKIPS,
+                             **taxonomy_options)
         
     except Exception as e:
         current_app.logger.error(f"Error loading verification interface: {e}")
@@ -1755,6 +1749,26 @@ def _verification_queue_scope():
     return conditions, params
 
 
+VERIFICATION_TAXONOMY = (
+    ('class_name', 'class', 'classes'),
+    ('order_name', 'order_rank', 'orders'),
+    ('family_name', 'family', 'families'),
+)
+
+
+def _verification_taxonomy_filters(alias='', exclude=None):
+    """Return parameterized predicates for the selected ranks."""
+    prefix = f'{alias}.' if alias else ''
+    conditions = []
+    params = {}
+    for key, column, _ in VERIFICATION_TAXONOMY:
+        value = request.args.get(key)
+        if value and key != exclude:
+            conditions.append(f'{prefix}{column} = :{key}')
+            params[key] = value
+    return conditions, params
+
+
 @pam_bp.route('/<lang_code>/api/verification/next-segment', methods=['GET', 'POST'])
 @login_required
 @role_required('pam_verifier')
@@ -1779,7 +1793,6 @@ def api_next_verification_segment(lang_code):
         conn = get_pam_db_connection()
         
         species_id = request.args.get('species_id', type=int)
-        class_name = request.args.get('class_name')
         institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
         # Build the filter dynamically. Base: pending + not-yet-seen-by-this-user
         # (an existing verification row — including an "unknown" vote — hides it).
@@ -1795,11 +1808,9 @@ def api_next_verification_segment(lang_code):
             conditions.append("seg.id = :prepared_id")
             params['prepared_id'] = prepared_id
 
-        # Taxonomic class filter (s is joined below). Narrows the queue to one
-        # class; combines with species_id (species always belongs to the class).
-        if class_name:
-            conditions.append("s.class = :class_name")
-            params["class_name"] = class_name
+        tax_conditions, tax_params = _verification_taxonomy_filters('s')
+        conditions.extend(tax_conditions)
+        params.update(tax_params)
 
         if species_id:
             conditions.append("seg.species_id = :species_id")
@@ -2124,7 +2135,6 @@ def api_verification_stats(lang_code):
             return jsonify({'error': str(e)}), 400
         conn = get_pam_db_connection()
         species_id = request.args.get('species_id', type=int)
-        class_name = request.args.get('class_name')
         institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
 
         # --- Prepare query conditions and parameters ---
@@ -2135,14 +2145,13 @@ def api_verification_stats(lang_code):
         # Conditions for counting remaining (unverified) segments.
         remaining_conditions = ["seg.status = 'pending'"] + sample_conditions
 
-        # Taxonomic class filter. No species alias here, so match via subquery on
-        # seg.species_id — applies to both the user's history and the remaining count.
-        if class_name:
-            params['class_name'] = class_name
-            class_cond = ("seg.species_id IN "
-                          "(SELECT species_id FROM species WHERE class = :class_name)")
-            user_stats_conditions.append(class_cond)
-            remaining_conditions.append(class_cond)
+        tax_conditions, tax_params = _verification_taxonomy_filters()
+        if tax_conditions:
+            params.update(tax_params)
+            tax_scope = ("seg.species_id IN (SELECT species_id FROM species WHERE "
+                         + " AND ".join(tax_conditions) + ")")
+            user_stats_conditions.append(tax_scope)
+            remaining_conditions.append(tax_scope)
 
         if species_id:
             params['species_id'] = species_id
@@ -2249,14 +2258,7 @@ def api_verification_stats(lang_code):
 @login_required
 @role_required('pam_verifier')
 def api_verification_filter_options(lang_code):
-    """Mutually-cascading options for the verify filters (class ↔ species ↔ institution).
-
-    Given the current selection, return the still-valid options for the OTHER two
-    fields — each computed while IGNORING its own current value so the user can
-    re-pick within it. Everything is scoped to pending segments only. The frontend
-    calls this on any change and repopulates the two dropdowns it didn't touch, so
-    impossible combinations are pruned. Non-admins only ever see their own institutions.
-    """
+    """Return each filter's options under all other selections and the pending scope."""
     conn = None
     try:
         try:
@@ -2266,61 +2268,49 @@ def api_verification_filter_options(lang_code):
         conn = get_pam_db_connection()
         g.lang_code = lang_code
         species_id = request.args.get('species_id', type=int)
-        class_name = request.args.get('class_name')
         institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
 
         is_admin = current_user.has_role('admin')
         allowed_inst = [] if is_admin else pam_access.allowed_institution_ids(current_user)
         acc_sql, acc_params = _segment_access_sql('seg')
 
-        # Reusable institution join + condition builder (segment → recording →
-        # location → institution) for the class/species option queries.
-        def _inst_join_cond():
-            if not institution_ids:
-                return "", [], {}
-            return (("JOIN recordings r ON seg.recording_id = r.recording_id "
-                     "JOIN location_institutions li ON r.location_id = li.location_id"),
-                    ["li.institution_id = ANY(:inst_ids)"],
-                    {'inst_ids': institution_ids})
+        pending_conditions = ["seg.status = 'pending'", *sample_conditions]
+        option_conditions = [*pending_conditions, acc_sql]
+        option_params = {**sample_params, **acc_params}
+        inst_join = ""
+        if institution_ids:
+            inst_join = ("JOIN recordings r ON seg.recording_id = r.recording_id "
+                         "JOIN location_institutions li ON r.location_id = li.location_id")
+            option_conditions.append("li.institution_id = ANY(:inst_ids)")
+            option_params['inst_ids'] = institution_ids
 
-        # --- classes available for the selected species / institution(s) ---
-        # (ignores class_name itself)
-        cls_join, cls_extra, cls_params = _inst_join_cond()
-        cls_cond = ["seg.status = 'pending'", "s.class IS NOT NULL"] + cls_extra + sample_conditions
-        cls_params.update(sample_params)
-        if species_id:
-            cls_cond.append("seg.species_id = :species_id")
-            cls_params['species_id'] = species_id
-        cls_cond.append(acc_sql)
-        cls_params.update(acc_params)
-        class_rows = conn.execute(text(f"""
-            SELECT DISTINCT s.class AS cls
-            FROM segments seg
-            JOIN species s ON seg.species_id = s.species_id
-            {cls_join}
-            WHERE {' AND '.join(cls_cond)}
-            ORDER BY s.class
-        """), cls_params).fetchall()
-        classes = [{'id': r.cls, 'text': r.cls} for r in class_rows]
+        options = {}
+        for key, column, options_key in VERIFICATION_TAXONOMY:
+            tax_conditions, tax_params = _verification_taxonomy_filters('s', exclude=key)
+            conditions = [*option_conditions, *tax_conditions, f"s.{column} <> ''"]
+            params = {**option_params, **tax_params}
+            if species_id:
+                conditions.append("seg.species_id = :species_id")
+                params['species_id'] = species_id
+            names = conn.execute(text(f"""
+                SELECT DISTINCT s.{column}
+                FROM segments seg
+                JOIN species s ON seg.species_id = s.species_id
+                {inst_join}
+                WHERE {' AND '.join(conditions)}
+                ORDER BY s.{column}
+            """), params).scalars()
+            options[options_key] = [{'id': name, 'text': name} for name in names]
 
-        # --- species available for the selected class / institution(s) ---
-        # (ignores species_id itself)
-        sp_join, sp_extra, sp_params = _inst_join_cond()
-        sp_cond = ["seg.status = 'pending'"] + sp_extra + sample_conditions
-        sp_params.update(sample_params)
-        if class_name:
-            sp_cond.append("s.class = :class_name")
-            sp_params['class_name'] = class_name
-        sp_cond.append(acc_sql)
-        sp_params.update(acc_params)
+        tax_conditions, tax_params = _verification_taxonomy_filters('s')
         species_rows = conn.execute(text(f"""
             SELECT DISTINCT s.species_id, s.scientific_name, s.common_name_uk, s.common_name_en
             FROM segments seg
             JOIN species s ON seg.species_id = s.species_id
-            {sp_join}
-            WHERE {' AND '.join(sp_cond)}
+            {inst_join}
+            WHERE {' AND '.join(option_conditions + tax_conditions)}
             ORDER BY s.scientific_name
-        """), sp_params).mappings().fetchall()
+        """), {**option_params, **tax_params}).mappings().fetchall()
         species = []
         for row in species_rows:
             display = row['scientific_name']
@@ -2330,20 +2320,21 @@ def api_verification_filter_options(lang_code):
                 display = f"{row['common_name_en']} ({row['scientific_name']})"
             species.append({'id': row['species_id'], 'text': display})
 
-        # --- institutions that have pending segments for the selected class/species ---
+        # --- institutions that have pending segments for the selected taxa/species ---
         # (ignores institution_ids itself)
         inst_params = sample_params.copy()
-        inst_cond = ["seg.status = 'pending'"] + sample_conditions
+        inst_cond = pending_conditions.copy()
         if species_id:
             inst_cond.append("seg.species_id = :species_id")
             inst_params['species_id'] = species_id
-        if class_name:
-            inst_cond.append("seg.species_id IN "
-                             "(SELECT species_id FROM species WHERE class = :class_name)")
-            inst_params['class_name'] = class_name
+        tax_conditions, tax_params = _verification_taxonomy_filters()
+        if tax_conditions:
+            inst_cond.append("seg.species_id IN (SELECT species_id FROM species WHERE "
+                             + " AND ".join(tax_conditions) + ")")
+            inst_params.update(tax_params)
         if not is_admin:
             if not allowed_inst:
-                return jsonify({'classes': classes, 'species': species, 'institutions': []})
+                return jsonify({**options, 'species': species, 'institutions': []})
             inst_cond.append("i.id = ANY(:allowed)")
             inst_params['allowed'] = allowed_inst
         inst_rows = conn.execute(text(f"""
@@ -2361,7 +2352,7 @@ def api_verification_filter_options(lang_code):
             for row in inst_rows
         ]
 
-        return jsonify({'classes': classes, 'species': species, 'institutions': institutions})
+        return jsonify({**options, 'species': species, 'institutions': institutions})
     except Exception as e:
         current_app.logger.error(f"api_verification_filter_options error: {e}", exc_info=True)
         return jsonify({'error': 'Failed to load filter options'}), 500

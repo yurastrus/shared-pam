@@ -21,14 +21,14 @@
                     <div class="filters-panel">
                         <div class="filters-row-flex">
                             <div class="species-select-group">
-                                <label for="verification-sort">{{ _('Порядок подачі сегментів') }}</label>
+                                <label for="verification-sort">{{ _('Порядок подачі сегментів') }}:</label>
                                 <select id="verification-sort" class="form-control" style="width: 100%;">
                                     <option value="consensus">{{ _('Ближчі до консенсусу (звичайний режим)') }}</option>
                                     <option value="benefit">{{ _('Найбільша користь (за пріоритетами)') }}</option>
                                 </select>
                             </div>
                             <div class="species-select-group">
-                                <label for="class-filter">{{ _('Таксономічний клас:') }}</label>
+                                <label for="class-filter">{{ _('Клас') }}:</label>
                                 <select id="class-filter" class="form-control" style="width: 100%;">
                                     <option value="">{{ _('-- Усі класи --') }}</option>
                                     {% for cls in classes %}
@@ -36,8 +36,22 @@
                                     {% endfor %}
                                 </select>
                             </div>
+                            {% for rank, label, placeholder, names in [
+                                ('order', _('Ряд'), _('Всі ряди'), orders),
+                                ('family', _('Родина'), _('Всі родини'), families)
+                            ] %}
+                                <div class="species-select-group">
+                                    <label for="{{ rank }}-filter">{{ label }}:</label>
+                                    <select id="{{ rank }}-filter" class="form-control">
+                                        <option value="">{{ placeholder }}</option>
+                                        {% for name in names %}
+                                            <option value="{{ name }}">{{ name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            {% endfor %}
                             <div class="species-select-group">
-                                <label for="species-filter">{{ _('Вид для верифікації аудіосегментів BirdNET:') }}</label>
+                                <label for="species-filter">{{ _('Вид') }}:</label>
                                 <select id="species-filter" class="form-control" style="width: 100%;">
                                     <option value="">{{ _('-- Всі види --') }}</option>
                                     {% for species in available_species %}
@@ -161,7 +175,7 @@
                         </div>
                     </div>
 
-                    <!-- Verification buttons -->
+                    <div id="verdict-species" class="verification-current-species"></div>
                     <div class="verification-buttons">
                         <button id="verify-yes" class="btn btn-success" data-verdict="1">
                             <i class="fas fa-check"></i> {{ _('ТАК - правильно') }}
@@ -230,9 +244,13 @@ $(document).ready(function() {
     const noSegmentMessage = $('#no-segment-message');
     const loadingSpinner = $('#loading-spinner');
     const audioPlayer = $('#audio-player')[0];
-    const classFilter = $('#class-filter');
-    const speciesFilter = $('#species-filter');
-    const institutionFilter = $('#institution-filter');
+    const filters = [
+        ['class_name', 'classes', $('#class-filter')],
+        ['order_name', 'orders', $('#order-filter')],
+        ['family_name', 'families', $('#family-filter')],
+        ['species_id', 'species', $('#species-filter')],
+        ['institution_ids', 'institutions', $('#institution-filter')]
+    ];
     const verificationSort = $('#verification-sort');
     const resetSkips = $('#verify-reset-skips');
     const skippedSegments = new Set();
@@ -251,29 +269,6 @@ $(document).ready(function() {
     let wasPlaying = false;      // true if audio was playing before drag started (for resume).
     let suppressNextClick = false; // prevent mouseup-after-drag from triggering a seek.
 
-    // Initialise Select2 for the taxonomic-class filter.
-    classFilter.select2({
-        language: "{{ g.lang_code }}",
-        placeholder: "{{ _('-- Усі класи --') }}",
-        allowClear: true,
-        width: '100%'
-    });
-    // Initialise Select2 for the species filter.
-    speciesFilter.select2({
-        language: "{{ g.lang_code }}",
-        placeholder: "{{ _('-- Всі види --') }}",
-        allowClear: true,
-        width: '100%'
-    });
-    institutionFilter.select2({
-        language: "{{ g.lang_code }}",
-        placeholder: "{{ _('-- Усі установи --') }}",
-        allowClear: true,
-        width: '100%'
-    });
-
-    // Build the shared filter query string (species + institutions) for the
-    // next-segment and stats endpoints.
     // A deep link from the co-occurrence map narrows the queue to one location
     // and one time window. These are not UI controls: they come from the URL,
     // stay fixed for the visit, and every request of the flow has to carry
@@ -319,21 +314,14 @@ $(document).ready(function() {
         for (const key of RECORDING_KEYS) {
             if (DEEP.has(key)) params.push(key + '=' + encodeURIComponent(DEEP.get(key)));
         }
-        const className = classFilter.val();
-        if (className) params.push('class_name=' + encodeURIComponent(className));
-        const speciesId = speciesFilter.val();
-        if (speciesId) params.push('species_id=' + encodeURIComponent(speciesId));
-        const insts = institutionFilter.val();  // string (single) or array
-        const instList = Array.isArray(insts) ? insts : (insts ? [insts] : []);
-        if (instList.length) params.push('institution_ids=' + instList.join(','));
+        for (const [key, , select] of filters) {
+            const value = select.val();
+            if (value) params.push(key + '=' + encodeURIComponent(value));
+        }
         return params.length ? ('?' + params.join('&')) : '';
     }
 
-    // --- Mutual cascade: each filter narrows the other's options ---
-    // Repopulate a Select2 <select>, preserving the current selection if it is
-    // still valid. Uses 'change.select2' so the UI refreshes WITHOUT firing our
-    // own 'change' handler — that's what keeps the two cascades from looping.
-    let cascadeBusy = false;
+    let cascadeRequest;
     function repopulateSelect($sel, items, placeholder) {
         const current = $sel.val();
         $sel.empty();
@@ -345,43 +333,39 @@ $(document).ready(function() {
         $sel.trigger('change.select2');
     }
     function refreshCascade(source) {
-        if (cascadeBusy) return;
-        cascadeBusy = true;
-        $.ajax({
-            url: '{{ url_for("pam.api_verification_filter_options", lang_code=g.lang_code) }}' + filterParams(),
+        const query = filterParams();
+        cascadeRequest?.abort();
+        cascadeRequest = $.ajax({
+            url: '{{ url_for("pam.api_verification_filter_options", lang_code=g.lang_code) }}' + query,
             ...queueRequest,
             success: function(data) {
-                // Repopulate every filter EXCEPT the one the user just touched,
-                // so its selection is preserved while the others prune to valid
-                // combinations (class ↔ species ↔ institution).
-                if (source !== 'class') repopulateSelect(classFilter, data.classes || [], "{{ _('-- Усі класи --') }}");
-                if (source !== 'species') repopulateSelect(speciesFilter, data.species || [], "{{ _('-- Всі види --') }}");
-                if (source !== 'institution') repopulateSelect(institutionFilter, data.institutions || [], "{{ _('-- Усі установи --') }}");
-            },
-            complete: function() { cascadeBusy = false; }
+                for (const [key, options, select] of filters) {
+                    const items = data[options];
+                    if (!items) continue;
+                    // Keep the latest choice if rapid changes produced an incompatible pair.
+                    const keepChoice = key === source || (ATLAS_SCOPE && key === 'species_id');
+                    if (keepChoice && select.val() &&
+                        !items.some(item => String(item.id) === select.val())) continue;
+                    repopulateSelect(select, items, select[0].options[0].text);
+                }
+                if (filterParams() !== query) refreshCascade();
+            }
         });
     }
-    classFilter.on('change', () => refreshCascade('class'));
-    speciesFilter.on('change', () => refreshCascade('species'));
-    institutionFilter.on('change', () => refreshCascade('institution'));
-
-    // Deep link from the priorities page: ?species_id=<id> pre-applies the
-    // species filter so the queue serves that species straight away. The option
-    // is guaranteed present — the priorities link only appears for species with
-    // segments this user can still verify.
-    const _preSpeciesId = DEEP.get('species_id');
-    if (_preSpeciesId && [...speciesFilter[0].options].some(option => option.value === _preSpeciesId)) {
-        speciesFilter.val(_preSpeciesId).trigger('change.select2');
-    }
-    if (ATLAS_SCOPE) speciesFilter.prop('disabled', true);
-    const _preClass = DEEP.get('class_name');
-    if (_preClass && classFilter.find('option[value="' + _preClass + '"]').length) {
-        classFilter.val(_preClass).trigger('change.select2');
-    }
-    const _preInst = (DEEP.get('institution_ids') || '').split(',').filter(Boolean);
-    if (_preInst.length) {
-        institutionFilter.val(institutionFilter.prop('multiple') ? _preInst : _preInst[0])
-                         .trigger('change.select2');
+    for (const [key, , select] of filters) {
+        const value = DEEP.get(key);
+        const selected = key === 'institution_ids' ? value?.split(',')[0] : value;
+        if (selected && Array.from(select[0].options).some(option => option.value === selected)) {
+            select.val(selected);
+        }
+        if (ATLAS_SCOPE && key === 'species_id') select.prop('disabled', true);
+        select.select2({
+            language: "{{ g.lang_code }}",
+            placeholder: select[0].options[0].text,
+            allowClear: true,
+            width: '100%'
+        });
+        select.on('change', () => refreshCascade(key));
     }
 
     // The location/window narrowing has no control of its own, so the only way
@@ -396,7 +380,6 @@ $(document).ready(function() {
         banner.append($('<b>').text(title), ' ', $('<a>')
             .attr('href', url.pathname + url.search)
             .text({{ _('верифікувати всі сегменти') | tojson }}));
-        refreshCascade();
     } else if (DEEP_LOCATIONS || DEEP_FROM || DEEP_TO) {
         const parts = [];
         if (DEEP.get('scope_label')) parts.push(DEEP.get('scope_label'));
@@ -419,6 +402,8 @@ $(document).ready(function() {
                         .text({{ _('верифікувати всі сегменти') | tojson }}))
             .show();
     }
+
+    if (sampleToken || filterParams()) refreshCascade();
 
     // Load the first segment and matching stats.
     loadNextSegment();
@@ -800,7 +785,7 @@ $(document).ready(function() {
         // Reset boundary lines before loading a new segment.
         $('#region-start-line, #region-end-line').hide();
 
-        $('#segment-species').text(segment.species_display_name);
+        $('#segment-species, #verdict-species').text(segment.species_display_name);
         updateXenoCantoLink(segment.scientific_name);
         $('#segment-location').text(segment.location_name);
         $('#segment-date').text(segment.recorded_date);
@@ -898,7 +883,7 @@ $(document).ready(function() {
     
     /**
      * Load and refresh user verification stats.
-     * Takes the active species filter into account.
+     * Uses the same taxonomy and queue scope as the segment request.
      */
     function loadUserStats() {
         const url = '{{ url_for("pam.api_verification_stats", lang_code=g.lang_code) }}' + filterParams();
