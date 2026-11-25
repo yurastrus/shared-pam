@@ -948,7 +948,13 @@ main .container:not(.maplistcontainer) {
 .segments-container .btn-secondary:hover { background-color: var(--color-secondary-hover); }
 
 .verification-container .verification-current-species {
-    margin-top: 15px;
+    margin-top: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 10px;
+    padding: 0 12px;
     text-align: center;
     font-size: 1.15rem;
     font-weight: 600;
@@ -1420,7 +1426,7 @@ body.dark-theme .verification-container .verification-buttons #verify-flag:hover
 /* pam_verification_interface: окремі картки інтерфейсу */
 .verification-container .audio-player-section {
     /* No frame of its own (owner, 2026-11-25): it sat as a box inside the panel. */
-    padding: 5px;
+    padding: 5px 5px 0;
     text-align: center;
 }
 /* Player + loop toggle sit on one row; the toggle is to the right of the
@@ -1476,18 +1482,28 @@ body.dark-theme .verification-container .verification-buttons #verify-flag:hover
     display: block;
     box-sizing: border-box;
 }
-/* Reference-recording link under the species name (xeno-canto). Centred to sit
-   with the heading and kept quiet so it never competes with the verdict buttons. */
+/* xeno-canto button to the right of the species name above the verdict
+   buttons: a small "XC" tag, quiet enough not to compete with the verdicts. */
 .verification-container .xc-link {
-    display: block;
-    text-align: center;
-    font-size: 0.8em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    border: 1px solid var(--color-primary);
+    border-radius: 4px;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    line-height: 1.4;
     color: var(--color-primary);
+    background: transparent;
     text-decoration: none;
-    margin: -4px 0 10px;
 }
-.verification-container .xc-link:hover {
-    text-decoration: underline;
+.verification-container .xc-link:hover,
+.verification-container .xc-link:focus-visible {
+    background: var(--color-primary);
+    color: #fff;
+    text-decoration: none;
 }
 .verification-container .info-grid {
     display: flex;
