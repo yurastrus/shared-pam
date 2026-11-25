@@ -5488,3 +5488,6 @@ msgstr "RAI (detections per hour)"
 #~ msgid "Пропущених"
 #~ msgstr "Skipped"
 
+
+msgid "можна кілька; не вибрано = усі"
+msgstr "multiple allowed; none selected = all"

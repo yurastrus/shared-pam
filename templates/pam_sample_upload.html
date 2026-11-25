@@ -38,7 +38,7 @@
                 </select>
             </div>
             <div class="col-md-8">
-                <label class="form-label form-label-sm">{{ _('Локації') }} <span class="su-help">({{ _('можна кілька') }})</span></label>
+                <label class="form-label form-label-sm">{{ _('Локації') }} <span class="su-help">({{ _('можна кілька; не вибрано = усі') }})</span></label>
                 <select id="su-locations" class="form-select form-select-sm" multiple size="6"></select>
             </div>
         </div>
@@ -286,11 +286,23 @@
         return Array.from($('su-locations').selectedOptions).map(o => parseInt(o.value, 10));
     }
 
+    // No location picked means every location listed for the chosen
+    // institutions (or every accessible one when no institution is chosen):
+    // the location box narrows the scope, it is not a required step.
+    function effectiveLocationIds() {
+        const picked = selectedLocationIds();
+        return picked.length ? picked
+            : Array.from($('su-locations').options, o => parseInt(o.value, 10));
+    }
+
     let speciesList = [];   // full list for the selected locations (for search filter)
     let speciesRequest = 0;
 
     async function onLocationsChanged() {
-        const ids = selectedLocationIds();
+        // Species follow the institution even before any location is picked;
+        // the full catalogue is only for "nothing chosen at all".
+        const ids = (selectedLocationIds().length || selectedInstitutionIds().length)
+            ? effectiveLocationIds() : [];
         const requestId = ++speciesRequest;
         const spSel = $('su-species');
         const search = $('su-species-search');
@@ -355,7 +367,7 @@
         spSel.disabled = speciesList.length === 0;
         $('su-species-count').textContent =
             "{{ _('Видів:') }} " + filtered.length + " / " + speciesList.length;
-        $('su-prepare').disabled = busy || !spSel.value || !selectedLocationIds().length;
+        $('su-prepare').disabled = busy || !spSel.value || !effectiveLocationIds().length;
     }
 
     // ── STEP 3: prepare stratified sample ───────────────────────────────────
@@ -388,7 +400,9 @@
     async function prepareSample(useGaps = false) {
         if (busy) return;
         const species = $('su-species').value;
-        const ids = selectedLocationIds();
+        // Gap planning keeps its own "no location = whole institution" rule
+        // server-side (all_locations), so it gets only what was picked.
+        const ids = useGaps ? selectedLocationIds() : effectiveLocationIds();
         if (!useGaps && (!species || !ids.length)) { return; }
         const problem = useGaps ? null : validateParams();
         if (problem) { $('su-prepare-info').textContent = problem; return; }
@@ -533,7 +547,7 @@
 
     function setBusy(value) {
         busy = value;
-        $('su-prepare').disabled = busy || !$('su-species').value || !selectedLocationIds().length;
+        $('su-prepare').disabled = busy || !$('su-species').value || !effectiveLocationIds().length;
         $('su-prepare-gaps').disabled = busy || prefillPending;
         $('su-folder').disabled = busy;
         $('su-index-folder').disabled = busy;
@@ -648,7 +662,7 @@
     $('su-species-search').addEventListener('input', renderSpecies);
     taxonFilters.forEach(select => select.addEventListener('change', renderSpecies));
     $('su-species').addEventListener('change', () => {
-        $('su-prepare').disabled = busy || !$('su-species').value || !selectedLocationIds().length;
+        $('su-prepare').disabled = busy || !$('su-species').value || !effectiveLocationIds().length;
     });
     $('su-prepare').addEventListener('click', () => prepareSample());
     $('su-prepare-gaps').addEventListener('click', () => prepareSample(true));
