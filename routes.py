@@ -2313,18 +2313,22 @@ def api_verification_stats(lang_code):
             user_stats_conditions.append("seg.species_id = :species_id")
             remaining_conditions.append("seg.species_id = :species_id")
 
-        # Institution filter applies only to the "remaining to verify" count —
-        # the user's own history counts stay global. Mirrors next-segment.
+        # Institution filter narrows every card, like the taxonomy and species
+        # filters do. (Until 2026-11-25 it narrowed only "remaining", so with an
+        # institution selected Total/Positive/Negative still showed the user's
+        # whole history while the other filters narrowed them.)
         if institution_ids:
             params['institution_ids'] = institution_ids
-            remaining_conditions.append("""
+            institution_scope = """
                 EXISTS (
                     SELECT 1 FROM recordings r
                     JOIN location_institutions li ON r.location_id = li.location_id
                     WHERE r.recording_id = seg.recording_id
                       AND li.institution_id = ANY(:institution_ids)
                 )
-            """)
+            """
+            user_stats_conditions.append(institution_scope)
+            remaining_conditions.append(institution_scope)
 
         # ACCESS baseline for the "remaining" count (non-admins: own institutions).
         acc_sql, acc_params = _segment_access_sql('seg')
