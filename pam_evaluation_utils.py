@@ -552,6 +552,9 @@ def cleanup_completed_verifications():
     Delete audio files for completed verification segments (admin use).
     Also removes the corresponding spectrogram (.png) files.
 
+    Segments flagged for re-review are skipped: they keep their files until an
+    admin removes the flag (same rule as the camera-trap nightly cleanup).
+
     Returns:
         dict: Deletion statistics.
     """
@@ -561,8 +564,9 @@ def cleanup_completed_verifications():
         
         completed_segments = conn.execute(text("""
             SELECT id, file_path, filename 
-            FROM segments 
+            FROM segments
             WHERE status = 'completed'
+              AND NOT flagged
         """)).fetchall()
         
         deleted_files = 0

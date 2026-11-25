@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-18 14:17+0200\n"
+"POT-Creation-Date: 2026-11-25 11:52+0200\n"
 "PO-Revision-Date: 2026-06-11 00:00+0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: uk\n"
@@ -49,11 +49,35 @@ msgstr ""
 msgid "недостатньо відомий"
 msgstr ""
 
-#: app/pam/routes.py:1987 app/pam/routes.py:2027
+#: app/pam/routes.py:270 app/pam/routes.py:309
+msgid "Сегмент не знайдено."
+msgstr ""
+
+#: app/pam/routes.py:279
+msgid "Сегмент позначено на повторний розгляд."
+msgstr ""
+
+#: app/pam/routes.py:284 app/pam/templates/pam_verification_interface.html:467
+msgid "Помилка позначення сегмента."
+msgstr ""
+
+#: app/pam/routes.py:307
+msgid "Позначку знято."
+msgstr ""
+
+#: app/pam/routes.py:314
+msgid "Помилка зняття позначки."
+msgstr ""
+
+#: app/pam/routes.py:346
+msgid "Не вдалося завантажити позначені сегменти."
+msgstr ""
+
+#: app/pam/routes.py:2153 app/pam/routes.py:2193
 msgid "Не вдалося відкрити відповідь для виправлення."
 msgstr ""
 
-#: app/pam/routes.py:5755
+#: app/pam/routes.py:5901
 msgid "Не вдалося підібрати сегменти для прогалин."
 msgstr ""
 
@@ -79,6 +103,7 @@ msgstr ""
 
 #: app/pam/species_admin.py:37 app/pam/templates/pam_sample_upload.html:62
 #: app/pam/templates/pam_species_admin_list.html:40
+#: app/pam/templates/pam_verification_interface.html:31
 #: app/pam/templates/pam_verification_priorities.html:25
 #: app/pam/templates/pam_verification_priorities.html:47
 msgid "Клас"
@@ -86,6 +111,7 @@ msgstr ""
 
 #: app/pam/species_admin.py:38 app/pam/templates/pam_sample_upload.html:62
 #: app/pam/templates/pam_species_admin_list.html:41
+#: app/pam/templates/pam_verification_interface.html:40
 #: app/pam/templates/pam_verification_priorities.html:25
 #: app/pam/templates/pam_verification_priorities.html:48
 msgid "Ряд"
@@ -93,6 +119,7 @@ msgstr ""
 
 #: app/pam/species_admin.py:39 app/pam/templates/pam_sample_upload.html:63
 #: app/pam/templates/pam_species_admin_list.html:42
+#: app/pam/templates/pam_verification_interface.html:41
 #: app/pam/templates/pam_verification_priorities.html:26
 #: app/pam/templates/pam_verification_priorities.html:49
 msgid "Родина"
@@ -164,7 +191,7 @@ msgstr ""
 #: app/pam/templates/manage_pam_locations.html:24
 #: app/pam/templates/pam_gap_analysis.html:18
 #: app/pam/templates/pam_import.html:23
-#: app/pam/templates/pam_verification_interface.html:49
+#: app/pam/templates/pam_verification_interface.html:63
 msgid "Установа:"
 msgstr ""
 
@@ -503,6 +530,7 @@ msgid "Локація"
 msgstr ""
 
 #: app/pam/templates/manage_pam_locations.html:293
+#: app/pam/templates/pam_flagged_list.html:41
 #: app/pam/templates/pam_verification_segments.html:274
 msgid "Статус"
 msgstr ""
@@ -665,7 +693,7 @@ msgstr ""
 #: app/pam/templates/pam_import.html:372
 #: app/pam/templates/pam_overview.html:417
 #: app/pam/templates/pam_service_log.html:156
-#: app/pam/templates/pam_service_plan.html:140
+#: app/pam/templates/pam_service_plan.html:142
 #: app/pam/templates/pam_species_detailed.html:446
 msgid "OSM"
 msgstr ""
@@ -675,7 +703,7 @@ msgstr ""
 #: app/pam/templates/pam_import.html:372
 #: app/pam/templates/pam_overview.html:417
 #: app/pam/templates/pam_service_log.html:156
-#: app/pam/templates/pam_service_plan.html:140
+#: app/pam/templates/pam_service_plan.html:142
 #: app/pam/templates/pam_species_detailed.html:446
 msgid "Супутник"
 msgstr ""
@@ -697,8 +725,8 @@ msgstr ""
 #: app/pam/templates/pam_import.html:216
 #: app/pam/templates/pam_sample_upload.html:302
 #: app/pam/templates/pam_service_log.html:242
-#: app/pam/templates/pam_verification_interface.html:139
-#: app/pam/templates/pam_verification_interface.html:201
+#: app/pam/templates/pam_verification_interface.html:153
+#: app/pam/templates/pam_verification_interface.html:218
 #: app/pam/templates/pam_verification_segments.html:107
 msgid "Завантаження..."
 msgstr ""
@@ -824,6 +852,7 @@ msgid "Невідома помилка"
 msgstr ""
 
 #: app/pam/templates/pam_admin.html:3 app/pam/templates/pam_admin.html:10
+#: app/pam/templates/pam_flagged_list.html:13
 msgid "Адміністрування PAM"
 msgstr ""
 
@@ -831,23 +860,27 @@ msgstr ""
 msgid "Сервісні дії модуля акустичного моніторингу."
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:15 app/pam/templates/pam_home.html:20
+#: app/pam/templates/pam_admin.html:15
+msgid "На повторний розгляд"
+msgstr ""
+
+#: app/pam/templates/pam_admin.html:21 app/pam/templates/pam_home.html:20
 msgid "Аналітика"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:16
+#: app/pam/templates/pam_admin.html:22
 msgid "Оновити багаторічні тренди видів та активність за біотопами."
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:21
+#: app/pam/templates/pam_admin.html:27
 msgid "Перерахувати аналітику"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:28
+#: app/pam/templates/pam_admin.html:34
 msgid "Біотопи з лендковеру"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:30
+#: app/pam/templates/pam_admin.html:36
 msgid ""
 "Автоматичне призначення біотопів точкам за даними ESA WorldCover (Google "
 "Earth Engine). Для кожної точки береться гістограма класів покриву в "
@@ -856,82 +889,82 @@ msgid ""
 "лише відсутні."
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:35
+#: app/pam/templates/pam_admin.html:41
 msgid "Автопризначення недоступне"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:37
+#: app/pam/templates/pam_admin.html:43
 msgid ""
 "Google Earth Engine не налаштований на цьому сервері (немає пакета "
 "earthengine-api або сервісного ключа GEE_SERVICE_ACCOUNT_KEY). Функція "
 "вимкнена."
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:47
+#: app/pam/templates/pam_admin.html:53
 msgid "Радіус (м):"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:53
+#: app/pam/templates/pam_admin.html:59
 msgid "Топ-N біотопів:"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:60
+#: app/pam/templates/pam_admin.html:66
 msgid "Лише точки без біотопів"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:63
+#: app/pam/templates/pam_admin.html:69
 msgid ""
 "Запустити автопризначення біотопів для точок? Наявні біотопи збережуться,"
 " додадуться лише відсутні."
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:64 app/pam/templates/pam_admin.html:161
+#: app/pam/templates/pam_admin.html:70 app/pam/templates/pam_admin.html:167
 msgid "Запустити"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:71
+#: app/pam/templates/pam_admin.html:77
 msgid ""
 "Відповідність «клас лендковеру → біотоп» задається в базі даних (таблиця "
 "biotope_landcover_map)."
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:84
+#: app/pam/templates/pam_admin.html:90
 msgid "Перерахунок аналітики виконується у фоні…"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:89 app/pam/templates/pam_admin.html:161
+#: app/pam/templates/pam_admin.html:95 app/pam/templates/pam_admin.html:167
 msgid "Виконується…"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:102 app/pam/templates/pam_admin.html:166
+#: app/pam/templates/pam_admin.html:108 app/pam/templates/pam_admin.html:172
 msgid "Останній запуск завершився помилкою."
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:104 app/pam/templates/pam_admin.html:170
+#: app/pam/templates/pam_admin.html:110 app/pam/templates/pam_admin.html:176
 msgid "Останній успішний запуск:"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:107 app/pam/templates/pam_admin.html:174
+#: app/pam/templates/pam_admin.html:113 app/pam/templates/pam_admin.html:180
 msgid "Ще не запускалося."
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:110
+#: app/pam/templates/pam_admin.html:116
 msgid "Не вдалося отримати статус перерахунку."
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:125
+#: app/pam/templates/pam_admin.html:131
 msgid "Не вдалося запустити перерахунок аналітики."
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:163
+#: app/pam/templates/pam_admin.html:169
 msgid "Автопризначення виконується у фоні…"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:194
+#: app/pam/templates/pam_admin.html:200
 msgid "Запуск…"
 msgstr ""
 
-#: app/pam/templates/pam_admin.html:216
+#: app/pam/templates/pam_admin.html:222
 msgid "Не вдалося запустити автопризначення."
 msgstr ""
 
@@ -1322,7 +1355,7 @@ msgstr ""
 
 #: app/pam/templates/pam_cooccurrence.html:415
 #: app/pam/templates/pam_cooccurrence.html:811
-#: app/pam/templates/pam_segment_window.html:204
+#: app/pam/templates/pam_segment_window.html:225
 msgid "Не вдалося звʼязатися з сервером."
 msgstr ""
 
@@ -1716,11 +1749,13 @@ msgid "Всі класи"
 msgstr ""
 
 #: app/pam/templates/pam_data_export.html:140
+#: app/pam/templates/pam_verification_interface.html:40
 #: app/pam/templates/pam_yearly_table.html:164
 msgid "Всі ряди"
 msgstr ""
 
 #: app/pam/templates/pam_data_export.html:141
+#: app/pam/templates/pam_verification_interface.html:41
 #: app/pam/templates/pam_yearly_table.html:165
 msgid "Всі родини"
 msgstr ""
@@ -1814,6 +1849,7 @@ msgstr ""
 #: app/pam/templates/pam_evaluation_results.html:220
 #: app/pam/templates/pam_overview.html:448
 #: app/pam/templates/pam_sample_upload.html:60
+#: app/pam/templates/pam_verification_interface.html:54
 #: app/pam/templates/pam_verification_priorities.html:35
 #: app/pam/templates/pam_verification_priorities.html:51
 #: app/pam/templates/pam_verification_segments.html:269
@@ -1906,7 +1942,7 @@ msgstr ""
 #: app/pam/templates/pam_evaluation_results.html:145
 #: app/pam/templates/pam_gap_analysis.html:45
 #: app/pam/templates/pam_overview.html:58
-#: app/pam/templates/pam_segment_window.html:80
+#: app/pam/templates/pam_segment_window.html:93
 #: app/pam/templates/pam_species_detailed.html:52
 msgid "Модель:"
 msgstr ""
@@ -2060,6 +2096,62 @@ msgstr ""
 msgid "Модель"
 msgstr ""
 
+#: app/pam/templates/pam_flagged_list.html:3
+#: app/pam/templates/pam_flagged_list.html:10
+msgid "Сегменти на повторний розгляд"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:11
+msgid ""
+"Сегменти, які верифікатори позначили для перегляду. Поки позначка стоїть,"
+" аудіо не видаляється після консенсусу. Усього:"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:17
+msgid "Наразі немає позначених сегментів."
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:25
+msgid "Спектрограма сегмента"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:27
+msgid "Аудіофайл відсутній"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:38
+msgid "впевненість"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:42
+msgid "голосів"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:42
+msgid "так"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:50
+msgid "Позначив користувач"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:52
+msgid "Автор невідомий"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:59
+msgid "(без коментаря)"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:64
+#: app/pam/templates/pam_verification_priorities.html:107
+msgid "Верифікувати"
+msgstr ""
+
+#: app/pam/templates/pam_flagged_list.html:69
+msgid "Зняти позначку"
+msgstr ""
+
 #: app/pam/templates/pam_gap_analysis.html:3
 #: app/pam/templates/pam_gap_analysis.html:11
 msgid "Аналіз прогалин у даних"
@@ -2124,7 +2216,7 @@ msgstr ""
 
 #: app/pam/templates/pam_gap_analysis.html:71
 #: app/pam/templates/pam_species_detailed.html:79
-#: app/pam/templates/pam_verification_interface.html:59
+#: app/pam/templates/pam_verification_interface.html:73
 #: app/pam/templates/pam_verification_segments.html:49
 #: app/pam/templates/pam_verifiers.html:39
 msgid "Застосувати"
@@ -3397,14 +3489,17 @@ msgid "Локальна папка із записами"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:190
+#: app/pam/templates/pam_segment_window.html:58
 msgid "Використати або побудувати локальний індекс"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:193
+#: app/pam/templates/pam_segment_window.html:61
 msgid "Як працює локальний індекс?"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:194
+#: app/pam/templates/pam_segment_window.html:62
 msgid ""
 "Після формування вибірки виберіть кореневу папку архіву й дозвольте "
 "браузеру запис у неї. Перший пошук звірить імена аудіофайлів із PAM і "
@@ -3413,6 +3508,7 @@ msgid ""
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:195
+#: app/pam/templates/pam_segment_window.html:63
 msgid ""
 "Наступні вибірки шукають файли в папках відповідних локацій. Якщо файлів "
 "бракує, можна завантажити знайдені сегменти або запустити пошук у всьому "
@@ -3422,10 +3518,12 @@ msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:197
 #: app/pam/templates/pam_sample_upload.html:198
+#: app/pam/templates/pam_segment_window.html:66
 msgid "Вибрати папку"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:200
+#: app/pam/templates/pam_segment_window.html:68
 msgid "Шукати в усьому архіві"
 msgstr ""
 
@@ -3447,13 +3545,13 @@ msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:215
 #: app/pam/templates/pam_sample_upload.html:610
-#: app/pam/templates/pam_segment_window.html:96
-#: app/pam/templates/pam_segment_window.html:304
+#: app/pam/templates/pam_segment_window.html:109
+#: app/pam/templates/pam_segment_window.html:417
 msgid "Завантажено:"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:216
-#: app/pam/templates/pam_segment_window.html:97
+#: app/pam/templates/pam_segment_window.html:110
 msgid "Дублікати:"
 msgstr ""
 
@@ -3462,7 +3560,7 @@ msgid "Пропущено (нема файлу):"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:218
-#: app/pam/templates/pam_segment_window.html:99
+#: app/pam/templates/pam_segment_window.html:112
 msgid "Помилки:"
 msgstr ""
 
@@ -3499,31 +3597,37 @@ msgid "Пошук зупинено за лімітом часу. Показан�
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:452
-#: app/pam/templates/pam_segment_window.html:254
+#: app/pam/templates/pam_segment_window.html:362
 msgid "Аудіофайлів у папці:"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:457
+#: app/pam/templates/pam_segment_window.html:289
 msgid "Локальний індекс недоступний у цьому браузері."
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:458
+#: app/pam/templates/pam_segment_window.html:312
 msgid "Пошук записів у локальному індексі…"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:459
+#: app/pam/templates/pam_segment_window.html:315
 msgid "Переглянуто аудіофайлів:"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:460
+#: app/pam/templates/pam_segment_window.html:321
 msgid "Знайдено записів:"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:461
+#: app/pam/templates/pam_segment_window.html:322
 msgid "Відсутні записи:"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:462
+#: app/pam/templates/pam_segment_window.html:323
 msgid "Неоднозначні назви записів:"
 msgstr ""
 
@@ -3532,31 +3636,33 @@ msgid "Сформуйте вибірку, щоб знайти потрібні �
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:464
+#: app/pam/templates/pam_segment_window.html:326
+#: app/pam/templates/pam_segment_window.html:338
 msgid "Помилка локального індексу:"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:602
-#: app/pam/templates/pam_segment_window.html:277
+#: app/pam/templates/pam_segment_window.html:385
 msgid "Старт нарізки та завантаження..."
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:609
-#: app/pam/templates/pam_segment_window.html:303
+#: app/pam/templates/pam_segment_window.html:416
 msgid "Готово."
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:611
-#: app/pam/templates/pam_segment_window.html:305
+#: app/pam/templates/pam_segment_window.html:418
 msgid "дублікати:"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:612
-#: app/pam/templates/pam_segment_window.html:306
+#: app/pam/templates/pam_segment_window.html:419
 msgid "без файлу:"
 msgstr ""
 
 #: app/pam/templates/pam_sample_upload.html:613
-#: app/pam/templates/pam_segment_window.html:307
+#: app/pam/templates/pam_segment_window.html:420
 msgid "помилки:"
 msgstr ""
 
@@ -3623,7 +3729,7 @@ msgid "Детекції вікна"
 msgstr ""
 
 #: app/pam/templates/pam_segment_window.html:37
-#: app/pam/templates/pam_segment_window.html:327
+#: app/pam/templates/pam_segment_window.html:440
 msgid "Завантаження…"
 msgstr ""
 
@@ -3647,66 +3753,66 @@ msgstr ""
 msgid "Папка із записами"
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:59
+#: app/pam/templates/pam_segment_window.html:72
 msgid ""
 "Потрібні лише ті файли, що названі у таблиці вище; зайві в папці нікому "
 "не шкодять."
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:65
-#: app/pam/templates/pam_segment_window.html:68
+#: app/pam/templates/pam_segment_window.html:78
+#: app/pam/templates/pam_segment_window.html:81
 msgid "Нарізати й завантажити"
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:71
+#: app/pam/templates/pam_segment_window.html:84
 msgid "Тривалість сегмента, с:"
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:98
+#: app/pam/templates/pam_segment_window.html:111
 msgid "Без файлу:"
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:177
+#: app/pam/templates/pam_segment_window.html:196
 msgid ""
 "Посилання неповне: немає виду, локації або вікна. Відкрийте сторінку з "
 "попапа на карті одночасних детекцій."
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:197
+#: app/pam/templates/pam_segment_window.html:217
 msgid "Не вдалося отримати план нарізки."
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:213
+#: app/pam/templates/pam_segment_window.html:236
 msgid ""
 "Усі детекції цього вікна вже нарізані для вибраної моделі — нарізати "
 "нічого."
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:215
+#: app/pam/templates/pam_segment_window.html:238
 msgid "Перейти до верифікації цього вікна"
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:220
+#: app/pam/templates/pam_segment_window.html:243
 msgid "Детекцій до нарізки:"
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:222
+#: app/pam/templates/pam_segment_window.html:245
 msgid "досягнуто ліміту сторінки"
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:242
+#: app/pam/templates/pam_segment_window.html:265
 msgid "Потрібні файли:"
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:255
+#: app/pam/templates/pam_segment_window.html:363
 msgid "з потрібних знайдено:"
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:294
+#: app/pam/templates/pam_segment_window.html:404
 msgid "Немає файлу:"
 msgstr ""
 
-#: app/pam/templates/pam_segment_window.html:313
+#: app/pam/templates/pam_segment_window.html:426
 msgid "Верифікувати ці сегменти"
 msgstr ""
 
@@ -4376,200 +4482,195 @@ msgstr ""
 msgid "Найбільша користь (за пріоритетами)"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:31
-msgid "Таксономічний клас:"
-msgstr ""
-
 #: app/pam/templates/pam_verification_interface.html:33
-#: app/pam/templates/pam_verification_interface.html:257
-#: app/pam/templates/pam_verification_interface.html:357
 msgid "-- Усі класи --"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:40
-msgid "Вид для верифікації аудіосегментів BirdNET:"
-msgstr ""
-
-#: app/pam/templates/pam_verification_interface.html:42
-#: app/pam/templates/pam_verification_interface.html:264
-#: app/pam/templates/pam_verification_interface.html:358
+#: app/pam/templates/pam_verification_interface.html:56
 msgid "-- Всі види --"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:51
-#: app/pam/templates/pam_verification_interface.html:270
-#: app/pam/templates/pam_verification_interface.html:359
+#: app/pam/templates/pam_verification_interface.html:65
 msgid "-- Усі установи --"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:73
+#: app/pam/templates/pam_verification_interface.html:87
 msgid "Послухати на xeno-canto"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:77
+#: app/pam/templates/pam_verification_interface.html:91
 msgid "Локація:"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:81
+#: app/pam/templates/pam_verification_interface.html:95
 msgid "Дата запису:"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:85
+#: app/pam/templates/pam_verification_interface.html:99
 msgid "Час запису:"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:93
+#: app/pam/templates/pam_verification_interface.html:107
 msgid "Моя статистика"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:96
+#: app/pam/templates/pam_verification_interface.html:110
 msgid "Всього"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:100
+#: app/pam/templates/pam_verification_interface.html:114
 msgid "Залишилось"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:105
+#: app/pam/templates/pam_verification_interface.html:119
 msgid "Позитивних"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:109
+#: app/pam/templates/pam_verification_interface.html:123
 msgid "Негативних"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:114
+#: app/pam/templates/pam_verification_interface.html:128
 msgid "Пропущених"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:127
+#: app/pam/templates/pam_verification_interface.html:141
 msgid "Сонограма аудіосегменту"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:129
+#: app/pam/templates/pam_verification_interface.html:143
 msgid "Позиція відтворення"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:154
+#: app/pam/templates/pam_verification_interface.html:168
 msgid "Ваш браузер не підтримує аудіо плеєр."
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:157
+#: app/pam/templates/pam_verification_interface.html:171
 msgid "Аудіо грає по колу; після вашого вибору наступне вмикається автоматично"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:159
+#: app/pam/templates/pam_verification_interface.html:173
 msgid "Цикл (автоповтор)"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:167
+#: app/pam/templates/pam_verification_interface.html:181
 msgid "ТАК - правильно"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:170
+#: app/pam/templates/pam_verification_interface.html:184
 msgid "НІ - неправильно"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:173
+#: app/pam/templates/pam_verification_interface.html:187
 msgid "Пропустити"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:176
+#: app/pam/templates/pam_verification_interface.html:190
 msgid "Не знаю"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:179
-#: app/pam/templates/pam_verification_interface.html:180
+#: app/pam/templates/pam_verification_interface.html:193
 #: app/pam/templates/pam_verification_interface.html:194
+#: app/pam/templates/pam_verification_interface.html:211
 msgid "Повернутися до попередньої відповіді"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:188
+#: app/pam/templates/pam_verification_interface.html:196
+#: app/pam/templates/pam_verification_interface.html:197
+msgid "Позначити сегмент на повторний розгляд"
+msgstr ""
+
+#: app/pam/templates/pam_verification_interface.html:205
 msgid "Сегменти для верифікації відсутні"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:189
+#: app/pam/templates/pam_verification_interface.html:206
 msgid ""
 "Немає сегментів для верифікації за вибраними критеріями, або ви вже "
 "верифікували всі доступні сегменти."
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:191
+#: app/pam/templates/pam_verification_interface.html:208
 msgid "Повернути пропущені сегменти"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:394
+#: app/pam/templates/pam_verification_interface.html:381
 msgid "Щойно завантажені сегменти"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:395
+#: app/pam/templates/pam_verification_interface.html:382
 msgid "Завантажена вибірка недоступна в цій вкладці."
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:398
-#: app/pam/templates/pam_verification_interface.html:419
+#: app/pam/templates/pam_verification_interface.html:385
+#: app/pam/templates/pam_verification_interface.html:405
 msgid "верифікувати всі сегменти"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:414
+#: app/pam/templates/pam_verification_interface.html:400
 msgid "Черга звужена до клітинки атласу"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:415
+#: app/pam/templates/pam_verification_interface.html:401
 msgid "Черга звужена до одного вікна"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:480
+#: app/pam/templates/pam_verification_interface.html:448
+msgid "Коментар до позначки (за бажанням):"
+msgstr ""
+
+#: app/pam/templates/pam_verification_interface.html:497
 msgid "Виправлення попередньої відповіді. Виберіть правильний варіант."
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:771
+#: app/pam/templates/pam_verification_interface.html:788
 msgid "Помилка завантаження сегменту"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:809
+#: app/pam/templates/pam_verification_interface.html:826
 msgid "© Записи належать"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:809
+#: app/pam/templates/pam_verification_interface.html:826
 msgid "Копіювання і поширення заборонене."
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:810
+#: app/pam/templates/pam_verification_interface.html:827
 msgid ""
 "© Записи належать установі, яка веде спостереження. Копіювання і "
 "поширення заборонене."
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:847
+#: app/pam/templates/pam_verification_interface.html:864
 msgid "Немає активного сегменту для верифікації"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:871
+#: app/pam/templates/pam_verification_interface.html:888
 msgid "Верифікацію збережено! (Підтверджено)"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:872
+#: app/pam/templates/pam_verification_interface.html:889
 msgid "Верифікацію збережено! (Відхилено)"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:873
+#: app/pam/templates/pam_verification_interface.html:890
 msgid "Позначено «не знаю» — більше не показуватиметься вам"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:874
+#: app/pam/templates/pam_verification_interface.html:891
 msgid "Сегмент пропущено"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:878
+#: app/pam/templates/pam_verification_interface.html:895
 msgid "Сегмент відхилено (3+ «не знаю») і більше не показуватиметься"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:892
+#: app/pam/templates/pam_verification_interface.html:909
 msgid "Помилка збереження"
 msgstr ""
 
-#: app/pam/templates/pam_verification_interface.html:893
+#: app/pam/templates/pam_verification_interface.html:910
 msgid "Помилка: "
 msgstr ""
 
@@ -4646,10 +4747,6 @@ msgstr ""
 
 #: app/pam/templates/pam_verification_priorities.html:95
 msgid "Інший сегмент цього виду з того самого аудіозапису спростовано"
-msgstr ""
-
-#: app/pam/templates/pam_verification_priorities.html:107
-msgid "Верифікувати"
 msgstr ""
 
 #: app/pam/templates/pam_verification_priorities.html:115
@@ -5229,3 +5326,10 @@ msgstr ""
 
 #~ msgid "верифіковано достатньо"
 #~ msgstr ""
+
+#~ msgid "Таксономічний клас:"
+#~ msgstr ""
+
+#~ msgid "Вид для верифікації аудіосегментів BirdNET:"
+#~ msgstr ""
+

@@ -217,12 +217,167 @@ def pam_admin(lang_code):
         radius_default, top_n_default = DEFAULT_RADIUS_M, DEFAULT_TOP_N
     except Exception as e:
         current_app.logger.warning(f"PAM admin: cannot load biotope auto-assign context: {e}")
+
+    # Counter of segments flagged for re-review — badge (as in camera traps).
+    flagged_count = 0
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        flagged_count = conn.execute(
+            text("SELECT COUNT(*) FROM segments WHERE flagged")
+        ).scalar() or 0
+    except Exception as e:
+        current_app.logger.warning(f"PAM admin: cannot load flagged count: {e}")
+    finally:
+        if conn:
+            conn.close()
+
     return render_template(
         'pam_admin.html',
         gee_available=gee_available,
         biotope_autoassign_radius=radius_default,
         biotope_autoassign_top_n=top_n_default,
+        flagged_count=flagged_count,
     )
+
+
+# ── "Flag for re-review" (port of the camera-trap series flag) ───────────────
+# A verifier marks the current segment on the verification page with an
+# optional comment; the author and time are stored with it. An admin sees the
+# list on /pam/admin/flagged and is the only one who may remove the flag: while
+# it is on, cleanup_completed_verifications keeps the segment's audio and
+# spectrogram even after consensus. The flag changes neither the status nor
+# the queue nor analytics.
+
+@pam_bp.route('/<lang_code>/api/verification/segment/<int:segment_id>/flag', methods=['POST'])
+@login_required
+@role_required('pam_verifier')
+def api_flag_segment(lang_code, segment_id):
+    """Flag a segment for re-review. note is optional."""
+    note = ((request.get_json(silent=True) or {}).get('note')
+            if request.is_json else request.form.get('note')) or ''
+    note = str(note).strip()[:2000] or None
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        # Same access rule as voting: non-admins only flag their institutions' segments.
+        acc_sql, acc_params = _segment_access_sql('seg')
+        found = conn.execute(
+            text(f"SELECT seg.id FROM segments seg WHERE seg.id = :sid AND {acc_sql}"),
+            {"sid": segment_id, **acc_params}
+        ).fetchone()
+        if not found:
+            return jsonify({'success': False, 'error': _('Сегмент не знайдено.')}), 404
+        conn.execute(text("""
+            UPDATE segments
+               SET flagged = TRUE, flag_note = :note,
+                   flagged_by = :user_id, flagged_at = CURRENT_TIMESTAMP
+             WHERE id = :sid
+        """), {"note": note, "user_id": current_user.id, "sid": segment_id})
+        conn.commit()
+        current_app.logger.info(f"Segment {segment_id} flagged by {current_user.username}")
+        return jsonify({'success': True, 'message': _('Сегмент позначено на повторний розгляд.')})
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        current_app.logger.error(f"Error flagging segment {segment_id}: {e}")
+        return jsonify({'success': False, 'error': _('Помилка позначення сегмента.')}), 500
+    finally:
+        if conn:
+            conn.close()
+
+
+@pam_bp.route('/<lang_code>/pam/admin/flagged/<int:segment_id>/unflag', methods=['POST'])
+@login_required
+@role_required('admin')
+def unflag_segment(lang_code, segment_id):
+    """Remove the re-review flag. Admin only: while the flag is on, the
+    completed-verification cleanup keeps the files, so removing it decides
+    whether they may be deleted."""
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        updated = conn.execute(text("""
+            UPDATE segments
+               SET flagged = FALSE, flag_note = NULL, flagged_by = NULL, flagged_at = NULL
+             WHERE id = :sid
+        """), {"sid": segment_id}).rowcount
+        conn.commit()
+        if updated:
+            flash(_('Позначку знято.'), 'success')
+        else:
+            flash(_('Сегмент не знайдено.'), 'danger')
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        current_app.logger.error(f"Error unflagging segment {segment_id}: {e}")
+        flash(_('Помилка зняття позначки.'), 'danger')
+    finally:
+        if conn:
+            conn.close()
+    return redirect(request.referrer or url_for('pam.pam_flagged_list', lang_code=lang_code))
+
+
+@pam_bp.route('/<lang_code>/pam/admin/flagged')
+@login_required
+@role_required('admin')
+def pam_flagged_list(lang_code):
+    """Segments flagged for re-review (admin)."""
+    g.lang_code = lang_code
+    conn = None
+    try:
+        conn = get_pam_db_connection()
+        rows = conn.execute(text("""
+            SELECT seg.id, seg.filename, seg.file_path, seg.status, seg.confidence_level,
+                   seg.location_name, seg.recorded_date, seg.recorded_time,
+                   seg.verification_count, seg.positive_verifications,
+                   seg.flag_note, seg.flagged_by, seg.flagged_at,
+                   s.scientific_name, s.common_name_uk, s.common_name_en,
+                   l.location_name AS loc_name_uk, l.location_name_en AS loc_name_en
+              FROM segments seg
+              JOIN species s ON s.species_id = seg.species_id
+              LEFT JOIN recordings r ON r.recording_id = seg.recording_id
+              LEFT JOIN locations l ON l.location_id = r.location_id
+             WHERE seg.flagged
+             ORDER BY seg.flagged_at DESC NULLS LAST, seg.id DESC
+        """)).mappings().fetchall()
+    except Exception as e:
+        current_app.logger.error(f"PAM flagged list: {e}")
+        flash(_('Не вдалося завантажити позначені сегменти.'), 'danger')
+        rows = []
+    finally:
+        if conn:
+            conn.close()
+
+    # Authors live in the main database.
+    author_ids = {r['flagged_by'] for r in rows if r['flagged_by']}
+    authors = {u.id: u.username for u in User.query.filter(User.id.in_(author_ids))} if author_ids else {}
+
+    items = []
+    for r in rows:
+        common = r['common_name_en'] if lang_code == 'en' else r['common_name_uk']
+        species = f"{common} ({r['scientific_name']})" if common else r['scientific_name']
+        if lang_code == 'en':
+            location = r['loc_name_en'] or r['loc_name_uk'] or r['location_name']
+        else:
+            location = r['loc_name_uk'] or r['location_name']
+        items.append({
+            'id': r['id'],
+            'filename': r['filename'],
+            'status': r['status'],
+            'species': species,
+            'location_name': location or '',
+            'recorded_date': r['recorded_date'],
+            'recorded_time': r['recorded_time'],
+            'confidence_level': r['confidence_level'],
+            'verification_count': r['verification_count'] or 0,
+            'positive_verifications': r['positive_verifications'] or 0,
+            'has_audio': bool(r['file_path']) and os.path.exists(r['file_path']),
+            'flag_note': r['flag_note'],
+            'flag_author': authors.get(r['flagged_by']),
+            'flagged_at': r['flagged_at'],
+        })
+    return render_template('pam_flagged_list.html', items=items)
 
 
 @pam_bp.route('/<lang_code>/pam/admin/run-analytics', methods=['POST'])

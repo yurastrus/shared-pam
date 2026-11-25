@@ -9,6 +9,12 @@
     <div class="hub-header">
         <h1>{{ _('Адміністрування PAM') }}</h1>
         <p>{{ _('Сервісні дії модуля акустичного моніторингу.') }}</p>
+        <p>
+            <a href="{{ url_for('pam.pam_flagged_list', lang_code=g.lang_code) }}"
+               class="btn btn-sm {% if flagged_count %}btn-warning{% else %}btn-secondary{% endif %}">
+                🚩 {{ _('На повторний розгляд') }}: {{ flagged_count }}
+            </a>
+        </p>
     </div>
 
     <section class="hub-section">

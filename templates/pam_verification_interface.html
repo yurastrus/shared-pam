@@ -192,6 +192,9 @@
                         <button type="button" class="btn btn-secondary verify-back" disabled
                                 title="{{ _('Повернутися до попередньої відповіді') }} (Shift+←)"
                                 aria-label="{{ _('Повернутися до попередньої відповіді') }}">&lt;</button>
+                        <button type="button" id="verify-flag" class="btn btn-outline-warning"
+                                title="{{ _('Позначити сегмент на повторний розгляд') }}"
+                                aria-label="{{ _('Позначити сегмент на повторний розгляд') }}">🚩</button>
                     </div>
 
                     <!-- Verification result message -->
@@ -435,6 +438,35 @@ $(document).ready(function() {
         skippedSegments.clear();
         loadNextSegment();
     });
+
+    // "Flag for re-review" (as in camera traps): mark the current segment
+    // with an optional comment and move to the next one. The flag does not
+    // count as a vote; it keeps the audio from the post-consensus cleanup
+    // until an admin removes it on the PAM admin page.
+    $('#verify-flag').on('click', function() {
+        if (busy || !currentSegment) return;
+        const note = prompt({{ _('Коментар до позначки (за бажанням):') | tojson }});
+        if (note === null) return;  // user cancelled.
+        const segment = currentSegment;
+        $.ajax({
+            url: '{{ url_for("pam.api_flag_segment", lang_code=g.lang_code, segment_id=0) }}'
+                .replace('/0/flag', '/' + segment.segment_id + '/flag'),
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRFToken': {{ csrf_token() | tojson }} },
+            data: JSON.stringify({ note: note || '' }),
+        }).done(function() {
+            if (verificationSort.val() === 'benefit') {
+                skippedSegments.add(segment.segment_id);
+                if (skippedSegments.size > maxQueueSkips) {
+                    skippedSegments.delete(skippedSegments.values().next().value);
+                }
+            }
+            loadNextSegment({advance: true});
+        }).fail(function(xhr) {
+            alert(xhr.responseJSON?.error || {{ _('Помилка позначення сегмента.') | tojson }});
+        });
+    });
     backButtons.on('click', reopenPreviousSubmission);
     $(document).on('keydown', function(e) {
         if (e.shiftKey && e.key === 'ArrowLeft' && !e.repeat &&
@@ -446,7 +478,7 @@ $(document).ready(function() {
 
     function setBusy(value) {
         busy = value;
-        loadSegmentBtn.add(verdictButtons).add('#verify-skip')
+        loadSegmentBtn.add(verdictButtons).add('#verify-skip').add('#verify-flag')
             .add(verificationSort).add(resetSkips).prop('disabled', busy);
         backButtons.prop('disabled', busy || !previousSubmission || editingSubmission);
     }

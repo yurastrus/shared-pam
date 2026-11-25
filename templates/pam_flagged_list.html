@@ -1,0 +1,80 @@
+{% extends "pam_base.html" %}
+
+{% block title %}{{ _('Сегменти на повторний розгляд') }}{% endblock %}
+
+{% block pam_content %}
+<div class="container">
+<div class="module-hub">
+
+    <div class="hub-header">
+        <h1>🚩 {{ _('Сегменти на повторний розгляд') }}</h1>
+        <p>{{ _('Сегменти, які верифікатори позначили для перегляду. Поки позначка стоїть, аудіо не видаляється після консенсусу. Усього:') }}
+           <strong>{{ items|length }}</strong></p>
+        <p><a href="{{ url_for('pam.pam_admin', lang_code=g.lang_code) }}">← {{ _('Адміністрування PAM') }}</a></p>
+    </div>
+
+    {% if not items %}
+        <p class="text-muted">{{ _('Наразі немає позначених сегментів.') }}</p>
+    {% else %}
+    <div class="pam-flagged-grid">
+        {% for it in items %}
+        <div class="pam-flagged-card">
+            {% if it.has_audio %}
+            <img class="pam-flagged-spec" loading="lazy"
+                 src="{{ url_for('pam.serve_spectrogram_image', lang_code=g.lang_code, segment_id=it.id) }}"
+                 alt="{{ _('Спектрограма сегмента') }}">
+            {% else %}
+            <div class="pam-flagged-spec pam-flagged-spec--empty">{{ _('Аудіофайл відсутній') }}</div>
+            {% endif %}
+            <div class="pam-flagged-body">
+                <div class="pam-flagged-species">{{ it.species }}</div>
+                <div class="pam-flagged-meta">
+                    {{ it.location_name }}
+                    {% if it.recorded_date %} · {{ it.recorded_date.strftime('%d.%m.%Y') }}{% endif %}
+                    {% if it.recorded_time %} {{ it.recorded_time.strftime('%H:%M:%S') }}{% endif %}
+                </div>
+                <div class="pam-flagged-meta">
+                    #{{ it.id }} · {{ it.filename }}
+                    {% if it.confidence_level is not none %} · {{ _('впевненість') }} {{ '%.3f'|format(it.confidence_level) }}{% endif %}
+                </div>
+                <div class="pam-flagged-meta">
+                    {{ _('Статус') }}: {{ it.status }} ·
+                    {{ _('голосів') }}: {{ it.verification_count }} ({{ _('так') }}: {{ it.positive_verifications }})
+                </div>
+                {% if it.has_audio %}
+                <audio controls preload="none"
+                       src="{{ url_for('pam.serve_verification_audio', lang_code=g.lang_code, segment_id=it.id) }}"></audio>
+                {% endif %}
+                <p class="pam-flagged-note">
+                    {% if it.flag_author %}
+                    {{ _('Позначив користувач') }} <strong>{{ it.flag_author }}</strong>
+                    {% else %}
+                    {{ _('Автор невідомий') }}
+                    {% endif %}
+                    {% if it.flagged_at %}<span class="pam-flagged-meta"> · {{ it.flagged_at.strftime('%d.%m.%Y %H:%M') }}</span>{% endif %}
+                </p>
+                {% if it.flag_note %}
+                <p class="pam-flagged-note">{{ it.flag_note }}</p>
+                {% else %}
+                <p class="pam-flagged-note pam-flagged-note--empty">{{ _('(без коментаря)') }}</p>
+                {% endif %}
+                <div class="pam-flagged-actions">
+                    {% if it.status == 'pending' %}
+                    <a href="{{ url_for('pam.verification_interface', lang_code=g.lang_code, preferred_segment_id=it.id) }}"
+                       class="btn btn-sm btn-primary">{{ _('Верифікувати') }}</a>
+                    {% endif %}
+                    <form method="post"
+                          action="{{ url_for('pam.unflag_segment', lang_code=g.lang_code, segment_id=it.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                        <button type="submit" class="btn btn-sm btn-secondary">{{ _('Зняти позначку') }}</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</div>
+</div>
+{% endblock %}
