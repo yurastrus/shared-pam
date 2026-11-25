@@ -950,17 +950,32 @@ main .container:not(.maplistcontainer) {
 /* pam_verification_interface: цвітові кнопки (так/ні/пропустити) */
 .verification-container .verification-buttons {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 12px;
     margin: 6px 0 15px;
+    padding: 0 12px;
 }
 .verification-container .verification-buttons .btn {
     min-width: 100px;
     font-size: 14px;
     padding: 10px 16px;
 }
-.verification-container .verification-buttons .verify-back {
+.verification-container .verification-buttons .verify-back,
+.verification-container .verification-buttons #verify-flag {
     min-width: 0;
+}
+/* Flag for re-review: outlined amber, not the solid blue of the default .btn. */
+.verification-container .verification-buttons #verify-flag {
+    background: transparent;
+    color: #b8860b;
+    border: 1px solid #e0a800;
+}
+.verification-container .verification-buttons #verify-flag:hover:not(:disabled) {
+    background: #fff3cd;
+}
+body.dark-theme .verification-container .verification-buttons #verify-flag:hover:not(:disabled) {
+    background: #4a3d10;
 }
 .verification-container .verification-buttons [aria-pressed="true"] {
     outline: 2px solid var(--text-primary);
@@ -3058,8 +3073,9 @@ select.select2-hidden-accessible { width: 1px !important; }
         padding: 10px 8px;
         line-height: 1.2;
     }
-    .verification-container .verification-buttons .verify-back {
-        grid-column: 1 / -1;
+    .verification-container .verification-buttons .verify-back,
+    .verification-container .verification-buttons #verify-flag {
+        grid-column: auto;
     }
 
     /* Pagination: tighter buttons + smaller gap so more page numbers fit a row
