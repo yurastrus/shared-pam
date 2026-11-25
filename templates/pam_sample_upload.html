@@ -14,9 +14,28 @@
     <div class="d-flex align-items-center mb-2" style="gap:10px;">
         <h4 class="mb-0" style="font-size:1.2rem;">{{ _('Автоматична підготовка сегментів') }}</h4>
     </div>
-    <p class="su-help mb-3">
+    <p class="su-help mb-2 su-server-only">
         {{ _('Сервер формує стратифіковану за конфіденсом вибірку детекцій, а браузер вирізає відповідні сегменти з ваших локальних записів і завантажує їх для верифікації. Уже завантажені раніше детекції автоматично пропускаються.') }}
     </p>
+    <p class="su-help mb-2 su-local-only" hidden>
+        {{ _('Сервер підбирає детекції або цілі записи потрібних видів, а браузер знаходить їх у вашому локальному архіві й копіює у вибрану папку, кожен вид у свою підпапку. На сервер нічого не завантажується. Спершу сторінка порахує, скільки й якого розміру файлів буде записано, і лише після підтвердження почне копіювати.') }}
+    </p>
+
+    {# Where the result goes. Server = the verification queue (the original
+       page); local = an export into a folder on this computer. Deep links
+       from other pages never set it, so they always land on "server". #}
+    <div class="su-card su-destination" role="radiogroup" aria-labelledby="su-destination-label">
+        <span id="su-destination-label" class="su-title me-2">{{ _('Куди') }}</span>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="su-destination" id="su-dest-server" value="server" checked>
+            <label class="form-check-label" for="su-dest-server">{{ _('На сервер, для верифікації') }}</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="su-destination" id="su-dest-local" value="local">
+            <label class="form-check-label" for="su-dest-local">{{ _('У локальну папку') }}</label>
+        </div>
+        <div class="su-help mt-1" id="su-dest-local-unsupported" hidden>{{ _('Запис у локальну папку працює лише в Chrome або Edge.') }}</div>
+    </div>
 
     {# Filled in by applyPrefill() when the page was opened from the
        co-occurrence map or the species dashboard with parameters in the
@@ -57,7 +76,9 @@
 
     <!-- STEP 2: species (cascades on selected locations) -->
     <div class="su-card">
-        <div class="su-title"><span class="su-step-num">2</span>{{ _('Вид') }}</div>
+        <div class="su-title"><span class="su-step-num">2</span>{{ _('Вид') }}
+            <span class="su-help su-local-only" hidden>({{ _('можна кілька: Ctrl або Shift + клік') }})</span>
+        </div>
         <div class="row g-2 mb-2" id="su-taxonomy">
             {% for field, label in [('class_name', _('Клас')), ('order_name', _('Ряд')),
                                      ('family_name', _('Родина')), ('genus_name', _('Рід'))] %}
@@ -100,6 +121,40 @@
         {% else %}
         <input type="hidden" id="su-model" value="{{ reference_model_id or '' }}">
         {% endif %}
+        <div class="row g-2 mb-2">
+            <div class="col-md-4">
+                <span class="form-label form-label-sm d-block">{{ _('Що брати') }}</span>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="su-unit" id="su-unit-segments" value="segments" checked>
+                    <label class="form-check-label" for="su-unit-segments">{{ _('Сегменти') }}</label>
+                </div>
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="radio" name="su-unit" id="su-unit-files" value="files" disabled data-locked="true"
+                           aria-describedby="su-unit-files-help">
+                    <label class="form-check-label" for="su-unit-files">{{ _('Цілі файли') }}</label>
+                </div>
+                <div class="su-help su-server-only" id="su-unit-files-help">{{ _('Цілі файли можна лише копіювати в локальну папку: на сервері поки бракує місця.') }}</div>
+            </div>
+            <div class="col-md-4 su-local-only" hidden>
+                <label class="form-label form-label-sm" for="su-verification">{{ _('Верифікація') }}</label>
+                <select id="su-verification" class="form-select form-select-sm">
+                    <option value="any" selected>{{ _('Будь-які детекції') }}</option>
+                    <option value="verified">{{ _('Верифіковані частково або повністю') }}</option>
+                    <option value="full">{{ _('Лише повністю (є консенсус)') }}</option>
+                    <option value="partial">{{ _('Лише частково (є голоси, нема консенсусу)') }}</option>
+                    <option value="unverified">{{ _('Ще не верифіковані') }}</option>
+                </select>
+            </div>
+            <div class="col-md-4 su-local-only" hidden>
+                <label class="form-label form-label-sm" for="su-verdict">{{ _('Вердикт') }}</label>
+                <select id="su-verdict" class="form-select form-select-sm">
+                    <option value="any" selected>{{ _('Будь-який') }}</option>
+                    <option value="confirmed">{{ _('Підтверджено') }}</option>
+                    <option value="rejected">{{ _('Відхилено') }}</option>
+                </select>
+                <div class="su-help mt-1">{{ _('Консенсус, а без нього більшість голосів.') }}</div>
+            </div>
+        </div>
         <div class="row g-2">
             <div class="col-md-3">
                 <label class="form-label form-label-sm">{{ _('Довжина сегмента (с)') }}</label>
@@ -128,7 +183,10 @@
         </div>
         <div class="row g-2 mt-1">
             <div class="col-md-2">
-                <label class="form-label form-label-sm">{{ _('Розмір вибірки') }}</label>
+                <label class="form-label form-label-sm" for="su-size">
+                    <span class="su-server-only">{{ _('Розмір вибірки') }}</span>
+                    <span class="su-local-only" hidden>{{ _('Ліміт на вид') }}</span>
+                </label>
                 <input type="number" id="su-size" class="form-control form-control-sm" value="250" min="1" max="5000">
             </div>
             <div class="col-md-2">
@@ -175,11 +233,11 @@
         </div>
         <div class="mt-2">
             <button id="su-prepare" class="btn btn-sm btn-primary" disabled>{{ _('Сформувати вибірку') }}</button>
-            <button id="su-prepare-gaps" type="button" class="btn btn-sm btn-outline-primary" disabled
+            <button id="su-prepare-gaps" type="button" class="btn btn-sm btn-outline-primary su-server-only" disabled
                     aria-describedby="su-gap-help">{{ _('Підібрати для закриття прогалин') }}</button>
             <span id="su-prepare-info" class="su-help ms-2"></span>
         </div>
-        <p id="su-gap-help" class="su-help mt-1 mb-0">{{ _('Підбір прогалин використовує вибрану модель, кількість, установу, локації та вид за всі роки. Без вибраного виду або установи вибірка розподіляється між доступними видами або установами.') }}</p>
+        <p id="su-gap-help" class="su-help mt-1 mb-0 su-server-only">{{ _('Підбір прогалин використовує вибрану модель, кількість, установу, локації та вид за всі роки. Без вибраного виду або установи вибірка розподіляється між доступними видами або установами.') }}</p>
     </div>
 
     <!-- STEP 4: local folder -->
@@ -202,15 +260,44 @@
 
     <!-- STEP 5: run -->
     <div class="su-card">
-        <div class="su-title"><span class="su-step-num">5</span>{{ _('Нарізати та завантажити') }}</div>
-        <button id="su-run" class="btn btn-sm btn-success" disabled>{{ _('Старт') }}</button>
+        <div class="su-title"><span class="su-step-num">5</span>
+            <span class="su-server-only">{{ _('Нарізати та завантажити') }}</span>
+            <span class="su-local-only" hidden>{{ _('Порахувати й скопіювати в локальну папку') }}</span>
+        </div>
+        <div class="su-local-only mb-2" hidden>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="su-output-folder">{{ _('Вибрати вихідну папку') }}</button>
+            <span class="su-help ms-2" id="su-output-info" role="status"></span>
+            <div class="table-responsive mt-2">
+                <table class="table table-sm su-export-summary" id="su-export-summary" hidden>
+                    <thead><tr>
+                        <th scope="col">{{ _('Вид (підпапка)') }}</th>
+                        <th scope="col" class="text-end">{{ _('У вибірці') }}</th>
+                        <th scope="col" class="text-end">{{ _('Знайдено') }}</th>
+                        <th scope="col" class="text-end">{{ _('Нема файлу') }}</th>
+                        <th scope="col" class="text-end">{{ _('Обсяг') }}</th>
+                    </tr></thead>
+                    <tbody></tbody>
+                    <tfoot></tfoot>
+                </table>
+            </div>
+        </div>
+        <button id="su-run" class="btn btn-sm btn-success" disabled>
+            <span class="su-server-only">{{ _('Старт') }}</span>
+            <span class="su-local-only" hidden>{{ _('Підтвердити й копіювати') }}</span>
+        </button>
         {% if can_verify %}
         <a id="su-verify" class="btn btn-sm btn-primary" style="display:none;">{{ _('Перейти до верифікації') }} (<span id="su-verify-count"></span>)</a>
         {% endif %}
         <div class="mt-3">
             <div class="su-prog-wrap"><div id="su-prog" class="su-prog-bar">0%</div></div>
         </div>
-        <div class="mt-2">
+        <div class="mt-2 su-local-only" hidden>
+            <span class="su-stat">{{ _('Записано:') }} <b id="su-lstat-saved">0</b></span>
+            <span class="su-stat">{{ _('Уже були в папці:') }} <b id="su-lstat-exists">0</b></span>
+            <span class="su-stat">{{ _('Пропущено (нема файлу):') }} <b id="su-lstat-nofile">0</b></span>
+            <span class="su-stat">{{ _('Помилки:') }} <b id="su-lstat-err">0</b></span>
+        </div>
+        <div class="mt-2 su-server-only">
             <span class="su-stat">{{ _('Знайдено файлів:') }} <b id="su-stat-matched">0</b></span>
             <span class="su-stat">{{ _('Завантажено:') }} <b id="su-stat-saved">0</b></span>
             <span class="su-stat">{{ _('Дублікати:') }} <b id="su-stat-dup">0</b></span>
@@ -224,6 +311,7 @@
 {# Browser-side WAV cutting + upload pool, shared with pam_segment_window.html. #}
 <script src="{{ url_for('pam.serve_pam_static', filename='js/segment_cutter.js', lang_code=g.lang_code) }}?v=4"></script>
 <script src="{{ url_for('pam.serve_pam_static', filename='js/recording_index.js', lang_code=g.lang_code) }}?v=4"></script>
+<script src="{{ url_for('pam.serve_pam_static', filename='js/local_export.js', lang_code=g.lang_code) }}?v=1"></script>
 <script>
 "use strict";
 (function () {
@@ -246,6 +334,9 @@
     let fileMap = new Map();              // basename(lower) -> File
     let archiveRoot = null;
     let busy = false;
+    let outputDir = null;                 // local export target
+    let exportSummary = null;             // PamLocalExport.summarize() result
+    let summaryRequest = 0;
 
     const $ = (id) => document.getElementById(id);
     const taxonFilters = Array.from(document.querySelectorAll('#su-taxonomy select'));
@@ -254,6 +345,13 @@
         const el = $('su-log');
         el.textContent += msg + "\n";
         el.scrollTop = el.scrollHeight;
+    }
+
+    // ── destination: server (verification queue) or a local folder ─────────
+    function isLocal() { return $('su-dest-local').checked; }
+    function exportUnit() { return isLocal() && $('su-unit-files').checked ? 'files' : 'segments'; }
+    function selectedSpecies() {
+        return Array.from($('su-species').selectedOptions, o => o.value).filter(Boolean);
     }
 
     function selectedInstitutionIds() {
@@ -337,7 +435,7 @@
     // selected locations are ever in speciesList — the cascade is server-side.
     function renderSpecies() {
         const spSel = $('su-species');
-        const selectedSpecies = spSel.value;
+        const previouslySelected = new Set(selectedSpecies());
         const q = ($('su-species-search').value || '').trim().toLowerCase();
         let filtered = speciesList;
         for (const select of taxonFilters) {
@@ -361,13 +459,13 @@
             o.textContent = sp.text;
             spSel.appendChild(o);
         });
-        if (filtered.some(sp => sp.scientific_name === selectedSpecies)) {
-            spSel.value = selectedSpecies;
-        }
+        Array.from(spSel.options).forEach(o => {
+            if (o.value && previouslySelected.has(o.value)) o.selected = true;
+        });
         spSel.disabled = speciesList.length === 0;
         $('su-species-count').textContent =
             "{{ _('Видів:') }} " + filtered.length + " / " + speciesList.length;
-        $('su-prepare').disabled = busy || !spSel.value || !effectiveLocationIds().length;
+        refreshPrepareButton();
     }
 
     // ── STEP 3: prepare stratified sample ───────────────────────────────────
@@ -397,13 +495,23 @@
         return null;
     }
 
+    function refreshPrepareButton() {
+        $('su-prepare').disabled = busy || !selectedSpecies().length || !effectiveLocationIds().length;
+    }
+
     async function prepareSample(useGaps = false) {
         if (busy) return;
-        const species = $('su-species').value;
+        const local = isLocal() && !useGaps;
+        const speciesNames = selectedSpecies();
+        const species = speciesNames[0] || '';
         // Gap planning keeps its own "no location = whole institution" rule
         // server-side (all_locations), so it gets only what was picked.
         const ids = useGaps ? selectedLocationIds() : effectiveLocationIds();
         if (!useGaps && (!species || !ids.length)) { return; }
+        if (local && speciesNames.length > MAX_EXPORT_SPECIES) {
+            $('su-prepare-info').textContent = {{ _('Забагато видів за раз, максимум:') | tojson }} + ' ' + MAX_EXPORT_SPECIES;
+            return;
+        }
         const problem = useGaps ? null : validateParams();
         if (problem) { $('su-prepare-info').textContent = problem; return; }
         setBusy(true);
@@ -419,6 +527,16 @@
             sample_size: parseInt($('su-size').value, 10) || 700,
             model_id: parseInt(($('su-model') || {}).value, 10) || null,
         };
+        // The local export asks for a different plan: several species, the
+        // verification subset, segments or whole files, and no "already cut"
+        // dedup. Without these keys the request is the server-upload one.
+        if (local) {
+            body.destination = 'local';
+            body.species_names = speciesNames;
+            body.verification = $('su-verification').value;
+            body.verdict = $('su-verdict').value;
+            body.unit = exportUnit();
+        }
         // Gap planning looks for missing calendar months across the archive.
         if (useGaps) {
             body.institution_ids = selectedInstitutionIds();
@@ -445,13 +563,20 @@
             if (!data.success) { throw new Error(data.error || 'error'); }
             plannedSegments = data.segments || [];
             gapPlan = useGaps;
-            const summary = "{{ _('Відібрано детекцій:') }} " + plannedSegments.length
+            exportSummary = null;
+            const summary = (local && body.unit === 'files'
+                    ? {{ _('Відібрано записів:') | tojson }}
+                    : "{{ _('Відібрано детекцій:') }}") + " " + plannedSegments.length
+                + (local && speciesNames.length > 1
+                    ? ' (' + (data.per_species || []).map(row => row.species_name + ': ' + row.count).join(', ') + ')'
+                    : '')
                 + (useGaps ? ' · ' + {{ _('Із новою прогалиною:') | tojson }}
                     + ' ' + plannedSegments.filter(seg => seg.novelty > 0).length : '')
                 + (data.search_limited ? ' · ' + {{ _('Пошук зупинено за лімітом часу. Показано знайдені сегменти.') | tojson }} : '');
             $('su-prepare-info').textContent = summary;
             log(summary);
             if (archiveRoot) await matchIndexedFolder();
+            await refreshExportSummary();
         } catch (e) {
             $('su-prepare-info').textContent = "{{ _('Помилка:') }} " + e.message;
         } finally {
@@ -465,6 +590,7 @@
         $('su-folder-info').textContent =
             "{{ _('Аудіофайлів у папці:') }} " + fileMap.size;
         refreshRunButton();
+        refreshExportSummary();
     }
 
     const indexLabels = {
@@ -487,6 +613,8 @@
         archiveRoot = null;
         fileMap = new Map();
         $('su-folder-info').textContent = PamRecordingIndex.supported ? '' : indexLabels.unsupported;
+        exportSummary = null;
+        renderExportSummary();
         refreshRunButton();
     }
 
@@ -536,6 +664,8 @@
         try {
             archiveRoot = await window.showDirectoryPicker({ id: 'pam-recordings', mode: 'readwrite' });
             await matchIndexedFolder();
+            await checkOutputFolder();
+            await refreshExportSummary();
         } catch (error) {
             if (error.name !== 'AbortError') {
                 $('su-folder-info').textContent = indexLabels.error + ' ' + error.message;
@@ -547,17 +677,28 @@
 
     function setBusy(value) {
         busy = value;
-        $('su-prepare').disabled = busy || !$('su-species').value || !effectiveLocationIds().length;
-        $('su-prepare-gaps').disabled = busy || prefillPending;
+        refreshPrepareButton();
+        $('su-prepare-gaps').disabled = busy || prefillPending || isLocal();
         $('su-folder').disabled = busy;
         $('su-index-folder').disabled = busy;
         $('su-search-archive').disabled = busy;
         $('su-use-index').disabled = busy || !PamRecordingIndex.supported;
+        document.querySelectorAll('input[name="su-destination"], input[name="su-unit"], #su-verification, #su-verdict')
+            .forEach(el => { el.disabled = busy || el.dataset.locked === 'true'; });
+        $('su-output-folder').disabled = busy;
         refreshRunButton();
     }
 
     function refreshRunButton() {
-        $('su-run').disabled = busy || !(plannedSegments.length && fileMap.size);
+        $('su-run').disabled = busy || (isLocal()
+            ? !(exportSummary && exportSummary.found && outputDir)
+            : !(plannedSegments.length && fileMap.size));
+    }
+
+    function fileForPlanItem(seg) {
+        return archiveRoot
+            ? fileMap.get(PamRecordingIndex.key(seg))
+            : fileMap.get(String(seg.recording_filename || '').toLowerCase());
     }
 
     // ── STEP 5: run pipeline (cut → upload) with a small concurrency pool ────
@@ -607,6 +748,7 @@
     }
 
     async function runPipeline() {
+        if (isLocal()) return runLocalExport();
         const verifyLink = $('su-verify');
         if (verifyLink) verifyLink.style.display = 'none';
         const savedIds = new Set();
@@ -644,6 +786,202 @@
         }
     }
 
+    // ── local export (destination = local folder) ───────────────────────────
+    const MAX_EXPORT_SPECIES = {{ max_export_species }};
+    const exportLabels = {
+        total: {{ _('Разом') | tojson }},
+        approx: {{ _('прибл.') | tojson }},
+        noOutput: {{ _('Вихідну папку не вибрано.') | tojson }},
+        output: {{ _('Вихідна папка:') | tojson }},
+        insideArchive: {{ _('Вихідна папка не може бути в архіві записів: наступний пошук прийняв би копії за записи. Виберіть іншу.') | tojson }},
+        counting: {{ _('Рахую обсяг…') | tojson }},
+        confirmFiles: {{ _('Буде скопійовано цілих файлів:') | tojson }},
+        confirmSegments: {{ _('Буде нарізано сегментів:') | tojson }},
+        confirmSize: {{ _('Обсяг:') | tojson }},
+        confirmInto: {{ _('У папку:') | tojson }},
+        confirmSkip: {{ _('Файли, які вже є в папці, буде пропущено. Продовжити?') | tojson }},
+        start: {{ _('Старт копіювання в локальну папку...') | tojson }},
+        done: {{ _('Готово.') | tojson }},
+        saved: {{ _('записано:') | tojson }},
+        exists: {{ _('уже були:') | tojson }},
+        nofile: {{ _('без файлу:') | tojson }},
+        errors: {{ _('помилки:') | tojson }},
+        manifestError: {{ _('Не вдалося записати manifest.csv:') | tojson }}
+    };
+
+    function formatBytes(bytes) {
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let value = bytes, i = 0;
+        while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+        return (i ? value.toFixed(value < 10 ? 2 : 1) : String(value)) + ' ' + units[i];
+    }
+
+    // Hide/show the two modes' controls. Switching mode drops the plan: a
+    // server plan skips what was already cut, an export plan does not, so one
+    // can never stand in for the other.
+    function applyDestination() {
+        const local = isLocal();
+        document.querySelectorAll('.su-local-only').forEach(el => { el.hidden = !local; });
+        document.querySelectorAll('.su-server-only').forEach(el => { el.hidden = local; });
+        const spSel = $('su-species');
+        if (!local && spSel.multiple) {
+            const first = selectedSpecies()[0];
+            spSel.multiple = false;
+            spSel.value = first || '';
+        } else if (local) {
+            spSel.multiple = true;
+        }
+        const files = $('su-unit-files');
+        files.dataset.locked = String(!local);
+        if (!local) $('su-unit-segments').checked = true;
+        const verifyLink = $('su-verify');
+        if (verifyLink && local) verifyLink.style.display = 'none';
+        onExportShapeChanged();
+    }
+
+    function onExportShapeChanged() {
+        const files = exportUnit() === 'files';
+        $('su-duration').disabled = files;
+        $('su-shift').disabled = files;
+        if (plannedSegments.length) {
+            plannedSegments = [];
+            fileMap = archiveRoot ? new Map() : fileMap;
+            $('su-prepare-info').textContent = {{ _('Параметри змінено: сформуйте вибірку заново.') | tojson }};
+        }
+        exportSummary = null;
+        renderExportSummary();
+        setBusy(busy);
+    }
+
+    async function checkOutputFolder() {
+        if (!outputDir) {
+            $('su-output-info').textContent = exportLabels.noOutput;
+            return;
+        }
+        if (await PamLocalExport.outputInsideArchive(outputDir, archiveRoot)) {
+            outputDir = null;
+            $('su-output-info').textContent = exportLabels.insideArchive;
+        } else {
+            $('su-output-info').textContent = exportLabels.output + ' ' + outputDir.name;
+        }
+        refreshRunButton();
+    }
+
+    async function pickOutputFolder() {
+        try {
+            outputDir = await window.showDirectoryPicker({ id: 'pam-export', mode: 'readwrite' });
+        } catch (error) {
+            if (error.name !== 'AbortError') $('su-output-info').textContent = error.message;
+            return;
+        }
+        await checkOutputFolder();
+    }
+
+    // Step 1 of the export: count what would be written. Runs on its own
+    // whenever the plan, the found files or the segment length change.
+    async function refreshExportSummary() {
+        if (!isLocal()) return;
+        const requestId = ++summaryRequest;
+        exportSummary = null;
+        if (!plannedSegments.length || !fileMap.size) {
+            renderExportSummary();
+            refreshRunButton();
+            return;
+        }
+        $('su-output-info').textContent = exportLabels.counting;
+        const summary = await PamLocalExport.summarize({
+            plan: plannedSegments, unit: exportUnit(), fileFor: fileForPlanItem,
+            duration: parseFloat($('su-duration').value) || 5
+        });
+        if (requestId !== summaryRequest) return;
+        exportSummary = summary;
+        renderExportSummary();
+        await checkOutputFolder();
+    }
+
+    function renderExportSummary() {
+        const table = $('su-export-summary');
+        const body = table.tBodies[0];
+        const foot = table.tFoot;
+        body.innerHTML = '';
+        foot.innerHTML = '';
+        table.hidden = !exportSummary;
+        if (!exportSummary) return;
+        const approx = exportSummary.rows.some(r => r.estimated) ? exportLabels.approx + ' ' : '';
+        const addRow = (parent, cells, header) => {
+            const tr = parent.insertRow();
+            cells.forEach((value, i) => {
+                const cell = document.createElement(header && i === 0 ? 'th' : 'td');
+                if (header && i === 0) cell.scope = 'row';
+                cell.textContent = value;
+                if (i) cell.className = 'text-end';
+                tr.appendChild(cell);
+            });
+        };
+        exportSummary.rows.forEach(r => addRow(body, [
+            r.species + ' (' + r.folder + ')', r.planned, r.found, r.missing,
+            (r.estimated ? exportLabels.approx + ' ' : '') + formatBytes(r.bytes)
+        ], true));
+        addRow(foot, [exportLabels.total, exportSummary.planned, exportSummary.found,
+            exportSummary.missing, approx + formatBytes(exportSummary.bytes)], true);
+    }
+
+    const lstats = { saved: 0, exists: 0, nofile: 0, err: 0 };
+    function refreshLocalStats(done, total) {
+        $('su-lstat-saved').textContent = lstats.saved;
+        $('su-lstat-exists').textContent = lstats.exists;
+        $('su-lstat-nofile').textContent = lstats.nofile;
+        $('su-lstat-err').textContent = lstats.err;
+        const pct = total ? Math.round(100 * done / total) : 0;
+        $('su-prog').style.width = pct + '%';
+        $('su-prog').textContent = pct + '%';
+    }
+
+    // Step 2: write, only after the operator confirmed the counted totals.
+    async function runLocalExport() {
+        if (!exportSummary || !outputDir) return;
+        const files = exportUnit() === 'files';
+        const question = [
+            (files ? exportLabels.confirmFiles : exportLabels.confirmSegments) + ' ' + exportSummary.found,
+            exportLabels.confirmSize + ' ' + (files ? '' : exportLabels.approx + ' ') + formatBytes(exportSummary.bytes),
+            exportLabels.confirmInto + ' ' + outputDir.name,
+            exportLabels.confirmSkip
+        ].join('\n');
+        if (!window.confirm(question)) return;
+        if (await outputDir.requestPermission({ mode: 'readwrite' }) !== 'granted') return;
+        setBusy(true);
+        Object.keys(lstats).forEach(k => { lstats[k] = 0; });
+        refreshLocalStats(0, 0);
+        log(exportLabels.start);
+        try {
+            const result = await PamLocalExport.run({
+                plan: plannedSegments, unit: exportUnit(), outDir: outputDir,
+                fileFor: fileForPlanItem,
+                duration: parseFloat($('su-duration').value) || 5,
+                shift: parseFloat($('su-shift').value) || 0,
+                onResult: (item, outcome, done, total) => {
+                    if (outcome.status === 'saved') lstats.saved++;
+                    else if (outcome.status === 'exists') lstats.exists++;
+                    else if (outcome.status === 'nofile') lstats.nofile++;
+                    else {
+                        lstats.err++;
+                        log('ERR ' + item.name + ': ' + outcome.error);
+                    }
+                    refreshLocalStats(done, total);
+                }
+            });
+            result.manifestErrors.forEach(message => log(exportLabels.manifestError + ' ' + message));
+        } catch (error) {
+            log('ERR ' + error.message);
+        } finally {
+            setBusy(false);
+        }
+        log(exportLabels.done + ' ' + exportLabels.saved + ' ' + lstats.saved
+            + ', ' + exportLabels.exists + ' ' + lstats.exists
+            + ', ' + exportLabels.nofile + ' ' + lstats.nofile
+            + ', ' + exportLabels.errors + ' ' + lstats.err);
+    }
+
     // ── wire up ─────────────────────────────────────────────────────────────
     $('su-institution').addEventListener('change', renderLocations);
     $('su-all-institutions').addEventListener('click', () => {
@@ -661,9 +999,7 @@
     $('su-locations').addEventListener('change', onLocationsChanged);
     $('su-species-search').addEventListener('input', renderSpecies);
     taxonFilters.forEach(select => select.addEventListener('change', renderSpecies));
-    $('su-species').addEventListener('change', () => {
-        $('su-prepare').disabled = busy || !$('su-species').value || !effectiveLocationIds().length;
-    });
+    $('su-species').addEventListener('change', refreshPrepareButton);
     $('su-prepare').addEventListener('click', () => prepareSample());
     $('su-prepare-gaps').addEventListener('click', () => prepareSample(true));
     $('su-folder').addEventListener('change', onFolderPicked);
@@ -678,6 +1014,20 @@
     });
     $('su-use-index').addEventListener('change', updateFolderMode);
     $('su-run').addEventListener('click', runPipeline);
+    document.querySelectorAll('input[name="su-destination"]').forEach(el =>
+        el.addEventListener('change', applyDestination));
+    document.querySelectorAll('input[name="su-unit"]').forEach(el =>
+        el.addEventListener('change', onExportShapeChanged));
+    $('su-verification').addEventListener('change', onExportShapeChanged);
+    $('su-verdict').addEventListener('change', onExportShapeChanged);
+    $('su-duration').addEventListener('change', () => refreshExportSummary());
+    $('su-output-folder').addEventListener('click', pickOutputFolder);
+    if (!PamLocalExport.supported) {
+        $('su-dest-local').disabled = true;
+        $('su-dest-local').dataset.locked = 'true';
+        $('su-dest-local-unsupported').hidden = false;
+    }
+    applyDestination();
     $('su-use-index').checked = PamRecordingIndex.supported;
     updateFolderMode();
     setBusy(false);

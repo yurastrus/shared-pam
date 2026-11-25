@@ -5428,6 +5428,10 @@ def _sample_managed_location_ids(conn, location_ids=None):
     return [r.location_id for r in rows]
 
 
+#: Species per local export: one subfolder and one sampling query each.
+MAX_EXPORT_SPECIES = 20
+
+
 def _sample_species_allowed(conn, scientific_name, *, species_id=None):
     if pam_access.is_admin(current_user):
         return True
@@ -5507,6 +5511,7 @@ def sample_upload(lang_code):
             current_year=current_year,
             year_options=list(range(earliest_year, current_year + 1)),
             can_verify=current_user.has_role('pam_verifier'),
+            max_export_species=MAX_EXPORT_SPECIES,
         )
     except Exception as e:
         current_app.logger.error(f"PAM sample-upload page error: {e}", exc_info=True)
@@ -5739,13 +5744,42 @@ def api_sample_prepare(lang_code):
     The season/year window is a month range plus a year range rather than two
     dates: an operator sampling, say, the spring chorus wants every February to
     April on record, not one contiguous span. See run_stratified_sample.
+
+    ``destination: "local"`` asks for an export plan instead: the browser
+    copies or cuts into a local folder and nothing reaches the server. It
+    takes ``species_names[]`` (several species, one subfolder each),
+    ``verification`` / ``verdict`` (VERIFICATION_FILTERS / VERDICT_FILTERS)
+    and ``unit`` (``segments`` or ``files``); ``sample_size`` is then the
+    limit per species. Detections already cut are included, because an
+    export is about what the archive holds. Without ``destination`` the
+    request and the answer are exactly the server-upload ones.
     """
+    from .pam_segment_sampling import VERDICT_FILTERS, VERIFICATION_FILTERS
+
     conn = None
     try:
         data = request.get_json(silent=True) or {}
+        local_export = data.get('destination') == 'local'
         species_name = (data.get('species_name') or '').strip()
         location_ids = [int(x) for x in (data.get('location_ids') or []) if str(x).isdigit()]
-        if not species_name or not location_ids:
+        species_names = [species_name] if species_name else []
+        if local_export:
+            raw_names = data.get('species_names')
+            if raw_names is not None:
+                if not isinstance(raw_names, list) or any(not isinstance(n, str) for n in raw_names):
+                    return jsonify({'success': False, 'error': 'species_names must be a list'}), 400
+                species_names = list(dict.fromkeys(n.strip() for n in raw_names if n.strip()))
+            if len(species_names) > MAX_EXPORT_SPECIES:
+                return jsonify({'success': False,
+                                'error': f'at most {MAX_EXPORT_SPECIES} species'}), 400
+            verification = data.get('verification') or 'any'
+            verdict = data.get('verdict') or 'any'
+            unit = data.get('unit') or 'segments'
+            if (verification not in VERIFICATION_FILTERS or verdict not in VERDICT_FILTERS
+                    or unit not in ('segments', 'files')):
+                return jsonify({'success': False,
+                                'error': 'invalid verification, verdict or unit'}), 400
+        if not species_names or not location_ids:
             return jsonify({'success': False, 'error': 'species_name and location_ids required'}), 400
 
         conf_thr = min(max(float(data.get('confidence_threshold', 0.1) or 0.1), 0.0), 1.0)
@@ -5801,8 +5835,9 @@ def api_sample_prepare(lang_code):
         location_ids = _sample_managed_location_ids(conn, location_ids)
         if not location_ids:
             return jsonify({'success': False, 'error': 'Access denied to these locations'}), 403
-        if not _sample_species_allowed(conn, species_name):
-            return jsonify({'success': False, 'error': 'Access denied to this species'}), 403
+        for name in species_names:
+            if not _sample_species_allowed(conn, name):
+                return jsonify({'success': False, 'error': 'Access denied to this species'}), 403
 
         # Resolve which model to sample for (default: BirdNET 2.4 reference, so
         # behaviour is unchanged when the client sends no model_id).
@@ -5818,6 +5853,30 @@ def api_sample_prepare(lang_code):
         # column, so the fallback below is belt-and-braces.
         from .utils import get_model_conf_columns
         conf_column = get_model_conf_columns(conn).get(model_id, 'confidence')
+
+        if local_export:
+            segments, per_species = [], []
+            for name in species_names:
+                plan = run_stratified_sample(
+                    name, location_ids,
+                    confidence_threshold=conf_thr, n_strata=n_strata,
+                    sample_size=sample_size, conn=conn,
+                    model_id=model_id, conf_column=conf_column,
+                    confidence_max=conf_max,
+                    month_start=month_start, month_end=month_end,
+                    year_start=year_start, year_end=year_end,
+                    date_from=date_from, date_to=date_to,
+                    skip_sampled=False, verification=verification,
+                    verdict=verdict, per_recording=(unit == 'files'),
+                )
+                for item in plan:
+                    item['species_name'] = name
+                segments.extend(plan)
+                per_species.append({'species_name': name, 'count': len(plan)})
+            return jsonify({'success': True, 'count': len(segments),
+                            'model_id': model_id, 'segments': segments,
+                            'destination': 'local', 'unit': unit,
+                            'per_species': per_species})
 
         segments = run_stratified_sample(
             species_name, location_ids,

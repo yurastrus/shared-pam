@@ -64,9 +64,38 @@ _CONF_COLUMN_RE = re.compile(r'^[a-z][a-z0-9_]*$')
 
 # ── sampling ──────────────────────────────────────────────────────────────────
 
+#: Verification subsets offered by the local export (destination = local folder).
+#: State of a detection, from every segment cut from it whatever the model:
+#:   full       consensus recorded in detection_verification_map;
+#:   partial    real votes (yes/no) on its segments, but no consensus yet;
+#:   unverified neither.
+VERIFICATION_FILTERS = ('any', 'unverified', 'verified', 'partial', 'full')
+#: Verdict among the verified: consensus when there is one, else the majority of
+#: real votes. A tied partial detection has no verdict and passes only 'any'.
+VERDICT_FILTERS = ('any', 'confirmed', 'rejected')
+
+_VERIFICATION_SQL = {
+    'any': None,
+    'unverified': "dvm.verification_result IS NULL AND COALESCE(sv.votes, 0) = 0",
+    'verified': "(dvm.verification_result IS NOT NULL OR COALESCE(sv.votes, 0) > 0)",
+    'partial': "dvm.verification_result IS NULL AND COALESCE(sv.votes, 0) > 0",
+    'full': "dvm.verification_result IS NOT NULL",
+}
+_VERDICT_SQL = {
+    'any': None,
+    'confirmed': ("(dvm.verification_result = 1 OR (dvm.verification_result IS NULL"
+                  " AND 2 * COALESCE(sv.positive, 0) > COALESCE(sv.votes, 0)))"),
+    'rejected': ("(dvm.verification_result = 0 OR (dvm.verification_result IS NULL"
+                 " AND COALESCE(sv.votes, 0) > 0"
+                 " AND 2 * COALESCE(sv.positive, 0) < COALESCE(sv.votes, 0)))"),
+}
+
+
 def build_sampling_query(n_strata, conf_column='confidence',
                          with_conf_max=False, month_mode=None,
-                         with_year_range=False, with_date_range=False):
+                         with_year_range=False, with_date_range=False,
+                         skip_sampled=True, verification=None, verdict=None,
+                         per_recording=False):
     """Return the parameterised stratified-sampling SQL.
 
     Kept as a pure function (no DB, no I/O) so it is unit-testable. ``n_strata``
@@ -112,6 +141,22 @@ def build_sampling_query(n_strata, conf_column='confidence',
         ``DATE(r.datetime_start) BETWEEN …`` in the session time zone, but
         written as half-open bounds so the index applies.
 
+    The last four switches serve the export to a local folder, which reads
+    what the archive already holds instead of feeding the verification queue:
+
+    ``skip_sampled``
+        ``False`` drops the "already cut for this model" dedup: an export
+        wants exactly the detections that were cut and verified before.
+    ``verification`` / ``verdict``
+        ``None`` keeps the query free of verification joins. Any value of
+        ``VERIFICATION_FILTERS`` / ``VERDICT_FILTERS`` joins the vote tally
+        and returns it (``consensus``, ``votes``, ``positive``) for the
+        manifest; ``'any'`` joins without filtering.
+    ``per_recording``
+        one row per recording (its best-scoring detection that passes every
+        filter), stratified by that score: the unit of a whole-file export,
+        so ``:per_stratum`` counts files, not detections.
+
     Bind params expected by the returned SQL:
         :species_name, :location_ids (list), :conf_thr, :per_stratum,
         :seg_model_id  (the model to tag the sample with / dedup against),
@@ -123,10 +168,36 @@ def build_sampling_query(n_strata, conf_column='confidence',
         raise ValueError(f"Invalid conf_column: {conf_column!r}")
     if month_mode not in (None, 'range', 'wrap'):
         raise ValueError(f"Invalid month_mode: {month_mode!r}")
+    if verification is not None and verification not in VERIFICATION_FILTERS:
+        raise ValueError(f"Invalid verification: {verification!r}")
+    if verdict is not None and verdict not in VERDICT_FILTERS:
+        raise ValueError(f"Invalid verdict: {verdict!r}")
     conf_expr = f"d.{conf_column}"
     model_join = ""
+    vote_columns = ""
+    with_votes = verification is not None or verdict is not None
 
     extra = []
+    if with_votes:
+        # Votes are summed over every segment of the detection, whatever the
+        # model it was cut for: a verified call is a fact about the animal.
+        model_join = """LEFT JOIN detection_verification_map dvm
+                   ON dvm.detection_id = d.detection_id
+            LEFT JOIN (
+                SELECT detection_id,
+                       SUM(verification_count)     AS votes,
+                       SUM(positive_verifications) AS positive
+                FROM segments
+                WHERE detection_id IS NOT NULL
+                GROUP BY detection_id
+            ) sv ON sv.detection_id = d.detection_id"""
+        vote_columns = (",\n                   dvm.verification_result AS consensus,"
+                        "\n                   COALESCE(sv.votes, 0)    AS votes,"
+                        "\n                   COALESCE(sv.positive, 0) AS positive")
+        for clause in (_VERIFICATION_SQL[verification or 'any'],
+                       _VERDICT_SQL[verdict or 'any']):
+            if clause:
+                extra.append(f"AND {clause}")
     if with_conf_max:
         extra.append(f"AND {conf_expr} <= :conf_max")
     if with_year_range:
@@ -145,6 +216,66 @@ def build_sampling_query(n_strata, conf_column='confidence',
                      " OR EXTRACT(MONTH FROM r.datetime_start) <= :month_end)")
     indent = "\n              "
     extra_sql = (indent + indent.join(extra)) if extra else ""
+    dedup_sql = """
+              AND NOT EXISTS (
+                    SELECT 1 FROM segments sg
+                    WHERE sg.detection_id = d.detection_id
+                      AND sg.model_id = :seg_model_id
+              )""" if skip_sampled else ""
+    out_columns = ("detection_id, recording_id, species_id, rec_filename,\n"
+                   "               datetime_start, location_id, location_name, start_s, end_s, confidence"
+                   + (", consensus, votes, positive" if with_votes else ""))
+
+    if with_votes or per_recording or not skip_sampled:
+        # Export shape. The historical query below is kept verbatim so the
+        # server-upload path cannot drift.
+        stratify_from = "filtered"
+        best_cte = ""
+        if per_recording:
+            best_cte = """,
+        best AS (
+            SELECT DISTINCT ON (recording_id) *
+            FROM filtered
+            ORDER BY recording_id, confidence DESC, detection_id
+        )"""
+            stratify_from = "best"
+        return text(f"""
+        WITH filtered AS (
+            SELECT d.detection_id,
+                   d.recording_id,
+                   d.species_id,
+                   r.filename       AS rec_filename,
+                   r.datetime_start,
+                   r.location_id,
+                   l.location_name,
+                   d.start_s,
+                   d.end_s,
+                   {conf_expr}      AS confidence{vote_columns}
+            FROM detections d
+            JOIN recordings r ON d.recording_id = r.recording_id
+            JOIN locations  l ON r.location_id  = l.location_id
+            JOIN species    s ON d.species_id   = s.species_id
+            {model_join}
+            WHERE s.scientific_name = :species_name
+              AND r.location_id = ANY(:location_ids)
+              AND {conf_expr} IS NOT NULL
+              AND {conf_expr} >= :conf_thr{extra_sql}{dedup_sql}
+        ){best_cte},
+        candidates AS (
+            SELECT {stratify_from}.*,
+                   ntile({n_strata}) OVER (ORDER BY confidence) AS stratum
+            FROM {stratify_from}
+        ),
+        ranked AS (
+            SELECT candidates.*,
+                   row_number() OVER (PARTITION BY stratum ORDER BY random()) AS rn
+            FROM candidates
+        )
+        SELECT {out_columns}
+        FROM ranked
+        WHERE rn <= :per_stratum
+        ORDER BY confidence
+    """)
 
     return text(f"""
         WITH candidates AS (
@@ -192,7 +323,9 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
                           model_id=None, conf_column='confidence',
                           confidence_max=None, month_start=None, month_end=None,
                           year_start=None, year_end=None,
-                          date_from=None, date_to=None):
+                          date_from=None, date_to=None,
+                          skip_sampled=True, verification=None, verdict=None,
+                          per_recording=False):
     """Draw a confidence-stratified detection sample for one species + model.
 
     Mirrors ``produce_random_segments.R``: split the confidence range into
@@ -228,6 +361,9 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
         the exact period of the species dashboard, for sampling "what I am
         looking at". Composes with the other filters like they do with each
         other; the dashboard link sends it instead of months and years.
+    ``skip_sampled`` / ``verification`` / ``verdict`` / ``per_recording``
+        the local-export switches, see ``build_sampling_query``. Their
+        defaults reproduce the server-upload sample exactly.
 
     Returns a list of plain dicts (JSON-serialisable) — one per sampled
     detection — carrying everything the browser needs to cut + label the clip.
@@ -281,6 +417,8 @@ def run_stratified_sample(species_name, location_ids, confidence_threshold=0.1,
                 with_conf_max=with_conf_max, month_mode=month_mode,
                 with_year_range=with_year_range,
                 with_date_range=with_date_range,
+                skip_sampled=skip_sampled, verification=verification,
+                verdict=verdict, per_recording=per_recording,
             ), params
         ).mappings().fetchall()
     finally:
@@ -328,7 +466,33 @@ def format_sample_plan(rows, model_id):
             result[-1]['species_name'] = row['species_name']
         if 'novelty' in row:
             result[-1]['novelty'] = row['novelty']
+        if 'votes' in row:
+            # Local export only: the manifest records what the subset was.
+            consensus = row['consensus']
+            result[-1].update({
+                'consensus': int(consensus) if consensus is not None else None,
+                'votes': int(row['votes'] or 0),
+                'positive_votes': int(row['positive'] or 0),
+                'verification_state': verification_state(
+                    consensus, row['votes'], row['positive']),
+            })
     return result
+
+
+def verification_state(consensus, votes, positive):
+    """One word for the manifest, matching the export filters' definitions."""
+    if consensus == 1:
+        return 'confirmed'
+    if consensus == 0:
+        return 'rejected'
+    votes, positive = int(votes or 0), int(positive or 0)
+    if not votes:
+        return 'unverified'
+    if 2 * positive > votes:
+        return 'partial_confirmed'
+    if 2 * positive < votes:
+        return 'partial_rejected'
+    return 'partial_tied'
 
 
 

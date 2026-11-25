@@ -504,6 +504,46 @@ until the existing cutter uploads the selected clips. The mode requires a
 browser that supports the local directory picker and write access to the
 archive. Unchecking the index option uses the regular folder input.
 
+### Local export from the sample uploader (since 2026-11-25)
+
+The sample-upload page has a **destination** switch. "To the server" is the
+original page and stays the default; every deep link (species dashboard,
+co-occurrence map, verification priorities) lands there and sends exactly the
+old `/prepare` body. "To a local folder" runs the same filters the other way:
+the server plans, the browser finds the recordings through the same folder
+index and writes into an output folder the operator picks. Nothing is uploaded.
+
+* **Plan.** `/api/pam/sample/prepare` with `destination: "local"` takes
+  `species_names[]` (up to `MAX_EXPORT_SPECIES` = 20, one sampling query
+  each), `verification` (`any`, `verified`, `full`, `partial`, `unverified`),
+  `verdict` (`any`, `confirmed`, `rejected`) and `unit` (`segments` or
+  `files`). `sample_size` becomes the limit per species. The "already cut for
+  this model" dedup is off, because an export wants exactly what was verified.
+* **Verification state** comes from every segment of the detection, whatever
+  its model: `full` = consensus in `detection_verification_map`; `partial` =
+  real votes on its segments but no consensus; the verdict is the consensus,
+  else the majority of votes (a tie passes only `any`). Shape switches live in
+  `build_sampling_query` (`skip_sampled`, `verification`, `verdict`,
+  `per_recording`); with their defaults the historical SQL is returned verbatim.
+* **Whole files** (`per_recording`): one row per recording, its best-scoring
+  detection that passes every filter, stratified by that score. Locked in server
+  mode until the server has the disk space.
+* **Two steps.** `static/js/local_export.js` first counts per species what would
+  be written and how big (exact for files, estimated from WAV headers for
+  segments); the copy starts only after a confirm dialog with the totals.
+  Files already in the output folder (same name, for whole files also the same
+  size) are skipped, so an interrupted export resumes. Copies stream
+  (`file.stream().pipeTo`), so large recordings do not fill memory.
+* **Layout.** `<output>/<Latin name>/` per species (same folder naming as the
+  server ZIP layout) plus a `manifest.csv` per species folder (detection,
+  recording, location, time, score, model, verification state, votes, cut
+  window), merged across runs. The output folder may not be the archive or lie
+  inside it, or the next archive search would index the copies.
+* Chromium only (Chrome, Edge): writing needs `showDirectoryPicker`.
+* Checks: `tests/test_pam_local_export.py`; UI harness without a database
+  `scripts/pam_local_export_ui_harness.py` (port 5083, `/__login`); read-only
+  probe on a real DB `venv/Scripts/python -m scripts.probe_pam_export_plan "Bufo bufo"`.
+
 ### Export
 
 `GET /api/pam/cooccurrence/export` returns a ZIP with the same two tables the
