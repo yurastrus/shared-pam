@@ -1536,15 +1536,48 @@ body.dark-theme .verification-container .verification-buttons #verify-flag:hover
     background-color: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: 10px;
-    padding: 15px;
+    padding: 10px 14px 12px;
 }
-.verification-container .stats-panel > h4 {
-    margin-top: 0;
-    margin-bottom: 5px;
-    text-align: center;
-    font-size: 1em;
+/* Compact stats (2026-11-25): one line of numbers + a bar of the user's
+   answers among answered + remaining for the current filter. */
+.verification-container .stats-line {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 2px 12px;
+    margin-bottom: 6px;
+    font-size: .85rem;
+    color: var(--text-secondary);
+}
+.verification-container .stats-line b {
+    color: var(--color-primary);
     font-weight: 600;
 }
+.verification-container .stats-item { white-space: nowrap; margin-right: 8px; }
+.verification-container .stats-item:last-child { margin-right: 0; }
+.verification-container .stats-key {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    margin-right: 4px;
+    vertical-align: 0;
+}
+.verification-container .stats-bar {
+    display: flex;
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+.verification-container .stats-bar__seg { display: block; height: 100%; width: 0; transition: width .3s; }
+.verification-container .stats-key--yes,
+.verification-container .stats-bar__seg--yes { background: var(--color-success); }
+.verification-container .stats-key--no,
+.verification-container .stats-bar__seg--no { background: var(--color-danger); }
+.verification-container .stats-key--unknown,
+.verification-container .stats-bar__seg--unknown { background: #888780; }
 /* 4-колонкова сітка статистики (перекриває generic 1fr 1fr з overview) */
 .verification-container .stats-grid {
     display: grid;

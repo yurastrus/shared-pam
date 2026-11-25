@@ -194,33 +194,22 @@
                         <span class="sr-only">{{ _('Завантаження...') }}</span>
                     </div>
                 </div>
-                    <!-- User statistics -->
-                    <div class="stats-panel">
-                        <h4>{{ _('Моя статистика') }}</h4>
-                        <div class="stats-grid" id="user-stats">
-                            <div class="stats-card">
-                                <h6>{{ _('Всього') }}</h6>
-                                <div class="stats-value" id="total-verifications">-</div>
-                            </div>
-                            <div class="stats-card">
-                                <h6>{{ _('Залишилось') }}</h6>
-                                <div class="stats-value" id="remaining-verifications">-</div>
-                            </div>
-
-                            <div class="stats-card">
-                                <h6>{{ _('Позитивних') }}</h6>
-                                <div class="stats-value" id="positive-verifications">-</div>
-                            </div>
-                            <div class="stats-card">
-                                <h6>{{ _('Негативних') }}</h6>
-                                <div class="stats-value" id="negative-verifications">-</div>
-                            </div>
-                            <!--
-                            <div class="stats-card">
-                                <h6>{{ _('Пропущених') }}</h6>
-                                <div class="stats-value" id="skipped-verifications">-</div>
-                            </div>
-                            -->
+                    <!-- User statistics: one line of numbers and a bar of the
+                         user's share of the current filter (yes / no / don't know
+                         / remaining). Compact so it does not lengthen the page. -->
+                    <div class="stats-panel" id="user-stats">
+                        <div class="stats-line">
+                            <span><span class="stats-item">{{ _('Мої відповіді') }}: <b id="total-verifications">-</b></span>
+                                <span class="stats-item"><span class="stats-key stats-key--yes"></span>{{ _('так') }} <b id="positive-verifications">-</b></span>
+                                <span class="stats-item"><span class="stats-key stats-key--no"></span>{{ _('ні') }} <b id="negative-verifications">-</b></span>
+                                <span class="stats-item"><span class="stats-key stats-key--unknown"></span>{{ _('не знаю') }} <b id="unknown-verifications">-</b></span></span>
+                            <span class="stats-item">{{ _('залишилось') }} <b id="remaining-verifications">-</b></span>
+                        </div>
+                        <div class="stats-bar" role="img" id="stats-bar"
+                             aria-label="{{ _('Частка моїх відповідей серед сегментів за фільтром') }}">
+                            <span class="stats-bar__seg stats-bar__seg--yes" id="stats-bar-yes"></span>
+                            <span class="stats-bar__seg stats-bar__seg--no" id="stats-bar-no"></span>
+                            <span class="stats-bar__seg stats-bar__seg--unknown" id="stats-bar-unknown"></span>
                         </div>
                     </div>
                 </div>
@@ -931,11 +920,28 @@ $(document).ready(function() {
             ...queueRequest,
             success: function(data) {
                 const stats = data.user_stats;
-                $('#total-verifications').text(stats.total_verifications);
-                $('#remaining-verifications').text(stats.remaining_verifications);
-                $('#positive-verifications').text(stats.positive_verifications);
-                $('#negative-verifications').text(stats.negative_verifications);
-                $('#skipped-verifications').text(stats.skipped_verifications);
+                const total = stats.total_verifications || 0;
+                const yes = stats.positive_verifications || 0;
+                const no = stats.negative_verifications || 0;
+                // "Total" counts every answer; the rest are "don't know"
+                // (skips are not stored, skipped_verifications stays 0).
+                const unknown = Math.max(0, total - yes - no - (stats.skipped_verifications || 0));
+                const remaining = stats.remaining_verifications || 0;
+                $('#total-verifications').text(total);
+                $('#remaining-verifications').text(remaining);
+                $('#positive-verifications').text(yes);
+                $('#negative-verifications').text(no);
+                $('#unknown-verifications').text(unknown);
+                // Bar: share of answered segments among answered + remaining
+                // for the current filter; the empty track is what is left.
+                const whole = total + remaining;
+                const pct = n => whole ? (100 * n / whole).toFixed(2) + '%' : '0%';
+                $('#stats-bar-yes').css('width', pct(yes));
+                $('#stats-bar-no').css('width', pct(no));
+                $('#stats-bar-unknown').css('width', pct(unknown));
+                $('#stats-bar').attr('title', whole
+                    ? Math.round(100 * total / whole) + '% ' + {{ _('опрацьовано за цим фільтром') | tojson }}
+                    : '');
             },
             error: function(xhr) {
                 console.error('Error loading user stats:', xhr);
