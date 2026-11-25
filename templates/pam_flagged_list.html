@@ -54,7 +54,7 @@
                     {% if it.flagged_at %}<span class="pam-flagged-meta"> · {{ it.flagged_at.strftime('%d.%m.%Y %H:%M') }}</span>{% endif %}
                 </p>
                 {% if it.flag_note %}
-                <p class="pam-flagged-note">{{ it.flag_note }}</p>
+                <p class="pam-flagged-note pam-flagged-comment">{{ it.flag_note }}</p>
                 {% else %}
                 <p class="pam-flagged-note pam-flagged-note--empty">{{ _('(без коментаря)') }}</p>
                 {% endif %}
