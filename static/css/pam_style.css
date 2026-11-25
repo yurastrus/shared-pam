@@ -1419,9 +1419,7 @@ body.dark-theme .verification-container .verification-buttons #verify-flag:hover
 
 /* pam_verification_interface: окремі картки інтерфейсу */
 .verification-container .audio-player-section {
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
+    /* No frame of its own (owner, 2026-11-25): it sat as a box inside the panel. */
     padding: 5px;
     text-align: center;
 }
