@@ -217,6 +217,13 @@ main .container:not(.maplistcontainer) {
     display: flex;
     flex-direction: column;
 }
+/* Right column: segment panel / empty state / spinner, then "My statistics". */
+.verification-container .verification-main {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    min-width: 0;
+}
 .verification-container .right-panel {
     display: flex;
     flex-direction: column;

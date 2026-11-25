@@ -101,38 +101,12 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- User statistics -->
-                    <div class="stats-panel">
-                        <h4>{{ _('Моя статистика') }}</h4>
-                        <div class="stats-grid" id="user-stats">
-                            <div class="stats-card">
-                                <h6>{{ _('Всього') }}</h6>
-                                <div class="stats-value" id="total-verifications">-</div>
-                            </div>
-                            <div class="stats-card">
-                                <h6>{{ _('Залишилось') }}</h6>
-                                <div class="stats-value" id="remaining-verifications">-</div>
-                            </div>
-
-                            <div class="stats-card">
-                                <h6>{{ _('Позитивних') }}</h6>
-                                <div class="stats-value" id="positive-verifications">-</div>
-                            </div>
-                            <div class="stats-card">
-                                <h6>{{ _('Негативних') }}</h6>
-                                <div class="stats-value" id="negative-verifications">-</div>
-                            </div>
-                            <!--
-                            <div class="stats-card">
-                                <h6>{{ _('Пропущених') }}</h6>
-                                <div class="stats-value" id="skipped-verifications">-</div>
-                            </div>
-                            -->
-                        </div>
-                    </div>
                 </div>
 
+                <!-- Right column: segment panel (or the empty/loading state),
+                     then the user's statistics under the verdict buttons.
+                     One column on narrow screens, so the stats follow the buttons. -->
+                <div class="verification-main">
                 <!-- Right panel with spectrogram and controls -->
                 <div class="right-panel" style="display: none;">
                     <!-- Spectrogram -->
@@ -216,6 +190,36 @@
                 <div id="loading-spinner" class="loading-spinner">
                     <div class="spinner-border" role="status">
                         <span class="sr-only">{{ _('Завантаження...') }}</span>
+                    </div>
+                </div>
+                    <!-- User statistics -->
+                    <div class="stats-panel">
+                        <h4>{{ _('Моя статистика') }}</h4>
+                        <div class="stats-grid" id="user-stats">
+                            <div class="stats-card">
+                                <h6>{{ _('Всього') }}</h6>
+                                <div class="stats-value" id="total-verifications">-</div>
+                            </div>
+                            <div class="stats-card">
+                                <h6>{{ _('Залишилось') }}</h6>
+                                <div class="stats-value" id="remaining-verifications">-</div>
+                            </div>
+
+                            <div class="stats-card">
+                                <h6>{{ _('Позитивних') }}</h6>
+                                <div class="stats-value" id="positive-verifications">-</div>
+                            </div>
+                            <div class="stats-card">
+                                <h6>{{ _('Негативних') }}</h6>
+                                <div class="stats-value" id="negative-verifications">-</div>
+                            </div>
+                            <!--
+                            <div class="stats-card">
+                                <h6>{{ _('Пропущених') }}</h6>
+                                <div class="stats-value" id="skipped-verifications">-</div>
+                            </div>
+                            -->
+                        </div>
                     </div>
                 </div>
             </div>
