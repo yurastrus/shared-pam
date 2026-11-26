@@ -585,6 +585,9 @@ def build_window_query(conf_column='confidence', recording_scope=None):
 #: cutting; a number this high means the caller passed a window far wider than
 #: the page is for, and the browser would be asked to decode that many files.
 MAX_WINDOW_SEGMENTS = 200
+# A list of windows (one link for a whole set, e.g. a study's truth set): one plan may hold
+# more clips; a second visit cuts what is left, because cut detections are skipped.
+MAX_LIST_SEGMENTS = 600
 
 
 def plan_window_segments(species_name, location_ids, from_ts, to_ts,

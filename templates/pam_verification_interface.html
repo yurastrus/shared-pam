@@ -282,6 +282,7 @@ $(document).ready(function() {
     const DEEP_LOCATIONS = DEEP.get('location_ids') || '';
     const DEEP_FROM = DEEP.get('from_ts') || '';
     const DEEP_TO = DEEP.get('to_ts') || '';
+    const DEEP_WINDOWS = DEEP.get('windows') || '';   // LOC@FROM/TO;... (several exact windows)
     const RECORDING_KEYS = ['recording_from', 'recording_to', 'recording_months', 'scope_species_id', 'scope_conf'];
     const ATLAS_SCOPE = DEEP.has('recording_from');
     let preferredSegment = DEEP.get('preferred_segment_id');
@@ -309,6 +310,7 @@ $(document).ready(function() {
         if (DEEP_LOCATIONS) params.push('location_ids=' + encodeURIComponent(DEEP_LOCATIONS));
         if (DEEP_FROM) params.push('from_ts=' + encodeURIComponent(DEEP_FROM));
         if (DEEP_TO) params.push('to_ts=' + encodeURIComponent(DEEP_TO));
+        if (DEEP_WINDOWS) params.push('windows=' + encodeURIComponent(DEEP_WINDOWS));
         for (const key of RECORDING_KEYS) {
             if (DEEP.has(key)) params.push(key + '=' + encodeURIComponent(DEEP.get(key)));
         }
@@ -378,9 +380,10 @@ $(document).ready(function() {
         banner.append($('<b>').text(title), ' ', $('<a>')
             .attr('href', url.pathname + url.search)
             .text({{ _('верифікувати всі сегменти') | tojson }}));
-    } else if (DEEP_LOCATIONS || DEEP_FROM || DEEP_TO) {
+    } else if (DEEP_LOCATIONS || DEEP_FROM || DEEP_TO || DEEP_WINDOWS) {
         const parts = [];
         if (DEEP.get('scope_label')) parts.push(DEEP.get('scope_label'));
+        if (DEEP_WINDOWS) parts.push(DEEP_WINDOWS.split(';').filter(Boolean).length + ' ' + {{ _('вікон') | tojson }});
         if (DEEP_FROM && DEEP_TO) {
             parts.push(DEEP_FROM.replace('T', ' ').substring(0, 19) + ' … '
                        + DEEP_TO.replace('T', ' ').substring(0, 19) + ' UTC');
@@ -390,7 +393,7 @@ $(document).ready(function() {
             if (DEEP.has('recording_months')) parts.push(DEEP.get('recording_months'));
         }
         const url = new URL(window.location.href);
-        ['location_ids', 'from_ts', 'to_ts', 'scope_label', ...RECORDING_KEYS].forEach(k =>
+        ['location_ids', 'from_ts', 'to_ts', 'windows', 'scope_label', ...RECORDING_KEYS].forEach(k =>
             url.searchParams.delete(k));
         const title = ATLAS_SCOPE ? {{ _('Черга звужена до клітинки атласу') | tojson }}
                                   : {{ _('Черга звужена до одного вікна') | tojson }};

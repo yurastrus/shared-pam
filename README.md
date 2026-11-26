@@ -485,6 +485,28 @@ own labels and counts its own stats through `onResult`. A test asserts the
 sampler template no longer defines `encodeWav` / `cutWavByBytes`, so the two
 cannot drift back apart.
 
+### A list of windows in one link (since 2026-11-26)
+
+Both the segment-window cutter and the verification queue accept an optional
+`windows` parameter: `LOC@FROM/TO;LOC@FROM/TO;...`, one location per window,
+timestamps as `from_ts`/`to_ts` take them (`Z` or an offset). One link then
+stands for a whole set of exact windows, e.g. the site-weeks of a study's truth
+set, instead of one link per window. Parsing is `_parse_windows_arg()` in
+`routes.py` (at most `MAX_WINDOWS` = 300; a malformed item or a reversed window
+answers 400).
+
+* **Cutter** (`/api/pam/sample/plan-window` with `windows`): the plan is the
+  union of `plan_window_segments()` run per window at its own location,
+  de-duplicated by detection and capped at `MAX_LIST_SEGMENTS` = 600; a second
+  visit cuts what is left. Locations outside the caller's PAM management are
+  skipped, as for a single window.
+* **Verification queue**: `_verification_queue_scope()` adds the OR of the
+  windows to the detection filter (combined with AND with everything else, so
+  it can only narrow); the page carries `windows` into every request and the
+  banner counts them.
+* Without `windows` nothing changes: every existing deep link (co-occurrence
+  map, priorities page, species dashboard) takes the old single-window path.
+
 ### Local folders for the sample uploader
 
 The sample uploader and segment-window cutter resolve exact recording filenames through a folder

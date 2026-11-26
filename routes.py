@@ -126,6 +126,38 @@ def _parse_ts_arg(raw):
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
+MAX_WINDOWS = 300
+
+
+def _parse_windows_arg(raw):
+    """A list of exact windows, one location each: ``LOC@FROM/TO;LOC@FROM/TO``.
+
+    Lets one link stand for many windows (e.g. a site-level truth set of a
+    study: dozens of site-weeks) on the segment-window cutter and in the
+    verification queue, instead of one link per window. Returns ``[]`` when
+    absent, so every existing single-window link behaves exactly as before.
+    Each item is ``(location_id, from_ts, to_ts)``; the timestamps go through
+    ``_parse_ts_arg``. A malformed item, a reversed window or more than
+    ``MAX_WINDOWS`` items raise ValueError (the callers answer 400).
+    """
+    if not raw:
+        return []
+    items = [part.strip() for part in str(raw).split(';') if part.strip()]
+    if len(items) > MAX_WINDOWS:
+        raise ValueError('Too many windows')
+    windows = []
+    for item in items:
+        loc, sep, span = item.partition('@')
+        start, sep2, end = span.partition('/')
+        if not sep or not sep2 or not loc.strip().isdigit():
+            raise ValueError('Invalid window')
+        from_ts, to_ts = _parse_ts_arg(start), _parse_ts_arg(end)
+        if from_ts is None or to_ts is None or to_ts <= from_ts:
+            raise ValueError('Invalid window')
+        windows.append((int(loc), from_ts, to_ts))
+    return windows
+
+
 def _segment_access_sql(seg_alias='seg'):
     """(SQL condition, params) restricting segments to what the current user may
     see — the ACCESS baseline, always applied (not just the optional UI filter).
@@ -1869,6 +1901,16 @@ def _verification_queue_scope():
     if to_ts:
         det_conditions.append(f"{det_ts} < CAST(:to_ts AS timestamptz)")
         params['to_ts'] = to_ts
+    windows = _parse_windows_arg(request.args.get('windows'))
+    if windows:
+        # Any of the listed (location, window) pairs; combined with AND with the
+        # filters above, so it can only narrow the queue further.
+        parts = []
+        for i, (loc, w_from, w_to) in enumerate(windows):
+            parts.append(f"(r_det.location_id = :w_loc_{i} AND {det_ts} >= CAST(:w_from_{i} AS timestamptz)"
+                         f" AND {det_ts} < CAST(:w_to_{i} AS timestamptz))")
+            params.update({f'w_loc_{i}': loc, f'w_from_{i}': w_from, f'w_to_{i}': w_to})
+        det_conditions.append('(' + ' OR '.join(parts) + ')')
     if recording_scope is not None:
         from .gap_routes import _species_condition
         from .gap_analysis import SCORE_DECIMALS
@@ -5617,16 +5659,28 @@ def segment_window(lang_code):
 @pam_bp.route('/<lang_code>/api/pam/sample/plan-window', methods=['POST'])
 @_pam_manager_required
 def api_sample_plan_window(lang_code):
-    """The cutting plan for every not-yet-cut detection inside one window."""
-    from .pam_segment_sampling import plan_window_segments, MAX_WINDOW_SEGMENTS
+    """The cutting plan for every not-yet-cut detection inside one window.
+
+    With ``windows`` (``LOC@FROM/TO;...``, see ``_parse_windows_arg``) the plan
+    is the union over all listed windows, each cut at its own location, capped
+    at ``MAX_LIST_SEGMENTS``; without it the single-window behaviour is unchanged.
+    """
+    from .pam_segment_sampling import (plan_window_segments, MAX_WINDOW_SEGMENTS,
+                                       MAX_LIST_SEGMENTS)
     from .recording_scope import RecordingScope
 
     conn = None
     try:
         payload = request.get_json(silent=True) or {}
         species_name = (payload.get('species_name') or '').strip()
+        try:
+            windows = _parse_windows_arg(payload.get('windows'))
+        except ValueError as exc:
+            return jsonify({'success': False, 'error': str(exc)}), 400
         location_ids = [int(x) for x in (payload.get('location_ids') or [])
                         if str(x).strip().lstrip('-').isdigit()]
+        if windows:
+            location_ids = sorted({w[0] for w in windows})
         if not species_name or not location_ids:
             return jsonify({'success': False,
                             'error': 'species_name and location_ids are required'}), 400
@@ -5639,7 +5693,8 @@ def api_sample_plan_window(lang_code):
             to_ts = _parse_ts_arg(payload.get('to_ts'))
         except ValueError:
             return jsonify({'success': False, 'error': 'Invalid from_ts/to_ts'}), 400
-        if recording_scope is None and (from_ts is None or to_ts is None or to_ts <= from_ts):
+        if not windows and recording_scope is None and (
+                from_ts is None or to_ts is None or to_ts <= from_ts):
             return jsonify({'success': False,
                             'error': 'from_ts must be before to_ts'}), 400
 
@@ -5664,6 +5719,22 @@ def api_sample_plan_window(lang_code):
         model_id, _is_reference = _resolve_model_choice(requested_model_id)
         from .utils import get_model_conf_columns
         conf_column = get_model_conf_columns(conn).get(model_id, 'confidence')
+        if windows:
+            allowed_set, seen, segments = set(allowed), set(), []
+            for loc, w_from, w_to in windows:
+                if loc not in allowed_set or len(segments) >= MAX_LIST_SEGMENTS:
+                    continue
+                for seg in plan_window_segments(
+                        species_name=species_name, location_ids=[loc],
+                        from_ts=w_from, to_ts=w_to, confidence_threshold=conf_thr,
+                        conn=conn, model_id=model_id, conf_column=conf_column,
+                        max_rows=MAX_LIST_SEGMENTS - len(segments)):
+                    if seg['detection_id'] not in seen:
+                        seen.add(seg['detection_id'])
+                        segments.append(seg)
+            return jsonify({'success': True, 'count': len(segments),
+                            'model_id': model_id, 'limit': MAX_LIST_SEGMENTS,
+                            'windows': len(windows), 'segments': segments})
         segments = plan_window_segments(
             species_name=species_name,
             location_ids=allowed,

@@ -144,10 +144,20 @@
     // its location, and the window the map binned it into.
     const Q = new URLSearchParams(window.location.search);
     const SPECIES = Q.get('species') || '';
-    const LOCATION_IDS = (Q.get('location_ids') || '').split(',')
+    // Optional list of exact windows, one location each: LOC@FROM/TO;LOC@FROM/TO.
+    // One link then cuts a whole set (e.g. a study's truth set). Without it the
+    // page works on the single window as before.
+    const WINDOWS = (Q.get('windows') || '').trim();
+    const WINDOW_LIST = WINDOWS ? WINDOWS.split(';').map(w => w.trim()).filter(Boolean).map(w => {
+        const at = w.indexOf('@'), slash = w.indexOf('/', at);
+        return { loc: parseInt(w.slice(0, at), 10), from: w.slice(at + 1, slash), to: w.slice(slash + 1) };
+    }) : [];
+    const LOCATION_IDS = WINDOW_LIST.length
+        ? Array.from(new Set(WINDOW_LIST.map(w => w.loc))).filter(v => !isNaN(v))
+        : (Q.get('location_ids') || '').split(',')
                             .map(v => parseInt(v, 10)).filter(v => !isNaN(v));
-    const FROM_TS = Q.get('from_ts') || '';
-    const TO_TS = Q.get('to_ts') || '';
+    const FROM_TS = WINDOW_LIST.length ? WINDOW_LIST.map(w => w.from).sort()[0] : (Q.get('from_ts') || '');
+    const TO_TS = WINDOW_LIST.length ? WINDOW_LIST.map(w => w.to).sort().slice(-1)[0] : (Q.get('to_ts') || '');
     const MIN_CONF = Q.get('conf') || '';
     const SCOPE_LABEL = Q.get('scope_label') || '';
     const RECORDING_SCOPE = Object.fromEntries(
@@ -167,7 +177,8 @@
     const period = ATLAS_SCOPE
         ? [RECORDING_SCOPE.recording_from + ' … ' + RECORDING_SCOPE.recording_to,
             RECORDING_SCOPE.recording_months].filter(Boolean).join(' · ')
-        : shortTs(FROM_TS) + ' … ' + shortTs(TO_TS) + ' UTC';
+        : shortTs(FROM_TS) + ' … ' + shortTs(TO_TS) + ' UTC'
+          + (WINDOW_LIST.length ? ' · ' + WINDOW_LIST.length + ' {{ _("вікон") }}' : '');
     $('sw-scope').replaceChildren(scopeTitle, document.createElement('br'),
         period + (MIN_CONF ? ' · confidence ≥ ' + MIN_CONF : ''));
 
@@ -180,6 +191,8 @@
             for (const [key, value] of Object.entries(RECORDING_SCOPE)) params.set(key, value);
             params.set('scope_species_id', Q.get('species_id') || '');
             if (MIN_CONF) params.set('scope_conf', MIN_CONF);
+        } else if (WINDOWS) {
+            params.set('windows', WINDOWS);
         } else {
             params.set('from_ts', FROM_TS);
             params.set('to_ts', TO_TS);
@@ -207,6 +220,7 @@
                     location_ids: LOCATION_IDS,
                     from_ts: FROM_TS,
                     to_ts: TO_TS,
+                    ...(WINDOWS ? { windows: WINDOWS } : {}),
                     ...RECORDING_SCOPE,
                     confidence_threshold: MIN_CONF || 0,
                     model_id: ($('sw-model') || {}).value || null
