@@ -232,6 +232,7 @@ $(document).ready(function() {
     let previousSubmission = null;
     let editingSubmission = false;
     let busy = false;
+    const flaggedSegments = new Set();  // flagged in this visit: flag button stays locked.
 
     // --- Spectrogram padding config (matched to matplotlib axes). ---
     const SPECTROGRAM_PADDING_LEFT_PERCENT = 12.0;
@@ -437,12 +438,18 @@ $(document).ready(function() {
         loadNextSegment();
     });
 
-    // "Flag for re-review" (as in camera traps): mark the current segment
-    // with an optional comment and move to the next one. The flag does not
-    // count as a vote; it keeps the audio from the post-consensus cleanup
-    // until an admin removes it on the PAM admin page.
+    // "Flag for re-review": mark the current segment with an optional comment
+    // and STAY on it, so the verifier can still give their own answer or press
+    // Skip. The button is locked for that segment once it is flagged. The flag
+    // does not count as a vote; it keeps the audio from the post-consensus
+    // cleanup until an admin removes it on the PAM admin page.
+    function updateFlagButton() {
+        const flagged = !!currentSegment && flaggedSegments.has(currentSegment.segment_id);
+        $('#verify-flag').prop('disabled', busy || !currentSegment || flagged)
+            .toggleClass('active', flagged).attr('aria-pressed', String(flagged));
+    }
     $('#verify-flag').on('click', function() {
-        if (busy || !currentSegment) return;
+        if (busy || !currentSegment || flaggedSegments.has(currentSegment.segment_id)) return;
         const note = prompt({{ _('Коментар до позначки (за бажанням):') | tojson }});
         if (note === null) return;  // user cancelled.
         const segment = currentSegment;
@@ -453,14 +460,12 @@ $(document).ready(function() {
             contentType: 'application/json',
             headers: { 'X-CSRFToken': {{ csrf_token() | tojson }} },
             data: JSON.stringify({ note: note || '' }),
-        }).done(function() {
-            if (verificationSort.val() === 'benefit') {
-                skippedSegments.add(segment.segment_id);
-                if (skippedSegments.size > maxQueueSkips) {
-                    skippedSegments.delete(skippedSegments.values().next().value);
-                }
+        }).done(function(data) {
+            flaggedSegments.add(segment.segment_id);
+            updateFlagButton();
+            if (currentSegment === segment) {
+                showVerificationMessage(data?.message || {{ _('Сегмент позначено на повторний розгляд.') | tojson }}, 'success');
             }
-            loadNextSegment({advance: true});
         }).fail(function(xhr) {
             alert(xhr.responseJSON?.error || {{ _('Помилка позначення сегмента.') | tojson }});
         });
@@ -476,9 +481,10 @@ $(document).ready(function() {
 
     function setBusy(value) {
         busy = value;
-        loadSegmentBtn.add(verdictButtons).add('#verify-skip').add('#verify-flag')
+        loadSegmentBtn.add(verdictButtons).add('#verify-skip')
             .add(verificationSort).add(resetSkips).prop('disabled', busy);
         backButtons.prop('disabled', busy || !previousSubmission || editingSubmission);
+        updateFlagButton();
     }
 
     function reopenPreviousSubmission() {
@@ -815,6 +821,7 @@ $(document).ready(function() {
         // Reset boundary lines before loading a new segment.
         $('#region-start-line, #region-end-line').hide();
 
+        updateFlagButton();
         $('#verdict-species').text(segment.species_display_name);
         updateXenoCantoLink(segment.scientific_name);
         $('#segment-location').text(segment.location_name);
