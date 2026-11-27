@@ -783,6 +783,8 @@ $(document).ready(function() {
             segmentPanels.hide();
             currentSegment = null;
             playbackLine.hide();
+            // The previous segment keeps playing in the hidden panel otherwise.
+            stopAudio();
 
             if (xhr.status === 404) {
                 preferredSegment = null;
@@ -803,6 +805,17 @@ $(document).ready(function() {
      * gets a link to an empty search.
      * @param {string} scientificName - Latin binomial from the segment payload.
      */
+    /**
+     * Silence the player when no segment is on screen (queue ended or a load
+     * failed). Dropping the source also stops loop/autoplay from restarting it.
+     */
+    function stopAudio() {
+        audioPlayer.pause();
+        audioPlayer.loop = false;
+        audioPlayer.removeAttribute('src');
+        audioPlayer.load();
+    }
+
     function updateXenoCantoLink(scientificName) {
         const link = $('#segment-xc-link');
         if (!scientificName) {
