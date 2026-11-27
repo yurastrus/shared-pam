@@ -3374,13 +3374,17 @@ def api_create_pam_location(lang_code):
 
         conn = get_pam_db_connection()
         with conn.begin():
+            # New locations are private (visibility_level = 1), as in camera
+            # traps: anonymous visitors see only public locations, everyone
+            # else adds the locations of their own institutions. Until
+            # 2026-11-27 this was 0, which made every recorder public.
             result = conn.execute(text("""
                 INSERT INTO locations
                     (location_name, location_name_en, lat, lon, geom, visibility_level, state_province, created_at)
                 VALUES
                     (:name, :name_en, :lat, :lon,
                      ST_SetSRID(ST_MakePoint(:lon, :lat), 4326),
-                     0, :state_province, NOW())
+                     1, :state_province, NOW())
                 RETURNING location_id
             """), {
                 'name': name, 'name_en': name_en,
