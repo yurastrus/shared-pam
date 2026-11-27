@@ -1035,15 +1035,11 @@ def verification_interface(lang_code):
         # actually have PENDING segments (so we never offer an institution that
         # yields an empty queue). Mirrors the cascade endpoint's institution
         # query. Non-admins are further restricted to their own institutions.
-        inst_cond = ["seg.status = 'pending'"]
-        inst_params = {}
-        if not current_user.has_role('admin'):
-            allowed = pam_access.allowed_institution_ids(current_user)
-            if allowed:
-                inst_cond.append("i.id = ANY(:allowed)")
-                inst_params['allowed'] = allowed
-            else:
-                inst_cond.append("false")
+        # Since 2026-11-27 the list follows the same rule as every other PAM
+        # page: public locations plus the user's own institutions (it used to
+        # offer own institutions only, so volunteers got an empty list).
+        access_cond, inst_params = _segment_access_sql('seg')
+        inst_cond = ["seg.status = 'pending'", access_cond]
         inst_rows = conn.execute(text(f"""
             SELECT DISTINCT i.id, i.name_uk, i.name_en
             FROM segments seg
@@ -2471,8 +2467,6 @@ def api_verification_filter_options(lang_code):
         species_id = request.args.get('species_id', type=int)
         institution_ids = _parse_id_list(request.args.get('institution_ids', ''))
 
-        is_admin = current_user.has_role('admin')
-        allowed_inst = [] if is_admin else pam_access.allowed_institution_ids(current_user)
         acc_sql, acc_params = _segment_access_sql('seg')
 
         pending_conditions = ["seg.status = 'pending'", *sample_conditions]
@@ -2533,11 +2527,9 @@ def api_verification_filter_options(lang_code):
             inst_cond.append("seg.species_id IN (SELECT species_id FROM species WHERE "
                              + " AND ".join(tax_conditions) + ")")
             inst_params.update(tax_params)
-        if not is_admin:
-            if not allowed_inst:
-                return jsonify({**options, 'species': species, 'institutions': []})
-            inst_cond.append("i.id = ANY(:allowed)")
-            inst_params['allowed'] = allowed_inst
+        # Same access rule as the queue: public locations plus own institutions.
+        inst_cond.append(acc_sql)
+        inst_params.update(acc_params)
         inst_rows = conn.execute(text(f"""
             SELECT DISTINCT i.id, i.name_uk, i.name_en
             FROM segments seg
